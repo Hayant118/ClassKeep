@@ -1,7 +1,36 @@
 // src/components/BillingView.tsx
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  LineChart,
+  BarChart,
+  AreaChart,
+  PieChart,
+  Line,
+  Bar,
+  Area,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+import { DollarSign, TrendingUp, Calendar, CreditCard, Users } from 'lucide-react';
 import { useSessions } from '../hooks/useSessions';
+import { useEnrollments } from '../hooks/useEnrollments';
+import { usePayments } from '../hooks/usePayments';
+import { useBilling } from '../hooks/useBilling';
 import type { Session, Class, Student } from '../types';
+import type { BillingPeriod } from '../utils/billing';
+import {
+  formatCurrency,
+  formatCurrencyCompact,
+  getPeriods,
+  getSessionCharge,
+  isDateInPeriod,
+} from '../utils/billing';
 
 interface BillingViewProps {
   sessions?: Session[];
@@ -9,202 +38,538 @@ interface BillingViewProps {
   students: Student[];
 }
 
-const now = new Date();
+type TabKey = 'overview' | 'students' | 'classes';
+type TimeRange = 'monthly' | 'quarterly' | 'yearly';
+type ChartType = 'line' | 'bar' | 'area';
 
-function pad(n: number): string {
-  return String(n).padStart(2, '0');
+const CHART_COLORS = ['#6366f1', '#ec4899', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16'];
+
+interface SummaryCardProps {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  subtext?: string;
 }
 
-function getMonthName(month: number, year: number, locale = 'zh-CN'): string {
-  return new Date(year, month - 1, 1).toLocaleDateString(locale, { month: 'long' });
+function SummaryCard({ icon, label, value, subtext }: SummaryCardProps) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
+          {icon}
+        </div>
+        <div>
+          <div className="text-xs text-slate-500 dark:text-gray-400">{label}</div>
+          <div className="text-lg font-bold text-slate-900 dark:text-white">{value}</div>
+          {subtext && <div className="text-xs text-slate-500 dark:text-gray-400">{subtext}</div>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(amount);
+function getStudentClassIds(studentId: string, enrollments: Array<{ studentId: string; classId: string }>) {
+  return enrollments.filter((e) => e.studentId === studentId).map((e) => e.classId);
 }
 
-function getClassName(session: Session, classes: Class[]): string {
-  return classes.find(c => c.id === session.classId)?.name ?? 'Unknown';
+function sessionBelongsToStudent(
+  session: Session,
+  studentId: string,
+  classIds: string[]
+): boolean {
+  return session.studentId === studentId || (!!session.classId && classIds.includes(session.classId));
 }
 
-export function BillingView({ sessions: sessionsProp, classes, students: _students }: BillingViewProps) {
-  const { sessions: fetchedSessions, loading, error } = useSessions();
+function getStudentIncomeInPeriod(
+  studentId: string,
+  sessions: Session[],
+  enrollments: Array<{ studentId: string; classId: string }>,
+  period: BillingPeriod
+) {
+  const classIds = getStudentClassIds(studentId, enrollments);
+  return sessions
+    .filter(
+      (s) =>
+        s.status === 'completed' &&
+        sessionBelongsToStudent(s, studentId, classIds) &&
+        isDateInPeriod(s.actualDate || s.plannedDate, period)
+    )
+    .reduce((sum, s) => sum + getSessionCharge(s), 0);
+}
+
+function getStudentSessionCount(
+  studentId: string,
+  status: Session['status'],
+  sessions: Session[],
+  enrollments: Array<{ studentId: string; classId: string }>
+) {
+  const classIds = getStudentClassIds(studentId, enrollments);
+  return sessions.filter((s) => s.status === status && sessionBelongsToStudent(s, studentId, classIds)).length;
+}
+
+function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
+        <p className="text-xs text-slate-500 dark:text-gray-400">{label}</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(payload[0].value)}</p>
+      </div>
+    );
+  }
+  return null;
+}
+
+function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { percent?: number } }> }) {
+  if (active && payload && payload.length) {
+    const p = payload[0];
+    const percent = p.payload.percent ? Math.round(p.payload.percent * 100) : 0;
+    return (
+      <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{p.name}</p>
+        <p className="text-xs text-slate-500 dark:text-gray-400">
+          {formatCurrency(p.value)} ({percent}%)
+        </p>
+      </div>
+    );
+  }
+  return null;
+}
+
+function StudentTooltip({ active, payload }: { active?: boolean; payload?: Array<{ value: number; payload: { month: string } }> }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
+        <p className="text-xs text-slate-500 dark:text-gray-400">{payload[0].payload.month}</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(payload[0].value)}</p>
+      </div>
+    );
+  }
+  return null;
+}
+
+export function BillingView({ sessions: sessionsProp, classes, students }: BillingViewProps) {
+  const { sessions: fetchedSessions, loading: sessionsLoading, error: sessionsError } = useSessions();
+  const { enrollments, loading: enrollmentsLoading } = useEnrollments();
+  const { payments, fetchPayments, loading: paymentsLoading } = usePayments();
+
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
+  const [chartType, setChartType] = useState<ChartType>('line');
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchPayments();
+  }, [fetchPayments]);
+
   const sessions = sessionsProp ?? fetchedSessions;
 
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
+  const { summary, studentMetrics, classMetrics, monthlyIncome, quarterlyIncome, yearlyIncome } =
+    useBilling(sessions, students, classes, enrollments, payments);
 
-  const prefix = useMemo(() => `${year}-${pad(month)}`, [month, year]);
+  const trendData = useMemo(() => {
+    if (timeRange === 'monthly') {
+      return monthlyIncome.slice(-12).map((item) => ({ label: item.month, income: item.income }));
+    }
+    if (timeRange === 'quarterly') {
+      return quarterlyIncome.slice(-12).map((item) => ({ label: item.quarter, income: item.income }));
+    }
+    return yearlyIncome.slice(-12).map((item) => ({ label: item.year, income: item.income }));
+  }, [timeRange, monthlyIncome, quarterlyIncome, yearlyIncome]);
 
-  const filteredSessions = useMemo(
-    () =>
-      sessions.filter(
-        (s) =>
-          s.actualDate?.startsWith(prefix) &&
-          (s.status === 'completed' || s.isAdditional === true)
-      ),
-    [sessions, prefix]
+  const pieData = useMemo(() => {
+    const periods = getPeriods();
+    const period = timeRange === 'monthly' ? periods.month : timeRange === 'quarterly' ? periods.quarter : periods.year;
+    return students
+      .map((student) => {
+        const income = getStudentIncomeInPeriod(student.id, sessions, enrollments, period);
+        return {
+          name: student.name,
+          value: income,
+          color: student.color,
+        };
+      })
+      .filter((d) => d.value > 0);
+  }, [timeRange, sessions, students, enrollments]);
+
+  const selectedStudent = useMemo(
+    () => studentMetrics.find((m) => m.studentId === selectedStudentId) || null,
+    [studentMetrics, selectedStudentId]
   );
 
-  const stats = useMemo(() => {
-    const totalIncome = filteredSessions.reduce((sum, s) => sum + (s.totalCharge ?? 0), 0);
-    const onlineCount = filteredSessions.filter(s => s.isOnline).length;
-    const f2fCount = filteredSessions.length - onlineCount;
-    const totalHours = filteredSessions.reduce((sum, s) => sum + s.durationMinutes / 60, 0);
-    const avgRate = filteredSessions.length > 0 ? totalIncome / filteredSessions.length : 0;
-    return { totalIncome, onlineCount, f2fCount, totalHours, avgRate };
-  }, [filteredSessions]);
+  const isLoading = sessionsLoading || enrollmentsLoading || paymentsLoading;
 
-  const pastMonths = useMemo(() => {
-    const set = new Set<string>();
-    for (const s of sessions) {
-      if (s.status === 'completed' || s.isAdditional) {
-        if (s.actualDate) set.add(s.actualDate.slice(0, 7));
-      }
-    }
-    return Array.from(set)
-      .map((ym) => {
-        const [y, m] = ym.split('-').map(Number);
-        return { year: y, month: m, key: ym, label: `${getMonthName(m, y)} ${y}` };
-      })
-      .sort((a, b) => b.key.localeCompare(a.key));
-  }, [sessions]);
-
-  const currentYear = now.getFullYear();
-  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
-
-  if (loading) {
-    return <div className="p-8 text-center text-slate-500">Loading sessions...</div>;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-slate-500 dark:text-gray-400">Loading billing data...</div>
+      </div>
+    );
   }
 
-  if (error) {
-    return <div className="p-4 rounded-lg bg-red-50 text-red-600 text-sm">Error loading sessions: {error}</div>;
+  if (sessionsError) {
+    return (
+      <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+        Error loading sessions: {sessionsError}
+      </div>
+    );
   }
+
+  const tabButtonClass = (tab: TabKey) =>
+    `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+      activeTab === tab
+        ? 'bg-indigo-600 text-white'
+        : 'bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-400 border border-slate-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-700'
+    }`;
+
+  const toggleButtonClass = (active: boolean) =>
+    `px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+      active
+        ? 'bg-indigo-600 text-white'
+        : 'bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-400 border border-slate-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-700'
+    }`;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 className="text-lg font-semibold text-slate-800">Billing</h2>
-        <div className="flex items-center gap-2">
-          <select
-            value={month}
-            onChange={(e) => setMonth(parseInt(e.target.value, 10))}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>
-                {getMonthName(m, year)}
-              </option>
-            ))}
-          </select>
-          <select
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value, 10))}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Billing</h2>
+        <p className="text-sm text-slate-500 dark:text-gray-400">Income tracking and analytics</p>
       </div>
 
-      {filteredSessions.length === 0 ? (
-        <div className="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
-          No completed sessions for {getMonthName(month, year)} {year}
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-              <div className="text-xs text-slate-500">Total Income</div>
-              <div className="text-xl font-bold text-slate-900 mt-1">{formatCurrency(stats.totalIncome)}</div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <SummaryCard
+          icon={<DollarSign className="w-5 h-5" />}
+          label="This Month"
+          value={formatCurrency(summary.totalIncomeThisMonth)}
+          subtext="Completed sessions"
+        />
+        <SummaryCard
+          icon={<TrendingUp className="w-5 h-5" />}
+          label="This Quarter"
+          value={formatCurrency(summary.totalIncomeThisQuarter)}
+        />
+        <SummaryCard
+          icon={<Calendar className="w-5 h-5" />}
+          label="Total Sessions"
+          value={summary.totalSessions}
+          subtext={`${summary.completedSessions} completed, ${summary.cancelledSessions} cancelled`}
+        />
+        <SummaryCard
+          icon={<CreditCard className="w-5 h-5" />}
+          label="Prepaid Balance Outstanding"
+          value={formatCurrency(summary.outstandingPrepaid)}
+        />
+      </div>
+
+      {/* Tab Bar */}
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setActiveTab('overview')} className={tabButtonClass('overview')}>
+          Overview
+        </button>
+        <button type="button" onClick={() => setActiveTab('students')} className={tabButtonClass('students')}>
+          Students
+        </button>
+        <button type="button" onClick={() => setActiveTab('classes')} className={tabButtonClass('classes')}>
+          Classes
+        </button>
+      </div>
+
+      {/* Overview Tab */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Controls */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-gray-800 p-1 rounded-lg">
+              {(['monthly', 'quarterly', 'yearly'] as TimeRange[]).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setTimeRange(r)}
+                  className={toggleButtonClass(timeRange === r)}
+                >
+                  {r.charAt(0).toUpperCase() + r.slice(1)}
+                </button>
+              ))}
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-              <div className="text-xs text-slate-500">Sessions</div>
-              <div className="text-xl font-bold text-slate-900 mt-1">{filteredSessions.length}</div>
-              <div className="text-xs text-slate-500 mt-1">
-                {stats.onlineCount} online, {stats.f2fCount} face-to-face
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-              <div className="text-xs text-slate-500">Hours</div>
-              <div className="text-xl font-bold text-slate-900 mt-1">{stats.totalHours.toFixed(1)}</div>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-              <div className="text-xs text-slate-500">Average Rate</div>
-              <div className="text-xl font-bold text-slate-900 mt-1">{formatCurrency(stats.avgRate)}</div>
-              <div className="text-xs text-slate-500 mt-1">/ session</div>
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-gray-800 p-1 rounded-lg">
+              {(['line', 'bar', 'area'] as ChartType[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setChartType(t)}
+                  className={toggleButtonClass(chartType === t)}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-200 text-sm font-semibold text-slate-700">
-              Session details
+          {trendData.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700">
+              No income data for the selected period.
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">Date</th>
-                    <th className="px-4 py-2 font-medium">Class</th>
-                    <th className="px-4 py-2 font-medium">Time</th>
-                    <th className="px-4 py-2 font-medium">Duration</th>
-                    <th className="px-4 py-2 font-medium">Status</th>
-                    <th className="px-4 py-2 font-medium text-right">Charge</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredSessions
-                    .slice()
-                    .sort((a, b) => (a.actualDate ?? '').localeCompare(b.actualDate ?? ''))
-                    .map((session) => (
-                      <tr key={session.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 whitespace-nowrap">{session.actualDate}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{getClassName(session, classes)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{(session.actualTime ?? session.plannedTime).slice(0, 5)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{session.durationMinutes} min</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className="capitalize">{session.status}</span>
-                          {session.isAdditional && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                              Additional
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-right">{formatCurrency(session.totalCharge ?? 0)}</td>
-                      </tr>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-4">Income Trend</h3>
+              <ResponsiveContainer width="100%" height={250}>
+                {chartType === 'line' ? (
+                  <LineChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <YAxis tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <Tooltip content={<TrendTooltip />} />
+                    <Line
+                      type="monotone"
+                      dataKey="income"
+                      stroke="#6366f1"
+                      strokeWidth={2}
+                      dot={{ r: 4, fill: '#6366f1' }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                ) : chartType === 'bar' ? (
+                  <BarChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <YAxis tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <Tooltip content={<TrendTooltip />} />
+                    <Bar dataKey="income" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                ) : (
+                  <AreaChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <YAxis tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <Tooltip content={<TrendTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="income"
+                      stroke="#6366f1"
+                      fill="#6366f1"
+                      fillOpacity={0.2}
+                    />
+                  </AreaChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {pieData.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700">
+              No student income data for the selected period.
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-4">Income by Student</h3>
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={2}
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color || CHART_COLORS[index % CHART_COLORS.length]} />
                     ))}
-                </tbody>
-              </table>
+                  </Pie>
+                  <Tooltip content={<PieTooltip />} />
+                  <Legend verticalAlign="bottom" height={36} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-        </>
+          )}
+        </div>
       )}
 
-      {pastMonths.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-sm font-semibold text-slate-700 mb-2">Past Schedules</div>
-          <ul className="space-y-1">
-            {pastMonths
-              .filter((m) => m.key !== prefix)
-              .map((m) => (
-                <li key={m.key}>
+      {/* Students Tab */}
+      {activeTab === 'students' && (
+        <div className="space-y-4">
+          {selectedStudent ? (
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={() => setSelectedStudentId(null)}
+                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                ← Back to students
+              </button>
+
+              {(() => {
+                const periods = getPeriods();
+                const thisMonth = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, periods.month);
+                const thisQuarter = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, periods.quarter);
+                const thisYear = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, periods.year);
+                const completedCount = getStudentSessionCount(selectedStudent.studentId, 'completed', sessions, enrollments);
+                const cancelledCount = getStudentSessionCount(selectedStudent.studentId, 'cancelled', sessions, enrollments);
+                const studentEnrollments = enrollments.filter((e) => e.studentId === selectedStudent.studentId);
+                const prepaidBalance = studentEnrollments
+                  .filter((e) => e.paymentType === 'prepaid')
+                  .reduce((sum, e) => sum + e.prepaidBalance, 0);
+
+                return (
+                  <>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-4 h-4 rounded-full"
+                        style={{ backgroundColor: selectedStudent.color || '#6366f1' }}
+                      />
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white">{selectedStudent.studentName}</h3>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <SummaryCard icon={<DollarSign className="w-5 h-5" />} label="This Month" value={formatCurrency(thisMonth)} />
+                      <SummaryCard icon={<TrendingUp className="w-5 h-5" />} label="This Quarter" value={formatCurrency(thisQuarter)} />
+                      <SummaryCard icon={<Calendar className="w-5 h-5" />} label="This Year" value={formatCurrency(thisYear)} />
+                      <SummaryCard icon={<CreditCard className="w-5 h-5" />} label="All Time" value={formatCurrency(selectedStudent.income)} />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm text-center">
+                        <div className="text-xs text-slate-500 dark:text-gray-400">Completed</div>
+                        <div className="text-xl font-bold text-slate-900 dark:text-white">{completedCount}</div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm text-center">
+                        <div className="text-xs text-slate-500 dark:text-gray-400">Cancelled</div>
+                        <div className="text-xl font-bold text-slate-900 dark:text-white">{cancelledCount}</div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm text-center">
+                        <div className="text-xs text-slate-500 dark:text-gray-400">Avg Rate</div>
+                        <div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedStudent.averageRate)}</div>
+                      </div>
+                    </div>
+
+                    {prepaidBalance > 0 && (
+                      <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
+                        Prepaid balance outstanding: {formatCurrency(prepaidBalance)}
+                      </div>
+                    )}
+
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
+                      <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-4">6-Month Trend</h3>
+                      {selectedStudent.trend.every((t) => t.income === 0) ? (
+                        <div className="p-8 text-center text-slate-500 dark:text-gray-400">No recent income data.</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={200}>
+                          <BarChart data={selectedStudent.trend}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis dataKey="month" tickFormatter={(v) => v.slice(5)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                            <YAxis tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                            <Tooltip content={<StudentTooltip />} />
+                            <Bar dataKey="income" fill={selectedStudent.color || '#6366f1'} radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          ) : studentMetrics.length === 0 ? (
+            <div className="p-10 text-center bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700">
+              <Users className="w-10 h-10 text-slate-300 dark:text-gray-600 mx-auto mb-3" />
+              <p className="text-slate-500 dark:text-gray-400">No students yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {studentMetrics.map((metric) => {
+                const periods = getPeriods();
+                const thisMonthIncome = getStudentIncomeInPeriod(metric.studentId, sessions, enrollments, periods.month);
+                const hasPrepaid = enrollments.some(
+                  (e) => e.studentId === metric.studentId && e.paymentType === 'prepaid'
+                );
+
+                return (
                   <button
+                    key={metric.studentId}
                     type="button"
-                    onClick={() => {
-                      setMonth(m.month);
-                      setYear(m.year);
-                    }}
-                    className="text-sm text-indigo-600 hover:text-indigo-700 hover:underline"
+                    onClick={() => setSelectedStudentId(metric.studentId)}
+                    className="text-left bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm hover:shadow-md transition-shadow"
                   >
-                    {m.label}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: metric.color || '#6366f1' }}
+                      />
+                      <span className="font-semibold text-slate-900 dark:text-white">{metric.studentName}</span>
+                      {hasPrepaid && (
+                        <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                          Prepaid
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">This Month</div>
+                        <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(thisMonthIncome)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">Sessions</div>
+                        <div className="font-semibold text-slate-900 dark:text-white">{metric.sessionCount}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">Avg Rate</div>
+                        <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(metric.averageRate)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs text-slate-500 dark:text-gray-400">
+                      All-time income: {formatCurrency(metric.income)}
+                    </div>
                   </button>
-                </li>
-              ))}
-          </ul>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Classes Tab */}
+      {activeTab === 'classes' && (
+        <div className="space-y-4">
+          {classMetrics.length === 0 ? (
+            <div className="p-10 text-center bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700">
+              <Calendar className="w-10 h-10 text-slate-300 dark:text-gray-600 mx-auto mb-3" />
+              <p className="text-slate-500 dark:text-gray-400">No classes yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {classMetrics.map((metric) => {
+                const studentCount = enrollments.filter((e) => e.classId === metric.classId).length;
+                return (
+                  <div
+                    key={metric.classId}
+                    className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: metric.color || '#6366f1' }}
+                      />
+                      <span className="font-semibold text-slate-900 dark:text-white">{metric.className}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">Total Income</div>
+                        <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(metric.income)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">Sessions</div>
+                        <div className="font-semibold text-slate-900 dark:text-white">{metric.sessionCount}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">Students</div>
+                        <div className="font-semibold text-slate-900 dark:text-white">{studentCount}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

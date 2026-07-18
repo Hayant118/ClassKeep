@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Student } from '../types';
+import { assignColor, assignFamilyShade, normalizeColor } from '../utils/colors';
 
 function fromDb(row: Record<string, unknown>): Student {
   return {
@@ -12,6 +13,7 @@ function fromDb(row: Record<string, unknown>): Student {
     defaultRate: (row.default_rate as number) ?? 0,
     timezone: (row.timezone as string) ?? 'Asia/Shanghai',
     color: (row.color as string | undefined) ?? undefined,
+    familyGroup: (row.family_group as string | undefined) ?? undefined,
     notes: (row.notes as string) ?? '',
     createdAt: row.created_at as string,
   };
@@ -24,6 +26,7 @@ function toDb(student: Partial<Student>): Record<string, unknown> {
   if (student.defaultRate !== undefined) map.default_rate = student.defaultRate;
   if (student.timezone !== undefined) map.timezone = student.timezone;
   if (student.color !== undefined) map.color = student.color;
+  if (student.familyGroup !== undefined) map.family_group = student.familyGroup;
   if (student.notes !== undefined) map.notes = student.notes;
   return map;
 }
@@ -60,8 +63,28 @@ export function useStudents() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('Not authenticated');
 
+    // Auto-assign a color if one wasn't provided.
+    let color = normalizeColor(student.color);
+    if (!color) {
+      if (student.familyGroup) {
+        const sibling = students.find(
+          (s) => s.familyGroup === student.familyGroup && s.color
+        );
+        if (sibling?.color) {
+          const existingShades = students
+            .filter((s) => s.familyGroup === student.familyGroup)
+            .map((s) => s.color);
+          color = assignFamilyShade(sibling.color, existingShades);
+        }
+      }
+      if (!color) {
+        color = assignColor(students.map((s) => s.color));
+      }
+    }
+
     const payload = {
       ...toDb(student),
+      color,
       user_id: userData.user.id,
     };
 

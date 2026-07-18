@@ -7,7 +7,8 @@ function fromDb(row: Record<string, unknown>): Session {
   return {
     id: row.id as string,
     userId: row.user_id as string,
-    classId: (row.class_id as string) ?? '',
+    classId: (row.class_id as string | undefined) ?? undefined,
+    studentId: (row.student_id as string | undefined) ?? undefined,
     plannedDate: row.planned_date as string,
     plannedTime: row.planned_time as string,
     actualDate: (row.actual_date as string | null) ?? null,
@@ -26,7 +27,8 @@ function fromDb(row: Record<string, unknown>): Session {
 
 function toDb(s: Partial<Session>): Record<string, unknown> {
   const map: Record<string, unknown> = {};
-  if (s.classId !== undefined) map.class_id = s.classId;
+  if (s.classId !== undefined) map.class_id = s.classId ?? null;
+  if (s.studentId !== undefined) map.student_id = s.studentId ?? null;
   if (s.plannedDate !== undefined) map.planned_date = s.plannedDate;
   if (s.plannedTime !== undefined) map.planned_time = s.plannedTime;
   if (s.actualDate !== undefined) map.actual_date = s.actualDate;
@@ -82,6 +84,7 @@ export function useSessions() {
   const addSession = async (session: Omit<Session, 'id' | 'userId' | 'createdAt'>) => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('Not authenticated');
+    if (!session.classId) throw new Error('Please select a class');
 
     const payload = {
       ...toDb(session),

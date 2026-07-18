@@ -134,16 +134,22 @@ export function StudentDetailView() {
   const studentSessions = useMemo(() => {
     const classIds = new Set(studentEnrollments.map((e) => e.classId));
     return sessions
-      .filter((s) => classIds.has(s.classId))
+      .filter((s) => classIds.has(s.classId ?? '') || s.studentId === student?.id)
       .sort((a, b) => b.plannedDate.localeCompare(a.plannedDate) || a.plannedTime.localeCompare(b.plannedTime));
-  }, [sessions, studentEnrollments]);
+  }, [sessions, studentEnrollments, student]);
 
   const upcomingSessions = useMemo(
     () => studentSessions.filter((s) => s.plannedDate >= todayStr()),
     [studentSessions]
   );
 
-  const getClass = (classId: string): Class | undefined => classes.find((c) => c.id === classId);
+  const getClass = (classId: string | undefined): Class | undefined =>
+    classId ? classes.find((c) => c.id === classId) : undefined;
+
+  const getSessionLabel = (session: Session): string => {
+    if (session.classId) return getClass(session.classId)?.name ?? 'Class';
+    return 'Individual';
+  };
 
   const handleUpdateStudent = async (updates: Partial<Student>) => {
     if (!student) return;
@@ -456,7 +462,7 @@ export function StudentDetailView() {
                       {statusBadge(session.status)}
                     </div>
                     <div className="text-sm text-slate-500 mt-1">
-                      {getClass(session.classId)?.name} • {session.durationMinutes}m
+                      {getSessionLabel(session)} • {session.durationMinutes}m
                     </div>
                   </button>
                 ))}
@@ -547,7 +553,7 @@ export function StudentDetailView() {
                     >
                       <td className="px-4 py-3 whitespace-nowrap">{formatDate(session.plannedDate)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{session.plannedTime}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{getClass(session.classId)?.name}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{getSessionLabel(session)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{session.durationMinutes}m</td>
                       <td className="px-4 py-3 whitespace-nowrap">{statusBadge(session.status)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-right">

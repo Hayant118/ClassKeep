@@ -39,3 +39,26 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Push: placeholder for future browser notifications.
+self.addEventListener('push', (event) => {
+  // eslint-disable-next-line no-console
+  console.log('[ClassKeep SW] Push received:', event);
+
+  let data = { title: 'ClassKeep', body: 'You have a new notification.' };
+  try {
+    if (event.data) {
+      data = event.data.json();
+    }
+  } catch {
+    // Use defaults if payload parsing fails.
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/android-chrome-192x192.png',
+      badge: '/android-chrome-192x192.png',
+    })
+  );
+});

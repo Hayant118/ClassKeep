@@ -49,10 +49,13 @@ export function Calendar({ students, classes, enrollments = [], onResolveClassFo
     return map;
   }, [enrollments]);
 
-  // Filter sessions by selected students (via class enrollments)
+  // Filter sessions by selected students (via class enrollments or direct student link)
   const filteredSessions = useMemo(() => {
     return sessions.filter((session) => {
-      const classStudentIds = classToStudents.get(session.classId) || [];
+      if (session.studentId) {
+        return selectedStudentIds.has(session.studentId);
+      }
+      const classStudentIds = session.classId ? classToStudents.get(session.classId) || [] : [];
       return classStudentIds.some((sid) => selectedStudentIds.has(sid));
     });
   }, [sessions, classToStudents, selectedStudentIds]);

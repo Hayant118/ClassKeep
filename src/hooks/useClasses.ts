@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Class } from '../types';
+import { assignColor, normalizeColor } from '../utils/colors';
 
 function fromDb(row: Record<string, unknown>): Class {
   return {
@@ -22,6 +23,7 @@ function toDb(cls: Partial<Class>): Record<string, unknown> {
   if (cls.name !== undefined) map.name = cls.name;
   if (cls.type !== undefined) map.type = cls.type;
   if (cls.maxCapacity !== undefined) map.max_capacity = cls.maxCapacity;
+  if (cls.color !== undefined) map.color = cls.color;
   if (cls.textbook !== undefined) map.textbook = cls.textbook;
   if (cls.currentUnit !== undefined) map.current_unit = cls.currentUnit;
   return map;
@@ -59,8 +61,12 @@ export function useClasses() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('Not authenticated');
 
+    // Auto-assign a color if one wasn't provided.
+    const color = normalizeColor(cls.color) ?? assignColor(classes.map((c) => c.color));
+
     const payload = {
       ...toDb(cls),
+      color,
       user_id: userData.user.id,
     };
 

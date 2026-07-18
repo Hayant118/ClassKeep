@@ -63,7 +63,13 @@ function generateDraftId(): string {
   return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function getPrimaryStudentId(classId: string, enrollments: Enrollment[]): string | undefined {
+function getPrimaryStudentId(
+  classId: string | undefined,
+  studentId: string | undefined,
+  enrollments: Enrollment[]
+): string | undefined {
+  if (studentId) return studentId;
+  if (!classId) return undefined;
   const enrollment = enrollments.find(e => e.classId === classId && e.status === 'active');
   return enrollment?.studentId;
 }
@@ -196,7 +202,7 @@ export function ProposalEditor() {
     payload: Omit<Session, 'id' | 'userId' | 'createdAt'>,
     id?: string
   ): Record<string, unknown> => {
-    const studentId = getPrimaryStudentId(payload.classId, enrollments);
+    const studentId = getPrimaryStudentId(payload.classId, payload.studentId, enrollments);
     return sessionPayloadToDraftSession(payload, { id: id ?? generateDraftId(), studentId }) as Record<
       string,
       unknown

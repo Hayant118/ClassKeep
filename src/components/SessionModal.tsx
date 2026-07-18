@@ -37,7 +37,9 @@ const DURATION_OPTIONS = [30, 60, 90, 120, 150];
 interface ChargeInput {
   rateMode: Session['rateMode'];
   rateValue: number | null;
-  classId: string;
+  classId?: string;
+  studentId?: string;
+  durationMinutes: number;
   students: Student[];
   enrollments: Enrollment[];
 }
@@ -46,24 +48,44 @@ function computeSessionCharge({
   rateMode,
   rateValue,
   classId,
+  studentId,
+  durationMinutes,
   students,
   enrollments,
 }: ChargeInput): number {
-  if ((rateMode === 'override' || rateMode === 'flat') && rateValue != null) {
+  const hours = durationMinutes / 60;
+
+  if (rateMode === 'flat' && rateValue != null) {
     return rateValue;
   }
-  const enrollment = enrollments.find((e) => e.classId === classId && e.status === 'active');
-  if (enrollment?.customRate != null) return enrollment.customRate;
-  const student = enrollment ? students.find((s) => s.id === enrollment.studentId) : undefined;
-  return student?.defaultRate ?? 0;
+
+  if (rateMode === 'override' && rateValue != null) {
+    return rateValue * hours;
+  }
+
+  if (classId) {
+    const enrollment = enrollments.find((e) => e.classId === classId && e.status === 'active');
+    const rate =
+      enrollment?.customRate ??
+      (enrollment ? students.find((s) => s.id === enrollment.studentId)?.defaultRate : null) ??
+      0;
+    return rate * hours;
+  }
+
+  if (studentId) {
+    const student = students.find((s) => s.id === studentId);
+    return (student?.defaultRate ?? 0) * hours;
+  }
+
+  return 0;
 }
 
 async function decrementPrepaidBalance(
-  classId: string,
+  classId: string | undefined,
   charge: number,
   enrollments: Enrollment[]
 ) {
-  if (charge <= 0) return;
+  if (!classId || charge <= 0) return;
   const enrollment = enrollments.find((e) => e.classId === classId && e.status === 'active');
   if (!enrollment || enrollment.paymentType !== 'prepaid') return;
 
@@ -90,7 +112,7 @@ export function SessionModal({
   classes,
   enrollments = [],
   isDraft = false,
-  onResolveClassForStudent,
+  onResolveClassForStudent: _onResolveClassForStudent,
   onSave,
   onUpdate,
   onDelete,
@@ -129,8 +151,8 @@ export function SessionModal({
     if (!isOpen) return;
 
     if (session) {
-      setClassId(session.classId);
-      setStudentId('');
+      setClassId(session.classId ?? '');
+      setStudentId(session.studentId ?? '');
       setDate(session.plannedDate);
       setTime(session.plannedTime);
       const preset = DURATION_OPTIONS.includes(session.durationMinutes);
@@ -142,8 +164,7 @@ export function SessionModal({
       setNotes(session.notes);
       setStatus(session.status);
     } else {
-      const firstClass = classes[0];
-      setClassId(firstClass?.id ?? '');
+      setClassId('');
       setStudentId('');
       setDate(isValidDateString(initialDate || '') ? initialDate || todayKey() : todayKey());
       setTime(isValidTimeString(initialTime || '') ? initialTime || '09:00' : '09:00');
@@ -155,7 +176,7 @@ export function SessionModal({
       setNotes('');
       setStatus('scheduled');
     }
-  }, [isOpen, session, initialDate, initialTime, classes]);
+  }, [isOpen, session, initialDate, initialTime, classes, students]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,19 +186,9 @@ export function SessionModal({
       return;
     }
 
-    let resolvedClassId = classId;
-
-    if (!resolvedClassId && studentId) {
-      if (!onResolveClassForStudent) {
-        toast.error('Student-only sessions are not supported here');
-        return;
-      }
-      try {
-        resolvedClassId = await onResolveClassForStudent(studentId);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Could not create class for student');
-        return;
-      }
+    if (classId && studentId) {
+      toast.error('Please select either a class or a student, not both');
+      return;
     }
 
     const finalDuration = durationMode === 'preset' ? duration : customDuration;
@@ -198,13 +209,16 @@ export function SessionModal({
     const charge = computeSessionCharge({
       rateMode,
       rateValue: finalRateValue,
-      classId: resolvedClassId,
+      classId: classId || undefined,
+      studentId: studentId || undefined,
+      durationMinutes: finalDuration,
       students,
       enrollments,
     });
 
     const payload = {
-      classId: resolvedClassId,
+      classId: classId || undefined,
+      studentId: studentId || undefined,
       plannedDate: date,
       plannedTime: time,
       actualDate: nowCompleted ? (session?.actualDate ?? date) : (session?.actualDate ?? null),
@@ -227,7 +241,7 @@ export function SessionModal({
       }
 
       if (!isDraft && nowCompleted && !wasCompleted) {
-        await decrementPrepaidBalance(resolvedClassId, charge, enrollments);
+        await decrementPrepaidBalance(classId || undefined, charge, enrollments);
       }
 
       onClose();
@@ -262,34 +276,47 @@ export function SessionModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Class</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Class (group)</label>
             <select
               value={classId}
-              onChange={(e) => setClassId(e.target.value)}
+              onChange={(e) => {
+                setClassId(e.target.value);
+                if (e.target.value) setStudentId('');
+              }}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <option value="">{classes.length > 0 ? 'Select a class (optional)' : 'No classes'}</option>
-              {classes.map((cls) => (
-                <option key={cls.id} value={cls.id}>{cls.name}</option>
-              ))}
+              <option value="">{classes.length > 0 ? 'Select a class' : 'No classes'}</option>
+              {classes
+                .filter((cls) => cls.id)
+                .map((cls) => (
+                  <option key={cls.id} value={cls.id}>{cls.name}</option>
+                ))}
             </select>
           </div>
 
-          {!session && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Or select a student</label>
-              <select
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">{students.length > 0 ? 'Select a student (optional)' : 'No students'}</option>
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+          <div className="relative text-center text-xs text-slate-400">
+            <span className="relative z-10 bg-white px-2">or</span>
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200" />
             </div>
-          )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Student (one-on-one)</label>
+            <select
+              value={studentId}
+              onChange={(e) => {
+                setStudentId(e.target.value);
+                if (e.target.value) setClassId('');
+              }}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">{students.length > 0 ? 'Select a student' : 'No students'}</option>
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
 
           {selectedClass && classStudentNames && (
             <div className="text-xs text-slate-500">

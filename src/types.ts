@@ -7,6 +7,7 @@ export interface Student {
   defaultRate: number;
   timezone: string;
   color?: string;
+  familyGroup?: string;
   notes: string;
   createdAt: string;
 }
@@ -39,7 +40,8 @@ export interface Enrollment {
 export interface Session {
   id: string;
   userId: string;
-  classId: string;
+  classId?: string;
+  studentId?: string;
   plannedDate: string;      // YYYY-MM-DD
   plannedTime: string;      // HH:MM
   actualDate: string | null;
@@ -100,6 +102,39 @@ export interface Payment {
   paymentDate: string;
   paymentMethod: string;
   notes: string;
+  createdAt: string;
+}
+
+export interface Reminder {
+  id: string;
+  user_id: string;
+  type: 'pre_class' | 'low_balance' | 'unreviewed' | 'daily_digest';
+  reference_id?: string;
+  title: string;
+  body?: string;
+  scheduled_at?: string;
+  dismissed_at?: string;
+  created_at: string;
+}
+
+export interface ReminderSettings {
+  id: string;
+  userId: string;
+  preClassEnabled: boolean;
+  preClassMinutes: number;
+  lowBalanceEnabled: boolean;
+  lowBalanceThreshold: number;
+  unreviewedEnabled: boolean;
+  dailyDigestEnabled: boolean;
+  dailyDigestTime: string;
+  browserNotificationsEnabled: boolean;
+  updatedAt: string;
+}
+
+export interface Review {
+  id: string;
+  userId: string;
+  sessionId: string;
   createdAt: string;
 }
 

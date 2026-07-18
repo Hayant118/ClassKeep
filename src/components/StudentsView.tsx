@@ -6,6 +6,7 @@ import { useClasses } from '../hooks/useClasses';
 import { useEnrollments } from '../hooks/useEnrollments';
 import type { Student, Class } from '../types';
 import { DEFAULT_TIMEZONE } from '../utils/timezone';
+import { CURATED_PALETTE, normalizeColor } from '../utils/colors';
 
 const COMMON_TIMEZONES = [
   'Asia/Shanghai',
@@ -38,6 +39,9 @@ export function StudentsView() {
   const [defaultRate, setDefaultRate] = useState('');
   const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
   const [notes, setNotes] = useState('');
+  const [color, setColor] = useState('');
+  const [familyGroup, setFamilyGroup] = useState('');
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Class form state
@@ -56,6 +60,9 @@ export function StudentsView() {
     setDefaultRate('');
     setTimezone(DEFAULT_TIMEZONE);
     setNotes('');
+    setColor('');
+    setFamilyGroup('');
+    setShowColorPicker(false);
     setEditingId(null);
   };
 
@@ -66,23 +73,25 @@ export function StudentsView() {
     const rate = parseFloat(defaultRate);
 
     try {
+      const normalizedColor = normalizeColor(color.trim());
+      const updates: Partial<Student> = {
+        name: name.trim(),
+        contact: contact.trim(),
+        defaultRate: isNaN(rate) ? 0 : rate,
+        timezone,
+        notes: notes.trim(),
+        familyGroup: familyGroup.trim() || undefined,
+      };
+      if (normalizedColor) updates.color = normalizedColor;
+
       if (editingId) {
-        await updateStudent(editingId, {
-          name: name.trim(),
-          contact: contact.trim(),
-          defaultRate: isNaN(rate) ? 0 : rate,
-          timezone,
-          notes: notes.trim(),
-        });
+        await updateStudent(editingId, updates);
         toast.success('Student updated');
       } else {
         await addStudent({
-          name: name.trim(),
-          contact: contact.trim(),
-          defaultRate: isNaN(rate) ? 0 : rate,
-          timezone,
-          notes: notes.trim(),
-        });
+          ...updates,
+          color: normalizedColor,
+        } as Omit<Student, 'id' | 'userId' | 'createdAt'>);
         toast.success('Student added');
       }
       resetStudentForm();
@@ -98,6 +107,9 @@ export function StudentsView() {
     setDefaultRate(student.defaultRate.toString());
     setTimezone(student.timezone);
     setNotes(student.notes);
+    setColor(student.color ?? '');
+    setFamilyGroup(student.familyGroup ?? '');
+    setShowColorPicker(false);
   };
 
   const handleDeleteStudent = async (id: string) => {
@@ -275,15 +287,78 @@ export function StudentsView() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
-            <input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional notes"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Color</label>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowColorPicker((v) => !v)}
+                    className="w-10 h-10 rounded-full border-2 border-white shadow-sm ring-2 ring-slate-200"
+                    style={{ backgroundColor: color || '#e2e8f0' }}
+                    aria-label="Choose color"
+                  />
+                  {showColorPicker && (
+                    <div className="absolute top-12 left-0 z-20 bg-white rounded-lg shadow-lg border border-slate-200 p-2 flex flex-wrap gap-2 w-44">
+                      {CURATED_PALETTE.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            setColor(c);
+                            setShowColorPicker(false);
+                          }}
+                          className={`w-7 h-7 rounded-full border ${color === c ? 'border-slate-900 ring-2 ring-offset-1 ring-slate-400' : 'border-slate-200'}`}
+                          style={{ backgroundColor: c }}
+                          aria-label={`Select color ${c}`}
+                        />
+                      ))}
+                      <input
+                        type="color"
+                        value={normalizeColor(color) || '#e2e8f0'}
+                        onChange={(e) => setColor(e.target.value)}
+                        className="w-7 h-7 rounded-full overflow-hidden border border-slate-200 p-0 cursor-pointer"
+                        aria-label="Custom color"
+                      />
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  placeholder="Auto"
+                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+                {color && (
+                  <button
+                    type="button"
+                    onClick={() => setColor('')}
+                    className="text-xs text-slate-500 hover:text-slate-700 underline"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Leave blank to auto-assign a color.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Family Group</label>
+              <input
+                type="text"
+                value={familyGroup}
+                onChange={(e) => setFamilyGroup(e.target.value)}
+                placeholder="e.g. Smith family"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Siblings in the same group get shades of the same hue.
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
