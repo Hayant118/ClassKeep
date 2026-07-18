@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useStudents } from '../hooks/useStudents';
@@ -206,6 +206,23 @@ export function StudentsView() {
     const classEnrollments = enrollments.filter(e => e.classId === classId);
     return classEnrollments.map(e => students.find(s => s.id === e.studentId)).filter(Boolean) as Student[];
   };
+
+  const groupedStudents = useMemo(() => {
+    const groups = new Map<string, Student[]>();
+    for (const student of students) {
+      const group = student.familyGroup?.trim() || 'Ungrouped';
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group)!.push(student);
+    }
+    for (const list of groups.values()) {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === 'Ungrouped') return 1;
+      if (b === 'Ungrouped') return -1;
+      return a.localeCompare(b);
+    });
+  }, [students]);
 
   if (studentsLoading || classesLoading) {
     return (
@@ -565,67 +582,83 @@ export function StudentsView() {
           </div>
         ) : (
           <ul className="divide-y divide-slate-200">
-            {students.map((student) => {
-              const studentEnrollments = getStudentEnrollments(student.id);
-              return (
-                <li
-                  key={student.id}
-                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-slate-50 transition-colors"
-                >
-                  <div className="flex-1">
-                    <p className="font-medium text-slate-900">
-                      {student.name}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {student.contact || 'No contact'}
-                      {student.contact && ' • '}
-                      Rate: {student.defaultRate.toFixed(2)}
-                      {' • '}
-                      {student.timezone}
-                    </p>
-                    {student.notes && (
-                      <p className="text-sm text-slate-500 mt-1">{student.notes}</p>
-                    )}
-                    {studentEnrollments.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {studentEnrollments.map((en) => {
-                          const cls = classes.find(c => c.id === en.classId);
-                          return cls ? (
-                            <span
-                              key={en.id}
-                              className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded"
-                            >
-                              {cls.name}
-                            </span>
-                          ) : null;
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => navigate(`/students/${student.id}`)}
-                      className="text-sm font-medium text-emerald-600 hover:text-emerald-700 px-3 py-1.5 rounded-md hover:bg-emerald-50 transition-colors"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => handleEditStudent(student)}
-                      className="text-sm font-medium text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-md hover:bg-indigo-50 transition-colors"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteStudent(student.id)}
-                      className="text-sm font-medium text-red-600 hover:text-red-700 px-3 py-1.5 rounded-md hover:bg-red-50 transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
+            {groupedStudents.map(([group, groupStudents]) => (
+              <Fragment key={group}>
+                <li className="sticky top-32 sm:top-20 z-10 px-6 py-2 bg-slate-50 text-sm font-semibold text-slate-700 border-b border-slate-200">
+                  {group} ({groupStudents.length})
                 </li>
-              );
-            })}
+                {groupStudents.map((student) => {
+                  const studentEnrollments = getStudentEnrollments(student.id);
+                  const detailParts = [
+                    student.contact,
+                    student.defaultRate > 0 ? `Rate: ${student.defaultRate.toFixed(2)}` : null,
+                    student.timezone,
+                  ].filter((part): part is string => Boolean(part));
+                  return (
+                    <li
+                      key={student.id}
+                      className="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: student.color || '#6366f1' }}
+                          />
+                          <p className="font-medium text-slate-900 truncate">
+                            {student.name}
+                          </p>
+                        </div>
+                        {detailParts.length > 0 && (
+                          <p className="text-sm text-slate-500 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                            {detailParts.join(' • ')}
+                          </p>
+                        )}
+                        {student.notes && (
+                          <p className="text-sm text-slate-500 mt-1">{student.notes}</p>
+                        )}
+                        {studentEnrollments.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {studentEnrollments.map((en) => {
+                              const cls = classes.find(c => c.id === en.classId);
+                              return cls ? (
+                                <span
+                                  key={en.id}
+                                  className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded"
+                                >
+                                  {cls.name}
+                                </span>
+                              ) : null;
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => navigate(`/students/${student.id}`)}
+                          className="text-sm font-medium text-emerald-600 hover:text-emerald-700 px-3 py-1.5 rounded-md hover:bg-emerald-50 transition-colors"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => handleEditStudent(student)}
+                          className="text-sm font-medium text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-md hover:bg-indigo-50 transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteStudent(student.id)}
+                          className="text-sm font-medium text-red-600 hover:text-red-700 px-3 py-1.5 rounded-md hover:bg-red-50 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </Fragment>
+            ))}
           </ul>
         )}
       </div>

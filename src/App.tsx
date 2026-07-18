@@ -67,17 +67,17 @@ function Header({ unreadCount }: HeaderProps) {
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-      <div className="max-w-6xl mx-auto px-4 py-4">
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <h1 className="text-2xl font-bold text-slate-900">ClassKeep</h1>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <nav className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
+          <div className="flex items-center gap-2 self-start sm:self-auto min-w-0">
+            <nav className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg overflow-x-auto scrollbar-hide">
               {TABS.map(({ key, label }) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => navigate(key === 'home' ? '/' : `/${key}`)}
-                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                     activeTab === key
                       ? 'bg-white text-indigo-600 shadow-sm'
                       : 'text-slate-600 hover:text-slate-900'
@@ -239,7 +239,7 @@ function AppContent() {
       }
 
       if (settings.unreviewedEnabled) {
-        await checkUnreviewedReminders(sessions, classes, existing);
+        await checkUnreviewedReminders(sessions, classes, students, existing);
       }
 
       if (settings.dailyDigestEnabled) {
@@ -285,7 +285,7 @@ function AppContent() {
     <div className="min-h-screen bg-slate-50">
       <Header unreadCount={unreadCount} />
       <Toaster position="top-right" richColors />
-      <main className="max-w-6xl mx-auto px-4 py-6">
+      <main className="max-w-6xl mx-auto px-3 sm:px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
         <Routes>
           <Route
             path="/"

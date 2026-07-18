@@ -52,7 +52,11 @@ function getSessionDisplayName(classes: Class[], students: Student[], session: S
   return 'Session';
 }
 
-function getSessionStudentNames(session: Session, enrollments: Enrollment[], students: Student[]): string {
+function getSessionStudentNames(
+  session: Session,
+  enrollments: Array<{ classId: string; studentId: string }>,
+  students: Student[]
+): string {
   if (session.studentId) {
     return students.find((s) => s.id === session.studentId)?.name ?? 'Student';
   }
@@ -131,6 +135,7 @@ export async function checkLowBalanceReminders(
 export async function checkUnreviewedReminders(
   sessions: Session[],
   classes: Class[],
+  students: Student[],
   existingReminders: Reminder[]
 ) {
   const { data: userData } = await supabase.auth.getUser();

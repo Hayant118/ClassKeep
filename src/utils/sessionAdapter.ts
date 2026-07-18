@@ -50,7 +50,7 @@ export function toLegacySession(
 
   return {
     id: session.id,
-    classId: session.classId,
+    classId: session.classId || '',
     studentId: primaryStudent?.id || '',
     plannedAt,
     actualAt,
