@@ -592,7 +592,6 @@ export function StudentsView() {
                   const detailParts = [
                     student.contact,
                     student.defaultRate > 0 ? `Rate: ${student.defaultRate.toFixed(2)}` : null,
-                    student.timezone,
                   ].filter((part): part is string => Boolean(part));
                   return (
                     <li
@@ -614,7 +613,7 @@ export function StudentsView() {
                             {detailParts.join(' • ')}
                           </p>
                         )}
-                        {student.notes && (
+                        {student.notes.trim() && (
                           <p className="text-sm text-slate-500 mt-1">{student.notes}</p>
                         )}
                         {studentEnrollments.length > 0 && (

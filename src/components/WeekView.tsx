@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Check, ArrowRightLeft, X, Circle, Star } from 'lucide-react';
 import type { Session, Student, Class, Enrollment, CalendarPreferences } from '../types';
 import {
   addDaysInTz,
@@ -10,6 +11,24 @@ import { addMinutes, getTimeSlots, getSessionPosition, getTimeFromClickY } from 
 import { findOverlappingSessions, getSessionColor, type SessionWithOverlap } from '../utils/calendar';
 
 const ROW_HEIGHT_PX = 40;
+
+function StatusIcon({ status }: { status: Session['status'] }) {
+  const className = 'w-3 h-3 flex-shrink-0';
+  switch (status) {
+    case 'completed':
+      return <Check className={`${className} text-emerald-300`} />;
+    case 'moved':
+      return <ArrowRightLeft className={`${className} text-amber-300`} />;
+    case 'cancelled':
+      return <X className={`${className} text-red-300`} />;
+    case 'no-show':
+      return <Circle className={`${className} text-slate-200`} />;
+    case 'holiday':
+      return <Star className={`${className} text-purple-300`} />;
+    default:
+      return null;
+  }
+}
 
 function getSessionStudent(session: Session, enrollments: Enrollment[], students: Student[]): Student | undefined {
   const classEnrollments = enrollments.filter(e => e.classId === session.classId && e.status === 'active');
@@ -102,6 +121,7 @@ export function WeekView({
       >
         <div className="font-semibold truncate">
           {student?.name ?? cls?.name ?? 'Unknown'}
+          <StatusIcon status={session.status} />
           {isOverride && <span className="ml-1">⚡</span>}
         </div>
         <div className="truncate opacity-90">

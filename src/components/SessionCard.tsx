@@ -1,6 +1,25 @@
 import type { Student } from '../types';
+import { Check, ArrowRightLeft, X, Circle, Star } from 'lucide-react';
 import { getSessionColor, type SessionWithOverlap } from '../utils/calendar';
 import { addMinutes } from '../utils/date';
+
+function StatusIcon({ status }: { status: SessionWithOverlap['status'] }) {
+  const className = 'w-3 h-3 flex-shrink-0';
+  switch (status) {
+    case 'completed':
+      return <Check className={`${className} text-emerald-600`} />;
+    case 'moved':
+      return <ArrowRightLeft className={`${className} text-amber-600`} />;
+    case 'cancelled':
+      return <X className={`${className} text-red-600`} />;
+    case 'no-show':
+      return <Circle className={`${className} text-slate-400`} />;
+    case 'holiday':
+      return <Star className={`${className} text-purple-600`} />;
+    default:
+      return null;
+  }
+}
 
 interface SessionCardProps {
   session: SessionWithOverlap;
@@ -27,6 +46,7 @@ export function SessionCard({ session, student, timezone, students, onEdit, onDe
           <div className="font-semibold text-slate-900 flex items-center gap-1">
             <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
             <span className="truncate">{student?.name ?? 'Unknown'}</span>
+            <StatusIcon status={session.status} />
             {isOverride && <span title="Rate override">⚡</span>}
           </div>
           <div className="text-slate-600 mt-0.5">
