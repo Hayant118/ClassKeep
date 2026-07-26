@@ -1,12 +1,12 @@
 // src/components/HomeView.tsx
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon } from 'lucide-react';
+import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSessions } from '../hooks/useSessions';
 import { useProposals } from '../hooks/useProposals';
 import { useReminders } from '../hooks/useReminders';
-import { Calendar } from './Calendar';
 import type { Reminder, Student, Class, Enrollment, Session } from '../types';
+import { CURATED_PALETTE, DEFAULT_COLOR, normalizeColor } from '../utils/colors';
 
 interface HomeViewProps {
   students: Student[];
@@ -26,6 +26,26 @@ function formatToday(dateStr: string): string {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+  });
+}
+
+function dateKey(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay(); // 0 = Sunday
+  d.setDate(d.getDate() - day);
+  return d;
+}
+
+function getWeekDays(weekStart: Date): Date[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    return d;
   });
 }
 
@@ -53,13 +73,103 @@ function getStudentNames(session: Session, enrollments: Enrollment[], students: 
   return 'No students';
 }
 
-export function HomeView({ students, classes, enrollments, onResolveClassForStudent }: HomeViewProps) {
+function useStudentEffectiveColors(students: Student[]) {
+  return useMemo(() => {
+    const map = new Map<string, string>();
+    const palette = CURATED_PALETTE;
+    let paletteIndex = 0;
+
+    for (const student of students) {
+      const normalized = normalizeColor(student.color);
+      if (normalized) {
+        map.set(student.id, normalized);
+      }
+    }
+
+    for (const student of students) {
+      if (!map.has(student.id)) {
+        map.set(student.id, palette[paletteIndex % palette.length] ?? DEFAULT_COLOR);
+        paletteIndex++;
+      }
+    }
+
+    return map;
+  }, [students]);
+}
+
+function useGroupedStudents(students: Student[]) {
+  return useMemo(() => {
+    const groups = new Map<string | undefined, Student[]>();
+    for (const student of students) {
+      const key = student.familyGroup?.trim() || undefined;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(student);
+    }
+    for (const list of groups.values()) {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return Array.from(groups.entries()).sort((a, b) => {
+      if (!a[0]) return 1;
+      if (!b[0]) return -1;
+      return a[0].localeCompare(b[0]);
+    });
+  }, [students]);
+}
+
+export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const navigate = useNavigate();
   const { sessions, loading: sessionsLoading } = useSessions();
   const { proposals, loading: proposalsLoading } = useProposals();
   const { reminders, dismissReminder } = useReminders();
 
   const today = todayStr();
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set());
+  const [hasInitializedFilter, setHasInitializedFilter] = useState(false);
+
+  useEffect(() => {
+    if (!hasInitializedFilter && students.length > 0) {
+      setSelectedStudentIds(new Set(students.map((s) => s.id)));
+      setHasInitializedFilter(true);
+    }
+  }, [students, hasInitializedFilter]);
+
+  const studentColors = useStudentEffectiveColors(students);
+  const groupedStudents = useGroupedStudents(students);
+
+  const classToStudents = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const en of enrollments) {
+      const arr = map.get(en.classId) || [];
+      arr.push(en.studentId);
+      map.set(en.classId, arr);
+    }
+    return map;
+  }, [enrollments]);
+
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((session) => {
+      if (session.studentId) {
+        return selectedStudentIds.has(session.studentId);
+      }
+      const classStudentIds = session.classId ? classToStudents.get(session.classId) || [] : [];
+      return classStudentIds.some((sid) => selectedStudentIds.has(sid));
+    });
+  }, [sessions, classToStudents, selectedStudentIds]);
+
+  const weekDays = useMemo(() => getWeekDays(currentWeekStart), [currentWeekStart]);
+
+  const weekSessionsByDay = useMemo(() => {
+    const map = new Map<string, Session[]>();
+    for (const day of weekDays) {
+      map.set(dateKey(day), []);
+    }
+    for (const session of filteredSessions) {
+      const list = map.get(session.plannedDate);
+      if (list) list.push(session);
+    }
+    return map;
+  }, [filteredSessions, weekDays]);
 
   const todaysSessionsCount = useMemo(
     () => sessions.filter((s) => s.plannedDate === today).length,
@@ -92,6 +202,58 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
     unreviewed: <ClipboardCheck className="w-3.5 h-3.5" />,
     daily_digest: <Sun className="w-3.5 h-3.5" />,
   };
+
+  const goToToday = () => setCurrentWeekStart(getWeekStart(new Date()));
+  const movePrevious = () => {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() - 7);
+    setCurrentWeekStart(d);
+  };
+  const moveNext = () => {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() + 7);
+    setCurrentWeekStart(d);
+  };
+
+  const toggleStudent = (id: string) => {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllStudents = () => setSelectedStudentIds(new Set(students.map((s) => s.id)));
+  const clearAllStudents = () => setSelectedStudentIds(new Set());
+
+  const handleDayClick = () => {
+    navigate('/calendar');
+  };
+
+  const getSessionDotColor = (session: Session): string => {
+    if (session.studentId) {
+      const color = studentColors.get(session.studentId);
+      if (color) return color;
+    }
+    if (session.classId) {
+      const classStudentIds = classToStudents.get(session.classId) || [];
+      for (const sid of classStudentIds) {
+        const color = studentColors.get(sid);
+        if (color) return color;
+      }
+    }
+    return DEFAULT_COLOR;
+  };
+
+  const weekRangeLabel = useMemo(() => {
+    const start = weekDays[0];
+    const end = weekDays[6];
+    if (!start || !end) return '';
+    const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `${startStr} - ${endStr}`;
+  }, [weekDays]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -154,6 +316,81 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
         </div>
       </div>
 
+      {/* Compact week overview */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 dark:bg-gray-800 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={movePrevious}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Prev</span>
+            </button>
+            <button
+              type="button"
+              onClick={goToToday}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={moveNext}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              <span className="hidden sm:inline">Next</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-gray-200">{weekRangeLabel}</h2>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 h-[150px]">
+          {weekDays.map((day) => {
+            const key = dateKey(day);
+            const daySessions = weekSessionsByDay.get(key) ?? [];
+            const isToday = key === today;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={handleDayClick}
+                className={`flex flex-col items-center justify-start pt-2 pb-1 px-1 rounded-lg border transition-colors min-h-[44px] ${
+                  isToday
+                    ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800'
+                    : 'bg-white border-slate-100 hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700'
+                }`}
+              >
+                <span className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-gray-400 uppercase">
+                  {day.toLocaleDateString('en-US', { weekday: 'narrow' })}
+                </span>
+                <span
+                  className={`text-sm sm:text-base font-semibold mt-0.5 mb-1 w-7 h-7 flex items-center justify-center rounded-full ${
+                    isToday
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-900 dark:text-gray-100'
+                  }`}
+                >
+                  {day.getDate()}
+                </span>
+                <div className="flex flex-wrap justify-center gap-1 px-0.5 overflow-hidden">
+                  {daySessions.map((session) => (
+                    <span
+                      key={session.id}
+                      className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: getSessionDotColor(session) }}
+                      title={getSessionDisplayName(classes, students, session)}
+                    />
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Today's upcoming classes */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex items-center gap-2 mb-4">
@@ -199,14 +436,62 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
         )}
       </div>
 
-      {/* Embedded calendar */}
+      {/* Student filter chips */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 dark:bg-gray-800 dark:border-gray-700">
-        <Calendar
-          students={students}
-          classes={classes}
-          enrollments={enrollments}
-          onResolveClassForStudent={onResolveClassForStudent}
-        />
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">Filter by student</h3>
+          <div className="flex gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={selectAllStudents}
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={clearAllStudents}
+              className="text-xs font-medium text-slate-600 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              Hide all
+            </button>
+          </div>
+        </div>
+        <div className="flex gap-4 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+          {groupedStudents.map(([groupName, groupStudents]) => (
+            <div key={groupName ?? '__ungrouped__'} className="flex flex-col gap-1.5 shrink-0">
+              {groupName && (
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 px-1">
+                  {groupName}
+                </span>
+              )}
+              <div className="flex gap-2">
+                {groupStudents.map((student) => {
+                  const isSelected = selectedStudentIds.has(student.id);
+                  const color = studentColors.get(student.id) ?? DEFAULT_COLOR;
+                  return (
+                    <button
+                      key={student.id}
+                      type="button"
+                      onClick={() => toggleStudent(student.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors whitespace-nowrap ${
+                        isSelected
+                          ? 'bg-slate-100 border-slate-300 text-slate-800 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100'
+                          : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-500 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: color }}
+                      />
+                      <span className={isSelected ? '' : 'line-through'}>{student.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
