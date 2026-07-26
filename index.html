@@ -12,5 +12,11 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+  window.onerror = function(msg, url, line) {
+    alert("JS Error: " + msg + "\nLine: " + line);
+    return false;
+  };
+</script>
   </body>
 </html>
