@@ -1,4 +1,5 @@
 import type { Student } from '../types';
+import { isSessionAutoCompleted } from '../hooks/useSessions';
 import { Check, ArrowRightLeft, X, Circle, Star } from 'lucide-react';
 import { getSessionColor, type SessionWithOverlap } from '../utils/calendar';
 import { addMinutes } from '../utils/date';
@@ -33,12 +34,15 @@ interface SessionCardProps {
 export function SessionCard({ session, student, timezone, students, onEdit, onDelete }: SessionCardProps) {
   const color = getSessionColor(session, students);
   const isOverride = session.rateMode === 'override';
+  const isAutoCompleted = isSessionAutoCompleted(session.id);
   const startTime = session.plannedTime;
   const endTime = addMinutes(startTime, session.durationMinutes);
 
   return (
     <div
-      className="rounded-lg p-3 text-sm shadow-sm border border-slate-200"
+      className={`rounded-lg p-3 text-sm shadow-sm border border-slate-200 ${
+        isAutoCompleted ? 'ring-2 ring-amber-300' : ''
+      }`}
       style={{ backgroundColor: `${color}15`, borderColor: color }}
     >
       <div className="flex items-start justify-between gap-2">

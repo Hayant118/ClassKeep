@@ -34,6 +34,22 @@ interface SessionModalProps {
 
 const DURATION_OPTIONS = [30, 60, 90, 120, 150];
 
+const ALL_STATUS_OPTIONS: { value: Session['status']; label: string }[] = [
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'moved', label: 'Moved' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'holiday', label: 'Holiday' },
+  { value: 'no-show', label: 'No-show' },
+];
+
+const COMPLETED_STATUS_OPTIONS: { value: Session['status']; label: string }[] = [
+  { value: 'moved', label: 'Moved' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'no-show', label: 'No-show' },
+  { value: 'holiday', label: 'Holiday' },
+];
+
 interface ChargeInput {
   rateMode: Session['rateMode'];
   rateValue: number | null;
@@ -101,6 +117,27 @@ async function decrementPrepaidBalance(
   }
 }
 
+async function syncPrepaidBalance(
+  classId: string | undefined,
+  delta: number,
+  enrollments: Enrollment[]
+) {
+  if (!classId || delta === 0) return;
+  const enrollment = enrollments.find((e) => e.classId === classId && e.status === 'active');
+  if (!enrollment || enrollment.paymentType !== 'prepaid') return;
+
+  const nextBalance = enrollment.prepaidBalance + delta;
+  const { error } = await supabase
+    .from('ck_enrollments')
+    .update({ prepaid_balance: nextBalance })
+    .eq('id', enrollment.id);
+
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to update prepaid balance', error);
+  }
+}
+
 export function SessionModal({
   isOpen,
   onClose,
@@ -118,6 +155,8 @@ export function SessionModal({
   onDelete,
 }: SessionModalProps) {
   const isEditing = !!session;
+  const isEditingCompleted = isEditing && session?.status === 'completed';
+  const statusOptions = isEditingCompleted ? COMPLETED_STATUS_OPTIONS : ALL_STATUS_OPTIONS;
 
   const [classId, setClassId] = useState('');
   const [studentId, setStudentId] = useState('');
@@ -240,8 +279,17 @@ export function SessionModal({
         await onSave(payload);
       }
 
-      if (!isDraft && nowCompleted && !wasCompleted) {
-        await decrementPrepaidBalance(classId || undefined, charge, enrollments);
+      if (!isDraft) {
+        if (wasCompleted && nowCompleted) {
+          const delta = (session?.totalCharge ?? 0) - charge;
+          if (Math.abs(delta) > 0.0001) {
+            await syncPrepaidBalance(classId || undefined, delta, enrollments);
+          }
+        } else if (!wasCompleted && nowCompleted) {
+          await decrementPrepaidBalance(classId || undefined, charge, enrollments);
+        } else if (wasCompleted && !nowCompleted) {
+          await syncPrepaidBalance(classId || undefined, -(session?.totalCharge ?? 0), enrollments);
+        }
       }
 
       onClose();
@@ -351,12 +399,12 @@ export function SessionModal({
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
             <select value={status} onChange={(e) => setStatus(e.target.value as Session['status'])} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="scheduled">Scheduled</option>
-              <option value="completed">Completed</option>
-              <option value="moved">Moved</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="holiday">Holiday</option>
-              <option value="no-show">No-show</option>
+              {isEditingCompleted && (
+                <option value="completed" disabled>Completed</option>
+              )}
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </div>
 

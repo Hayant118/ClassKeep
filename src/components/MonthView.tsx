@@ -10,6 +10,7 @@ import {
 import { findOverlappingSessions, type SessionWithOverlap } from '../utils/calendar';
 import { SessionCard } from './SessionCard';
 import { X } from './icons';
+import { isSessionAutoCompleted } from '../hooks/useSessions';
 
 interface MonthViewProps {
   monthStart: Date;
@@ -159,7 +160,9 @@ export function MonthView({
                   {daySessions.slice(0, 3).map((session) => (
                     <span
                       key={session.id}
-                      className="w-2 h-2 rounded-full"
+                      className={`w-2 h-2 rounded-full ${
+                        isSessionAutoCompleted(session.id) ? 'ring-1 ring-amber-400' : ''
+                      }`}
                       style={{ backgroundColor: getMonthDotColor(session, classes, enrollments, students) }}
                     />
                   ))}

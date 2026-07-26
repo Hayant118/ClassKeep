@@ -9,6 +9,7 @@ import {
 } from '../utils/timezone';
 import { addMinutes, getTimeSlots, getSessionPosition, getTimeFromClickY } from '../utils/date';
 import { findOverlappingSessions, getSessionColor, type SessionWithOverlap } from '../utils/calendar';
+import { isSessionAutoCompleted } from '../hooks/useSessions';
 
 const ROW_HEIGHT_PX = 40;
 
@@ -97,6 +98,7 @@ export function WeekView({
     const cls = classes.find(c => c.id === session.classId);
     const color = getSessionColor(session, students, preferences.colorConflict);
     const isOverride = session.rateMode === 'override';
+    const isAutoCompleted = isSessionAutoCompleted(session.id);
     const timeStr = session.plannedTime;
     const endTime = addMinutes(timeStr, session.durationMinutes);
     const { top, height } = getSessionPosition(timeStr, session.durationMinutes, startTimeStr, endTimeStr);
@@ -111,7 +113,9 @@ export function WeekView({
           e.stopPropagation();
           onSessionClick?.(session);
         }}
-        className="absolute left-1 right-1 rounded-md px-2 py-1 text-xs text-white shadow-sm overflow-hidden text-left z-10"
+        className={`absolute left-1 right-1 rounded-md px-2 py-1 text-xs text-white shadow-sm overflow-hidden text-left z-10 ${
+          isAutoCompleted ? 'ring-2 ring-amber-300' : ''
+        }`}
         style={{
           top: `${top}%`,
           height: `${height}%`,

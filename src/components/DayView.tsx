@@ -8,6 +8,7 @@ import {
 import { addMinutes, getTimeSlots, getSessionPosition, getTimeFromClickY } from '../utils/date';
 import { findOverlappingSessions, getSessionColor, type SessionWithOverlap } from '../utils/calendar';
 import { SessionCard } from './SessionCard';
+import { isSessionAutoCompleted } from '../hooks/useSessions';
 
 const ROW_HEIGHT_PX = 48;
 
@@ -79,6 +80,7 @@ export function DayView({
     const cls = classes.find(c => c.id === session.classId);
     const color = getSessionColor(session, students, preferences.colorConflict);
     const isOverride = session.rateMode === 'override';
+    const isAutoCompleted = isSessionAutoCompleted(session.id);
     const timeStr = session.plannedTime;
     const endTime = addMinutes(timeStr, session.durationMinutes);
     const { top, height } = getSessionPosition(timeStr, session.durationMinutes, startTimeStr, endTimeStr);
@@ -93,7 +95,9 @@ export function DayView({
           e.stopPropagation();
           onSessionClick?.(session);
         }}
-        className="absolute left-1 right-1 rounded-md px-3 py-2 text-sm text-white shadow-sm overflow-hidden z-10 text-left"
+        className={`absolute left-1 right-1 rounded-md px-3 py-2 text-sm text-white shadow-sm overflow-hidden z-10 text-left ${
+          isAutoCompleted ? 'ring-2 ring-amber-300' : ''
+        }`}
         style={{
           top: `${top}%`,
           height: `${height}%`,

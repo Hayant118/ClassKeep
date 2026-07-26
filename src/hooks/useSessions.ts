@@ -1,7 +1,8 @@
 // src/hooks/useSessions.ts
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Session } from '../types';
+import type { Session, Enrollment, Student } from '../types';
+import { DEFAULT_TIMEZONE, toUtcIso } from '../utils/timezone';
 
 function fromDb(row: Record<string, unknown>): Session {
   return {
@@ -42,6 +43,166 @@ function toDb(s: Partial<Session>): Record<string, unknown> {
   if (s.movedFromTime !== undefined) map.moved_from_time = s.movedFromTime;
   if (s.notes !== undefined) map.notes = s.notes;
   return map;
+}
+
+const AUTO_COMPLETE_STORAGE_KEY = 'classkeep-auto-completed-sessions';
+const AUTO_COMPLETE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function loadAutoCompletedMap(): Map<string, number> {
+  try {
+    const raw = localStorage.getItem(AUTO_COMPLETE_STORAGE_KEY);
+    if (raw) {
+      const entries = JSON.parse(raw) as [string, number][];
+      const now = Date.now();
+      return new Map(entries.filter(([, ts]) => now - ts < AUTO_COMPLETE_WINDOW_MS));
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return new Map();
+}
+
+function saveAutoCompletedMap(map: Map<string, number>) {
+  try {
+    localStorage.setItem(AUTO_COMPLETE_STORAGE_KEY, JSON.stringify(Array.from(map.entries())));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function markAutoCompletedSessions(sessionIds: string[]) {
+  const map = loadAutoCompletedMap();
+  const now = Date.now();
+  for (const id of sessionIds) {
+    map.set(id, now);
+  }
+  saveAutoCompletedMap(map);
+}
+
+export function clearAutoCompletedSession(sessionId: string) {
+  const map = loadAutoCompletedMap();
+  map.delete(sessionId);
+  saveAutoCompletedMap(map);
+}
+
+export function isSessionAutoCompleted(sessionId: string): boolean {
+  const map = loadAutoCompletedMap();
+  const ts = map.get(sessionId);
+  if (!ts) return false;
+  return Date.now() - ts < AUTO_COMPLETE_WINDOW_MS;
+}
+
+function getSessionTimezone(
+  session: Session,
+  enrollments: Enrollment[],
+  students: Student[]
+): string {
+  if (session.classId) {
+    const enrollment = enrollments.find(
+      (e) => e.classId === session.classId && e.status === 'active'
+    );
+    if (enrollment) {
+      const student = students.find((s) => s.id === enrollment.studentId);
+      if (student?.timezone) return student.timezone;
+    }
+  } else if (session.studentId) {
+    const student = students.find((s) => s.id === session.studentId);
+    if (student?.timezone) return student.timezone;
+  }
+  return DEFAULT_TIMEZONE;
+}
+
+function computeAutoCompleteCharge(
+  session: Session,
+  enrollments: Enrollment[],
+  students: Student[]
+): number {
+  const hours = session.durationMinutes / 60;
+
+  if (session.rateMode === 'flat' && session.rateValue != null) {
+    return session.rateValue;
+  }
+
+  if (session.rateMode === 'override' && session.rateValue != null) {
+    return session.rateValue * hours;
+  }
+
+  let rate = 0;
+  if (session.classId) {
+    const enrollment = enrollments.find(
+      (e) => e.classId === session.classId && e.status === 'active'
+    );
+    if (enrollment) {
+      const student = students.find((s) => s.id === enrollment.studentId);
+      rate = enrollment.customRate ?? student?.defaultRate ?? 0;
+    }
+  } else if (session.studentId) {
+    const student = students.find((s) => s.id === session.studentId);
+    rate = student?.defaultRate ?? 0;
+  }
+
+  return rate * hours;
+}
+
+export async function checkAndAutoCompleteSessions(
+  sessions: Session[],
+  enrollments: Enrollment[],
+  students: Student[]
+): Promise<number> {
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return 0;
+
+  const now = new Date();
+  const sessionsToComplete: Session[] = [];
+  const enrollmentBalanceUpdates = new Map<string, number>();
+
+  for (const session of sessions) {
+    if (session.status !== 'scheduled') continue;
+    if (session.actualDate) continue;
+
+    const timezone = getSessionTimezone(session, enrollments, students);
+    const plannedUtc = new Date(toUtcIso(session.plannedDate, session.plannedTime, timezone));
+    if (plannedUtc > now) continue;
+
+    const charge = computeAutoCompleteCharge(session, enrollments, students);
+    sessionsToComplete.push({ ...session, status: 'completed', totalCharge: charge });
+
+    if (session.classId) {
+      const enrollment = enrollments.find(
+        (e) => e.classId === session.classId && e.status === 'active'
+      );
+      if (enrollment && enrollment.paymentType === 'prepaid') {
+        enrollmentBalanceUpdates.set(enrollment.id, enrollment.prepaidBalance - charge);
+      }
+    }
+  }
+
+  if (sessionsToComplete.length === 0) return 0;
+
+  const sessionRows = sessionsToComplete.map((s) => ({
+    id: s.id,
+    status: 'completed' as const,
+    total_charge: s.totalCharge,
+  }));
+
+  const { error: sessionError } = await supabase
+    .from('ck_sessions')
+    .upsert(sessionRows, { onConflict: 'id' });
+
+  if (sessionError) throw new Error(sessionError.message);
+
+  if (enrollmentBalanceUpdates.size > 0) {
+    const enrollmentRows = Array.from(enrollmentBalanceUpdates.entries()).map(
+      ([id, prepaidBalance]) => ({ id, prepaid_balance: prepaidBalance })
+    );
+    const { error: enrollmentError } = await supabase
+      .from('ck_enrollments')
+      .upsert(enrollmentRows, { onConflict: 'id' });
+    if (enrollmentError) throw new Error(enrollmentError.message);
+  }
+
+  markAutoCompletedSessions(sessionsToComplete.map((s) => s.id));
+  return sessionsToComplete.length;
 }
 
 export function useSessions() {
@@ -116,6 +277,7 @@ export function useSessions() {
 
     const updated = fromDb(data);
     setSessions(prev => prev.map(s => (s.id === id ? updated : s)));
+    clearAutoCompletedSession(id);
     return updated;
   };
 

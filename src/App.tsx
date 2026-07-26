@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import type { Session as SupabaseSession } from '@supabase/supabase-js';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { Bell } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { useStudents } from './hooks/useStudents';
 import { useClasses } from './hooks/useClasses';
 import { useEnrollments } from './hooks/useEnrollments';
 import { useSessions } from './hooks/useSessions';
+import { checkAndAutoCompleteSessions } from './hooks/useSessions';
 import { useReminders } from './hooks/useReminders';
 import { useReminderSettings } from './hooks/useReminderSettings';
 import type { Reminder } from './types';
@@ -117,6 +118,7 @@ function Header({ unreadCount }: HeaderProps) {
 }
 
 function AppContent() {
+  const navigate = useNavigate();
   const [authSession, setAuthSession] = useState<SupabaseSession | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -265,6 +267,47 @@ function AppContent() {
     enrollments,
     settings,
     fetchReminders,
+  ]);
+
+  // Auto-complete past scheduled sessions on mount and every 5 minutes while the app is open.
+  useEffect(() => {
+    if (!authSession || studentsLoading || classesLoading || enrollmentsLoading || sessionsLoading) {
+      return;
+    }
+
+    const runAutoComplete = async () => {
+      try {
+        const count = await checkAndAutoCompleteSessions(sessions, enrollments, students);
+        if (count > 0) {
+          toast.success(`${count} sessions completed`, {
+            action: {
+              label: 'Review',
+              onClick: () => navigate('/calendar'),
+            },
+          });
+          await fetchSessions();
+          await fetchEnrollments();
+        }
+      } catch (err) {
+        console.error('[ClassKeep] Auto-complete failed', err);
+      }
+    };
+
+    runAutoComplete();
+    const interval = setInterval(runAutoComplete, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [
+    authSession,
+    studentsLoading,
+    classesLoading,
+    enrollmentsLoading,
+    sessionsLoading,
+    sessions,
+    enrollments,
+    students,
+    fetchSessions,
+    fetchEnrollments,
+    navigate,
   ]);
 
   if (authLoading) {
