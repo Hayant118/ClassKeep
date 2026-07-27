@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Session as SupabaseSession } from '@supabase/supabase-js';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
-import { Bell } from 'lucide-react';
+import { Bell, Menu, X } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import { useStudents } from './hooks/useStudents';
 import { useClasses } from './hooks/useClasses';
@@ -49,6 +49,7 @@ interface HeaderProps {
 function Header({ unreadCount }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const activeTab: TabKey = (() => {
     const path = location.pathname;
@@ -66,10 +67,17 @@ function Header({ unreadCount }: HeaderProps) {
     await supabase.auth.signOut();
   };
 
+  const handleNav = (key: TabKey) => {
+    navigate(key === 'home' ? '/' : `/${key}`);
+    setIsMenuOpen(false);
+  };
+
+  const closeMenu = () => setIsMenuOpen(false);
+
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center justify-between gap-4">
           <h1
             className="text-2xl font-bold text-slate-900 cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => navigate('/')}
@@ -78,13 +86,13 @@ function Header({ unreadCount }: HeaderProps) {
           >
             ClassKeep
           </h1>
-          <div className="flex items-center gap-2 self-start sm:self-auto min-w-0 w-full sm:w-auto">
-            <nav className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg overflow-x-auto scrollbar-hide flex-1 min-w-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <nav className="hidden sm:flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
               {TABS.map(({ key, label }) => (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => navigate(key === 'home' ? '/' : `/${key}`)}
+                  onClick={() => handleNav(key)}
                   className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                     activeTab === key
                       ? 'bg-white text-indigo-600 shadow-sm'
@@ -113,13 +121,71 @@ function Header({ unreadCount }: HeaderProps) {
             <button
               type="button"
               onClick={handleLogout}
-              className="px-4 py-1.5 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              className="hidden sm:inline-flex px-4 py-1.5 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
             >
               Logout
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(true)}
+              className="sm:hidden p-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+              aria-label="Open menu"
+            >
+              <Menu className="w-5 h-5" />
             </button>
           </div>
         </div>
       </div>
+
+      {isMenuOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-40 sm:hidden"
+            onClick={closeMenu}
+            aria-hidden="true"
+          />
+          <div className="fixed right-0 top-0 h-full w-64 bg-white shadow-xl z-50 sm:hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <span className="text-lg font-semibold text-slate-800">Menu</span>
+              <button
+                type="button"
+                onClick={closeMenu}
+                className="p-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+                aria-label="Close menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <nav className="flex flex-col p-4 gap-1 overflow-y-auto">
+              {TABS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleNav(key)}
+                  className={`text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === key
+                      ? 'bg-indigo-50 text-indigo-600'
+                      : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  closeMenu();
+                  handleLogout();
+                }}
+                className="text-left px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              >
+                Logout
+              </button>
+            </nav>
+          </div>
+        </>
+      )}
     </header>
   );
 }
