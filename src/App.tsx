@@ -70,9 +70,16 @@ function Header({ unreadCount }: HeaderProps) {
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h1 className="text-2xl font-bold text-slate-900">ClassKeep</h1>
-          <div className="flex items-center gap-2 self-start sm:self-auto min-w-0">
-            <nav className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg overflow-x-auto scrollbar-hide">
+          <h1
+            className="text-2xl font-bold text-slate-900 cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => navigate('/')}
+            role="button"
+            tabIndex={0}
+          >
+            ClassKeep
+          </h1>
+          <div className="flex items-center gap-2 self-start sm:self-auto min-w-0 w-full sm:w-auto">
+            <nav className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg overflow-x-auto scrollbar-hide flex-1 min-w-0">
               {TABS.map(({ key, label }) => (
                 <button
                   key={key}

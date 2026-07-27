@@ -150,7 +150,7 @@ export function WeekView({
     return (
       <div
         key={dateKey}
-        className="relative bg-white border-l border-slate-200 min-w-[100px]"
+        className="relative bg-white border-l border-slate-200 min-w-[80px]"
         style={{
           gridColumn: dayIndex + 2,
           gridRow: `2 / span ${totalRows}`,
