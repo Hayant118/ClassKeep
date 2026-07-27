@@ -1,4 +1,4 @@
-const CACHE_NAME = 'classkeep-v1';
+const CACHE_NAME = 'classkeep-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -7,7 +7,7 @@ const STATIC_ASSETS = [
   '/android-chrome-512x512.png'
 ];
 
-// Install: cache static assets
+// Install: cache static assets and skip waiting so the new SW activates quickly.
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -17,7 +17,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate: clean old caches
+// Activate: clean old caches and claim clients.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -31,11 +31,27 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: cache-first strategy
+// Fetch: navigation requests (HTML pages) go network-first so users always get
+// the latest index.html and hashed JS/CSS bundles. Static assets fall back to cache.
 self.addEventListener('fetch', (event) => {
+  const { request } = event;
+
+  if (request.mode === 'navigate' || request.destination === 'document') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
+    caches.match(request).then((response) => {
+      return response || fetch(request);
     })
   );
 });

@@ -268,8 +268,6 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     return `${startStr} - ${endStr}`;
   }, [weekDays]);
 
-  console.log('[DEBUG] HomeView rendering, students:', students.length, 'sessions:', sessions.length);
-
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Reminder chips */}
