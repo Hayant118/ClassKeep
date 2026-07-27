@@ -131,7 +131,7 @@ export function MonthView({
       <div className="border border-slate-200 rounded-xl bg-white overflow-hidden">
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
           {WEEKDAYS.map((day) => (
-            <div key={day} className="py-2 text-center text-xs font-semibold text-slate-600">
+            <div key={day} className="py-1.5 sm:py-2 text-center text-[10px] sm:text-xs font-semibold text-slate-600">
               {day}
             </div>
           ))}
@@ -148,26 +148,26 @@ export function MonthView({
                 key={dateKey}
                 type="button"
                 onClick={() => handleDayClick(day)}
-                className={`min-h-[80px] sm:min-h-[100px] p-2 text-left border-b border-r border-slate-100 transition-colors hover:bg-slate-50 focus:outline-none ${
+                className={`min-h-[60px] sm:min-h-[100px] p-1 sm:p-2 text-left border-b border-r border-slate-100 transition-colors hover:bg-slate-50 focus:outline-none ${
                   active ? 'bg-indigo-50' : ''
                 } ${isCurrentMonth(day) ? '' : 'bg-slate-50/50 text-slate-400'}`}
                 style={{ gridColumn: ((day.getDay() + 6) % 7) + 1 }}
               >
-                <div className={`text-sm font-medium ${isCurrentMonth(day) ? 'text-slate-700' : 'text-slate-400'}`}>
+                <div className={`font-medium ${isCurrentMonth(day) ? 'text-slate-700' : 'text-slate-400'} text-xs sm:text-sm`}>
                   {formatDisplayDateInTz(day.toISOString(), timezone).replace(/[^0-9]/g, '')}
                 </div>
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {daySessions.slice(0, 3).map((session) => (
+                <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-1">
+                  {daySessions.slice(0, 4).map((session) => (
                     <span
                       key={session.id}
-                      className={`w-2 h-2 rounded-full ${
+                      className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
                         isSessionAutoCompleted(session.id) ? 'ring-1 ring-amber-400' : ''
                       }`}
                       style={{ backgroundColor: getMonthDotColor(session, classes, enrollments, students) }}
                     />
                   ))}
-                  {daySessions.length > 3 && (
-                    <span className="text-[10px] text-slate-500 leading-none">+{daySessions.length - 3}</span>
+                  {daySessions.length > 4 && (
+                    <span className="text-[9px] sm:text-[10px] text-slate-500 leading-none">+{daySessions.length - 4}</span>
                   )}
                 </div>
               </button>
@@ -177,13 +177,16 @@ export function MonthView({
       </div>
 
       {selectedDay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={closeDetail}>
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
+          onClick={closeDetail}
+        >
           <div
-            className="bg-white rounded-xl shadow-lg w-full max-w-lg max-h-[85vh] overflow-y-auto"
+            className="bg-white w-full max-w-lg sm:rounded-xl rounded-t-xl shadow-lg max-h-[75vh] sm:max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-800">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-800">
                 {formatDisplayDateInTz(selectedDay.toISOString(), timezone)}
               </h3>
               <button
@@ -195,7 +198,7 @@ export function MonthView({
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-500">
                   {selectedDaySessions.length} session{selectedDaySessions.length === 1 ? '' : 's'}

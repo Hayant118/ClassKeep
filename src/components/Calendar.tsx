@@ -172,7 +172,7 @@ export function Calendar({ students, classes, enrollments = [], onResolveClassFo
   if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 overflow-x-hidden">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-2 flex-wrap">
           <button type="button" onClick={movePrevious} className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50">← Prev</button>

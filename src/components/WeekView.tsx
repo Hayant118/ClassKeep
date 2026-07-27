@@ -176,41 +176,105 @@ export function WeekView({
     );
   };
 
-  return (
-    <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
-      <div
-        className="min-w-[900px]"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '64px repeat(7, 1fr)',
-          gridTemplateRows: `auto repeat(${totalRows}, ${ROW_HEIGHT_PX}px)`,
-        }}
+  const renderMobileSession = (session: SessionWithOverlap) => {
+    const student = getSessionStudent(session, enrollments, students);
+    const cls = classes.find((c) => c.id === session.classId);
+    const color = getSessionColor(session, students, preferences.colorConflict);
+    const isOverride = session.rateMode === 'override';
+    const isAutoCompleted = isSessionAutoCompleted(session.id);
+    const startTime = session.plannedTime;
+    const endTime = addMinutes(startTime, session.durationMinutes);
+
+    return (
+      <button
+        key={session.id}
+        type="button"
+        onClick={() => onSessionClick?.(session)}
+        className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors ${
+          isAutoCompleted ? 'ring-2 ring-amber-300' : ''
+        }`}
+        style={{ borderColor: color, backgroundColor: `${color}15` }}
       >
-        <div className="border-b border-r border-slate-200 bg-slate-50" />
-        {weekDays.map((day, idx) => (
-          <div
-            key={idx}
-            className="px-2 py-3 text-center border-b border-l border-slate-200 bg-slate-50 text-sm font-medium text-slate-700"
-          >
-            <div>{formatDisplayWeekdayInTz(day.toISOString(), timezone)}</div>
-            <div className="text-xs text-slate-500">
-              {formatDisplayDateInTz(day.toISOString(), timezone)}
+        <span
+          className="w-3 h-3 rounded-full shrink-0"
+          style={{ backgroundColor: color }}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-slate-900 truncate">
+            {student?.name ?? cls?.name ?? 'Unknown'}
+            {isOverride && <span className="ml-1" title="Rate override">⚡</span>}
+          </div>
+          <div className="text-xs text-slate-600">
+            {startTime.slice(0, 5)} - {endTime.slice(0, 5)} ({session.durationMinutes}m)
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  return (
+    <>
+      {/* Desktop time-grid */}
+      <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded-xl bg-white">
+        <div
+          className="min-w-[900px]"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '64px repeat(7, 1fr)',
+            gridTemplateRows: `auto repeat(${totalRows}, ${ROW_HEIGHT_PX}px)`,
+          }}
+        >
+          <div className="border-b border-r border-slate-200 bg-slate-50" />
+          {weekDays.map((day, idx) => (
+            <div
+              key={idx}
+              className="px-2 py-3 text-center border-b border-l border-slate-200 bg-slate-50 text-sm font-medium text-slate-700"
+            >
+              <div>{formatDisplayWeekdayInTz(day.toISOString(), timezone)}</div>
+              <div className="text-xs text-slate-500">
+                {formatDisplayDateInTz(day.toISOString(), timezone)}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
 
-        {timeSlots.map((time, idx) => (
-          <div
-            key={time}
-            className="text-xs text-slate-500 text-right pr-2 border-r border-slate-200 flex items-start justify-end"
-            style={{ gridColumn: 1, gridRow: idx + 2 }}
-          >
-            {time}
-          </div>
-        ))}
+          {timeSlots.map((time, idx) => (
+            <div
+              key={time}
+              className="text-xs text-slate-500 text-right pr-2 border-r border-slate-200 flex items-start justify-end"
+              style={{ gridColumn: 1, gridRow: idx + 2 }}
+            >
+              {time}
+            </div>
+          ))}
 
-        {weekDays.map((day, idx) => renderDayColumn(day, idx))}
+          {weekDays.map((day, idx) => renderDayColumn(day, idx))}
+        </div>
       </div>
-    </div>
+
+      {/* Mobile condensed week list */}
+      <div className="sm:hidden space-y-3">
+        {weekDays.map((day) => {
+          const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
+          const daySessions = sessionsByDay.get(dateKey) ?? [];
+          return (
+            <div key={dateKey} className="border border-slate-200 rounded-xl bg-white p-3">
+              <div className="text-sm font-semibold text-slate-700 mb-2">
+                {formatDisplayWeekdayInTz(day.toISOString(), timezone)}{' '}
+                <span className="text-slate-500 font-normal">
+                  {formatDisplayDateInTz(day.toISOString(), timezone)}
+                </span>
+              </div>
+              {daySessions.length === 0 ? (
+                <p className="text-xs text-slate-500 py-1">No sessions</p>
+              ) : (
+                <div className="space-y-2">
+                  {daySessions.sort((a, b) => a.plannedTime.localeCompare(b.plannedTime)).map(renderMobileSession)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
