@@ -30,11 +30,18 @@ function formatToday(dateStr: string): string {
 }
 
 function dateKey(date: Date): string {
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  }
   return date.toISOString().split('T')[0];
 }
 
 function getWeekStart(date: Date): Date {
   const d = new Date(date);
+  if (isNaN(d.getTime())) {
+    return getWeekStart(new Date());
+  }
   d.setHours(0, 0, 0, 0);
   const day = d.getDay(); // 0 = Sunday
   d.setDate(d.getDate() - day);
@@ -50,23 +57,25 @@ function getWeekDays(weekStart: Date): Date[] {
 }
 
 function getSessionDisplayName(classes: Class[], students: Student[], session: Session): string {
+  if (!session) return 'Untitled';
   if (session.classId) {
-    return classes.find((c) => c.id === session.classId)?.name ?? 'Class';
+    return classes?.find((c) => c.id === session.classId)?.name ?? 'Class';
   }
   if (session.studentId) {
-    return students.find((s) => s.id === session.studentId)?.name ?? 'Student';
+    return students?.find((s) => s.id === session.studentId)?.name ?? 'Student';
   }
   return 'Untitled';
 }
 
 function getStudentNames(session: Session, enrollments: Enrollment[], students: Student[]): string {
+  if (!session) return 'No students';
   if (session.studentId) {
-    return students.find((s) => s.id === session.studentId)?.name ?? 'No student';
+    return students?.find((s) => s.id === session.studentId)?.name ?? 'No student';
   }
   if (session.classId) {
-    return enrollments
+    return (enrollments ?? [])
       .filter((e) => e.classId === session.classId)
-      .map((e) => students.find((s) => s.id === e.studentId)?.name)
+      .map((e) => students?.find((s) => s.id === e.studentId)?.name)
       .filter(Boolean)
       .join(', ') || 'No students';
   }
@@ -79,14 +88,16 @@ function useStudentEffectiveColors(students: Student[]) {
     const palette = CURATED_PALETTE;
     let paletteIndex = 0;
 
-    for (const student of students) {
+    for (const student of students ?? []) {
+      if (!student?.id) continue;
       const normalized = normalizeColor(student.color);
       if (normalized) {
         map.set(student.id, normalized);
       }
     }
 
-    for (const student of students) {
+    for (const student of students ?? []) {
+      if (!student?.id) continue;
       if (!map.has(student.id)) {
         map.set(student.id, palette[paletteIndex % palette.length] ?? DEFAULT_COLOR);
         paletteIndex++;
@@ -100,13 +111,15 @@ function useStudentEffectiveColors(students: Student[]) {
 function useGroupedStudents(students: Student[]) {
   return useMemo(() => {
     const groups = new Map<string | undefined, Student[]>();
-    for (const student of students) {
-      const key = student.familyGroup?.trim() || undefined;
+    for (const student of students ?? []) {
+      if (!student?.id) continue;
+      const rawGroup = student.familyGroup;
+      const key = typeof rawGroup === 'string' ? rawGroup.trim() || undefined : undefined;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(student);
     }
     for (const list of groups.values()) {
-      list.sort((a, b) => a.name.localeCompare(b.name));
+      list.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
     }
     return Array.from(groups.entries()).sort((a, b) => {
       if (!a[0]) return 1;
@@ -254,6 +267,8 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     return `${startStr} - ${endStr}`;
   }, [weekDays]);
+
+  console.log('[DEBUG] HomeView rendering, students:', students.length, 'sessions:', sessions.length);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">

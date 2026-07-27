@@ -27,7 +27,7 @@ import { ProposalEditor } from './components/ProposalEditor';
 import { ReviewView } from './components/ReviewView';
 import { BillingView } from './components/BillingView';
 import { StudentDetailView } from './components/StudentDetailView';
-import { HomeView } from './components/HomeView';
+// import { HomeView } from './components/HomeView';
 import { RemindersView } from './components/RemindersView';
 
 type TabKey = 'home' | 'students' | 'calendar' | 'proposals' | 'review' | 'billing' | 'settings';
@@ -323,6 +323,7 @@ function AppContent() {
   }
 
   const isCalendarLoading = studentsLoading || classesLoading || enrollmentsLoading;
+  console.log('[DEBUG] App.tsx rendering, auth:', !!authSession, 'students:', students.length);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -333,12 +334,7 @@ function AppContent() {
           <Route
             path="/"
             element={
-              <HomeView
-                students={students}
-                classes={classes}
-                enrollments={enrollments}
-                onResolveClassForStudent={resolveClassForStudent}
-              />
+              <div>HOME TEST</div>
             }
           />
           <Route path="/students" element={<StudentsView />} />
