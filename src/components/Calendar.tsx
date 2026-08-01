@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import type { Session, Student, Class, Enrollment } from '../types';
 import { usePreferences } from '../hooks/usePreferences';
+import { assignColor, normalizeColor } from '../utils/colors';
 import { DayView } from './DayView';
 import { WeekView } from './WeekView';
 import { MonthView } from './MonthView';
@@ -59,6 +60,31 @@ export function Calendar({ students, classes, enrollments = [], onResolveClassFo
       return classStudentIds.some((sid) => selectedStudentIds.has(sid));
     });
   }, [sessions, classToStudents, selectedStudentIds]);
+
+  // Compute the display color for each student filter chip. Use the assigned
+  // student.color when available; otherwise fall back to the auto-assigned
+  // palette color so chips match the colors shown in the settings color list.
+  const studentChipColors = useMemo(() => {
+    const assigned = new Map<string, string>();
+    const existing: string[] = [];
+
+    for (const student of students) {
+      const color = normalizeColor(student.color);
+      if (color) {
+        assigned.set(student.id, color);
+        existing.push(color);
+      }
+    }
+
+    for (const student of students) {
+      if (assigned.has(student.id)) continue;
+      const color = assignColor(existing);
+      assigned.set(student.id, color);
+      existing.push(color);
+    }
+
+    return assigned;
+  }, [students]);
 
   // Fetch sessions for a broad window around the current view so timezone
   // offsets and month/week boundaries don't hide sessions.
@@ -200,7 +226,10 @@ export function Calendar({ students, classes, enrollments = [], onResolveClassFo
         <div className="flex flex-wrap gap-2">
           {students.map((student) => (
             <button key={student.id} type="button" onClick={() => toggleStudent(student.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${selectedStudentIds.has(student.id) ? 'bg-slate-100 border-slate-300 text-slate-800' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+              <span
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: studentChipColors.get(student.id) }}
+              />
               <span className={selectedStudentIds.has(student.id) ? '' : 'line-through'}>{student.name}</span>
             </button>
           ))}

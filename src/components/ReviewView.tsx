@@ -111,14 +111,15 @@ export function ReviewView({ students, classes }: ReviewViewProps) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 className="text-lg font-semibold text-slate-800">
+        <h2 className="text-lg font-semibold" style={{ color: '#1e293b' }}>
           {locale === 'zh' ? '月度回顾' : 'Monthly Review'}
         </h2>
         <div className="flex items-center gap-2">
           <select
             value={month}
             onChange={(e) => setMonth(parseInt(e.target.value, 10))}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+            style={{ borderColor: '#cbd5e1', color: '#0f172a' }}
           >
             {monthOptions.map((m) => (
               <option key={m} value={m}>
@@ -129,7 +130,8 @@ export function ReviewView({ students, classes }: ReviewViewProps) {
           <select
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value, 10))}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+            style={{ borderColor: '#cbd5e1', color: '#0f172a' }}
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>
@@ -140,7 +142,8 @@ export function ReviewView({ students, classes }: ReviewViewProps) {
           <select
             value={locale}
             onChange={(e) => setLocale(e.target.value as 'en' | 'zh')}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+            style={{ borderColor: '#cbd5e1', color: '#0f172a' }}
           >
             <option value="zh">中文</option>
             <option value="en">English</option>
@@ -149,7 +152,8 @@ export function ReviewView({ students, classes }: ReviewViewProps) {
             type="button"
             onClick={handleExport}
             disabled={exporting || loading || filteredSessions.length === 0}
-            className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#4f46e5', color: '#ffffff' }}
           >
             {exporting ? 'Exporting...' : locale === 'zh' ? '导出 PNG' : 'Export PNG'}
           </button>
@@ -157,15 +161,18 @@ export function ReviewView({ students, classes }: ReviewViewProps) {
       </div>
 
       {error && (
-        <div className="p-4 rounded-lg bg-red-50 text-red-600 text-sm">
+        <div className="p-4 rounded-lg text-sm" style={{ backgroundColor: '#fef2f2', color: '#dc2626' }}>
           Error loading sessions: {error}
         </div>
       )}
 
       {loading ? (
-        <div className="p-8 text-center text-slate-500">Loading sessions...</div>
+        <div className="p-8 text-center text-sm" style={{ color: '#64748b' }}>Loading sessions...</div>
       ) : filteredSessions.length === 0 ? (
-        <div className="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
+        <div
+          className="p-8 text-center text-sm rounded-xl border"
+          style={{ color: '#64748b', backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}
+        >
           {locale === 'zh' ? '该月份没有课程记录。' : 'No sessions found for this month.'}
         </div>
       ) : (

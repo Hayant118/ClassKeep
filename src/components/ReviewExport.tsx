@@ -212,23 +212,23 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
 
   return (
     <div
-      className="bg-white border border-slate-200 shadow-md rounded-xl overflow-hidden text-slate-800"
-      style={{ width: '375px' }}
+      className="border shadow-md rounded-xl overflow-hidden"
+      style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', width: '375px' }}
     >
-      <div className="bg-slate-900 text-white p-5 text-center">
+      <div className="p-5 text-center" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
         <div className="text-xs uppercase tracking-widest opacity-80">{title}</div>
         <div className="text-xl font-bold mt-1">{headerName}</div>
       </div>
 
       <div className="p-5 space-y-5">
-        <div className="text-xs text-slate-500 text-center bg-slate-50 rounded-lg py-2">
+        <div className="text-xs text-center rounded-lg py-2" style={{ color: '#64748b', backgroundColor: '#f8fafc' }}>
           {t.planned}: {plannedCount} {t.sessions} · {t.actual}: {actualCount} {t.sessions}
           {additionalCount > 0 && ` (+${additionalCount} ${t.additional})`}
           {cancelledCount > 0 && ` (${cancelledCount} ${t.cancelled})`}
         </div>
 
         <div>
-          <div className="grid grid-cols-7 gap-1 text-center text-xs text-slate-500 mb-1">
+          <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1" style={{ color: '#64748b' }}>
             {t.weekday.map((d, i) => (
               <div key={i}>{d}</div>
             ))}
@@ -244,9 +244,10 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
               return (
                 <div
                   key={day}
-                  className="w-10 h-10 flex flex-col items-center justify-center rounded-lg border border-slate-100"
+                  className="w-10 h-10 flex flex-col items-center justify-center rounded-lg border"
+                  style={{ borderColor: '#f1f5f9' }}
                 >
-                  <span className="text-xs text-slate-600">{day}</span>
+                  <span className="text-xs" style={{ color: '#475569' }}>{day}</span>
                   {symbol && (
                     <div className="mt-0.5">
                       {SYMBOLS[symbol].render()}
@@ -258,50 +259,50 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
           </div>
         </div>
 
-        <div className="border-t border-slate-200 pt-4 space-y-2">
-          <div className="text-sm font-semibold text-slate-700">
+        <div className="border-t pt-4 space-y-2" style={{ borderColor: '#e2e8f0' }}>
+          <div className="text-sm font-semibold" style={{ color: '#334155' }}>
             {locale === 'zh' ? '月度摘要' : 'Monthly summary'}
           </div>
           <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-              <span className="text-slate-600">{t.completed}</span>
-              <span className="font-semibold text-slate-900">{completedCount}</span>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
+              <span className="text-xs" style={{ color: '#64748b' }}>{t.completed}</span>
+              <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{completedCount}</span>
             </div>
-            <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-              <span className="text-slate-600">{t.cancelled}</span>
-              <span className="font-semibold text-slate-900">{cancelledCount}</span>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
+              <span className="text-xs" style={{ color: '#64748b' }}>{t.cancelled}</span>
+              <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{cancelledCount}</span>
             </div>
-            <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-              <span className="text-slate-600">{t.noShow}</span>
-              <span className="font-semibold text-slate-900">{noShowCount}</span>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
+              <span className="text-xs" style={{ color: '#64748b' }}>{t.noShow}</span>
+              <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{noShowCount}</span>
             </div>
-            <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-              <span className="text-slate-600">{t.moved}</span>
-              <span className="font-semibold text-slate-900">{movedCount}</span>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
+              <span className="text-xs" style={{ color: '#64748b' }}>{t.moved}</span>
+              <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{movedCount}</span>
             </div>
-            <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-              <span className="text-slate-600">{t.additional}</span>
-              <span className="font-semibold text-slate-900">{additionalCount}</span>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
+              <span className="text-xs" style={{ color: '#64748b' }}>{t.additional}</span>
+              <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{additionalCount}</span>
             </div>
-            <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-              <span className="text-slate-600">{t.totalCharge}</span>
-              <span className="font-semibold text-slate-900">{formatCurrency(totalCharge, locale)}</span>
+            <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
+              <span className="text-xs" style={{ color: '#64748b' }}>{t.totalCharge}</span>
+              <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{formatCurrency(totalCharge, locale)}</span>
             </div>
           </div>
-          <div className="text-xs text-slate-500 pt-1">
+          <div className="text-xs pt-1" style={{ color: '#64748b' }}>
             {t.changeNote(movedCount, cancelledCount, additionalCount)}
           </div>
         </div>
 
-        <div className="border-t border-slate-200 pt-3">
-          <div className="text-xs font-semibold text-slate-700 mb-2">
+        <div className="border-t pt-3" style={{ borderColor: '#e2e8f0' }}>
+          <div className="text-xs font-semibold mb-2" style={{ color: '#334155' }}>
             {locale === 'zh' ? '图例' : 'Legend'}
           </div>
           <div className="flex flex-wrap gap-2">
             {legendItems.map((type) => (
-              <div key={type} className="flex items-center gap-1 bg-slate-50 rounded-full px-2 py-1">
+              <div key={type} className="flex items-center gap-1 rounded-full px-2 py-1" style={{ backgroundColor: '#f8fafc' }}>
                 {SYMBOLS[type].render()}
-                <span className="text-xs text-slate-600">
+                <span className="text-xs" style={{ color: '#64748b' }}>
                   {locale === 'zh' ? SYMBOLS[type].labelZh : SYMBOLS[type].labelEn}
                 </span>
               </div>
