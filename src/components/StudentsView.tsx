@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useStudents } from '../hooks/useStudents';
@@ -29,7 +29,7 @@ const COMMON_TIMEZONES = [
 
 export function StudentsView() {
   const navigate = useNavigate();
-  const { students, loading: studentsLoading, error: studentsError, addStudent, updateStudent, deleteStudent } = useStudents();
+  const { students, loading: studentsLoading, error: studentsError, addStudent, updateStudent, deleteStudent, fetchStudents } = useStudents();
   const { classes, loading: classesLoading, addClass, updateClass, deleteClass } = useClasses();
   const { enrollments, addEnrollment, deleteEnrollment } = useEnrollments();
 
@@ -41,7 +41,6 @@ export function StudentsView() {
   const [notes, setNotes] = useState('');
   const [color, setColor] = useState('');
   const [familyGroup, setFamilyGroup] = useState('');
-  const [showColorPicker, setShowColorPicker] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Class form state
@@ -62,7 +61,6 @@ export function StudentsView() {
     setNotes('');
     setColor('');
     setFamilyGroup('');
-    setShowColorPicker(false);
     setEditingId(null);
   };
 
@@ -94,6 +92,7 @@ export function StudentsView() {
         } as Omit<Student, 'id' | 'userId' | 'createdAt'>);
         toast.success('Student added');
       }
+      await fetchStudents();
       resetStudentForm();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save student');
@@ -109,7 +108,6 @@ export function StudentsView() {
     setNotes(student.notes);
     setColor(student.color ?? '');
     setFamilyGroup(student.familyGroup ?? '');
-    setShowColorPicker(false);
   };
 
   const handleDeleteStudent = async (id: string) => {
@@ -224,6 +222,16 @@ export function StudentsView() {
     });
   }, [students]);
 
+  const familyGroupOptions = useMemo(() => {
+    const groups = new Set<string>();
+    for (const student of students) {
+      if (student.familyGroup?.trim()) {
+        groups.add(student.familyGroup.trim());
+      }
+    }
+    return Array.from(groups).sort();
+  }, [students]);
+
   if (studentsLoading || classesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -306,57 +314,47 @@ export function StudentsView() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Color</label>
-              <div className="flex items-center gap-3">
-                <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Color <span className="text-xs font-normal text-slate-500">(manual override)</span>
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setColor('')}
+                  className={`w-7 h-7 rounded-full border flex items-center justify-center text-[10px] font-medium text-slate-500 ${
+                    !color ? 'border-slate-900 ring-2 ring-offset-1 ring-slate-400' : 'border-slate-200 bg-white'
+                  }`}
+                  title="Auto-assign"
+                  aria-label="Auto-assign color"
+                >
+                  A
+                </button>
+                {CURATED_PALETTE.map((c) => (
                   <button
+                    key={c}
                     type="button"
-                    onClick={() => setShowColorPicker((v) => !v)}
-                    className="w-10 h-10 rounded-full border-2 border-white shadow-sm ring-2 ring-slate-200"
-                    style={{ backgroundColor: color || '#e2e8f0' }}
-                    aria-label="Choose color"
+                    onClick={() => setColor(c)}
+                    className={`w-7 h-7 rounded-full border ${
+                      color === c ? 'border-slate-900 ring-2 ring-offset-1 ring-slate-400' : 'border-slate-200'
+                    }`}
+                    style={{ backgroundColor: c }}
+                    aria-label={`Select color ${c}`}
                   />
-                  {showColorPicker && (
-                    <div className="absolute top-12 left-0 z-20 bg-white rounded-lg shadow-lg border border-slate-200 p-2 flex flex-wrap gap-2 w-44">
-                      {CURATED_PALETTE.map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => {
-                            setColor(c);
-                            setShowColorPicker(false);
-                          }}
-                          className={`w-7 h-7 rounded-full border ${color === c ? 'border-slate-900 ring-2 ring-offset-1 ring-slate-400' : 'border-slate-200'}`}
-                          style={{ backgroundColor: c }}
-                          aria-label={`Select color ${c}`}
-                        />
-                      ))}
-                      <input
-                        type="color"
-                        value={normalizeColor(color) || '#e2e8f0'}
-                        onChange={(e) => setColor(e.target.value)}
-                        className="w-7 h-7 rounded-full overflow-hidden border border-slate-200 p-0 cursor-pointer"
-                        aria-label="Custom color"
-                      />
-                    </div>
-                  )}
-                </div>
+                ))}
+                <input
+                  type="color"
+                  value={normalizeColor(color) || '#e2e8f0'}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="w-7 h-7 rounded-full overflow-hidden border border-slate-200 p-0 cursor-pointer"
+                  aria-label="Custom color"
+                />
                 <input
                   type="text"
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
                   placeholder="Auto"
-                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="flex-1 min-w-[80px] rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
-                {color && (
-                  <button
-                    type="button"
-                    onClick={() => setColor('')}
-                    className="text-xs text-slate-500 hover:text-slate-700 underline"
-                  >
-                    Reset
-                  </button>
-                )}
               </div>
               <p className="text-xs text-slate-500 mt-1">
                 Leave blank to auto-assign a color.
@@ -369,9 +367,15 @@ export function StudentsView() {
                 type="text"
                 value={familyGroup}
                 onChange={(e) => setFamilyGroup(e.target.value)}
+                list="family-group-list"
                 placeholder="e.g. Smith family"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
+              <datalist id="family-group-list">
+                {familyGroupOptions.map((group) => (
+                  <option key={group} value={group} />
+                ))}
+              </datalist>
               <p className="text-xs text-slate-500 mt-1">
                 Siblings in the same group get shades of the same hue.
               </p>
@@ -581,84 +585,95 @@ export function StudentsView() {
             No students yet. Add one above.
           </div>
         ) : (
-          <ul className="divide-y divide-slate-200">
-            {groupedStudents.map(([group, groupStudents]) => (
-              <Fragment key={group}>
-                <li className="sticky top-32 sm:top-20 z-10 px-6 py-2 bg-slate-50 text-sm font-semibold text-slate-700 border-b border-slate-200">
-                  {group} ({groupStudents.length})
-                </li>
-                {groupStudents.map((student) => {
-                  const studentEnrollments = getStudentEnrollments(student.id);
-                  const detailParts = [
-                    student.contact,
-                    student.defaultRate > 0 ? `Rate: ${student.defaultRate.toFixed(2)}` : null,
-                  ].filter((part): part is string => Boolean(part));
-                  return (
-                    <li
-                      key={student.id}
-                      className="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: student.color || '#6366f1' }}
-                          />
-                          <p className="font-medium text-slate-900 truncate">
-                            {student.name}
-                          </p>
-                        </div>
-                        {detailParts.length > 0 && (
-                          <p className="text-sm text-slate-500 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
-                            {detailParts.join(' • ')}
-                          </p>
-                        )}
-                        {student.notes.trim() && (
-                          <p className="text-sm text-slate-500 mt-1">{student.notes}</p>
-                        )}
-                        {studentEnrollments.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {studentEnrollments.map((en) => {
-                              const cls = classes.find(c => c.id === en.classId);
-                              return cls ? (
-                                <span
-                                  key={en.id}
-                                  className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded"
-                                >
-                                  {cls.name}
-                                </span>
-                              ) : null;
-                            })}
+          <div className="divide-y divide-slate-200">
+            {groupedStudents.map(([group, groupStudents]) => {
+              const familyColor = groupStudents.find((s) => s.color)?.color || '#94a3b8';
+              return (
+                <div key={group}>
+                  <div className="px-6 py-2 bg-slate-50 text-sm font-semibold text-slate-700 border-b border-slate-200 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: familyColor }} />
+                    {group} ({groupStudents.length})
+                  </div>
+                  <ul
+                    className="border-l-4 ml-4 sm:ml-6"
+                    style={{ borderColor: familyColor }}
+                  >
+                    {groupStudents.map((student, idx) => {
+                      const studentEnrollments = getStudentEnrollments(student.id);
+                      const detailParts = [
+                        student.contact,
+                        student.defaultRate > 0 ? `Rate: ${student.defaultRate.toFixed(2)}` : null,
+                      ].filter((part): part is string => Boolean(part));
+                      return (
+                        <li
+                          key={student.id}
+                          className={`pl-4 pr-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-slate-50 transition-colors ${
+                            idx !== groupStudents.length - 1 ? 'border-b border-slate-200' : ''
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: student.color || '#6366f1' }}
+                              />
+                              <p className="font-medium text-slate-900">
+                                {student.name}
+                              </p>
+                            </div>
+                            {detailParts.length > 0 && (
+                              <p className="text-sm text-slate-500 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                                {detailParts.join(' • ')}
+                              </p>
+                            )}
+                            {student.notes.trim() && (
+                              <p className="text-sm text-slate-500 mt-1">{student.notes}</p>
+                            )}
+                            {studentEnrollments.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {studentEnrollments.map((en) => {
+                                  const cls = classes.find(c => c.id === en.classId);
+                                  return cls ? (
+                                    <span
+                                      key={en.id}
+                                      className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded"
+                                    >
+                                      {cls.name}
+                                    </span>
+                                  ) : null;
+                                })}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
 
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => navigate(`/students/${student.id}`)}
-                          className="text-sm font-medium text-emerald-600 hover:text-emerald-700 px-3 py-1.5 rounded-md hover:bg-emerald-50 transition-colors"
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={() => handleEditStudent(student)}
-                          className="text-sm font-medium text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-md hover:bg-indigo-50 transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteStudent(student.id)}
-                          className="text-sm font-medium text-red-600 hover:text-red-700 px-3 py-1.5 rounded-md hover:bg-red-50 transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </Fragment>
-            ))}
-          </ul>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => navigate(`/students/${student.id}`)}
+                              className="text-sm font-medium text-emerald-600 hover:text-emerald-700 px-3 py-1.5 rounded-md hover:bg-emerald-50 transition-colors"
+                            >
+                              View
+                            </button>
+                            <button
+                              onClick={() => handleEditStudent(student)}
+                              className="text-sm font-medium text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-md hover:bg-indigo-50 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStudent(student.id)}
+                              className="text-sm font-medium text-red-600 hover:text-red-700 px-3 py-1.5 rounded-md hover:bg-red-50 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
