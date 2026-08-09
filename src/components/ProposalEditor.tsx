@@ -14,10 +14,12 @@ import { useSessions } from '../hooks/useSessions';
 import { usePreferences } from '../hooks/usePreferences';
 import { WeekView } from './WeekView';
 import { DayView } from './DayView';
+import { MonthView } from './MonthView';
 import { SessionModal } from './SessionModal';
 import { ProposalExport } from './ProposalExport';
 import { draftSessionsToSessions, sessionPayloadToDraftSession } from '../utils/draftSessionAdapter';
 import { checkOverlap } from '../utils/calendar';
+import { startOfMonthInTz, addMonthsInTz } from '../utils/timezone';
 import type { Proposal, Session, Enrollment } from '../types';
 
 const TIMEZONE = 'Asia/Shanghai';
@@ -124,7 +126,7 @@ export function ProposalEditor() {
   );
 
   const [title, setTitle] = useState('');
-  const [calendarView, setCalendarView] = useState<'week' | 'day'>('week');
+  const [calendarView, setCalendarView] = useState<'week' | 'day' | 'month'>('week');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | undefined>(undefined);
@@ -176,6 +178,16 @@ export function ProposalEditor() {
 
   const weekStart = useMemo(() => getWeekStart(anchorDate), [anchorDate]);
   const day = useMemo(() => anchorDate, [anchorDate]);
+
+  const [monthStart, setMonthStart] = useState(() => startOfMonthInTz(anchorDate, TIMEZONE));
+
+  useEffect(() => {
+    setMonthStart(startOfMonthInTz(anchorDate, TIMEZONE));
+  }, [anchorDate]);
+
+  const handleMonthChange = (offset: number) => {
+    setMonthStart((prev) => addMonthsInTz(prev, offset, TIMEZONE));
+  };
 
   const handleTitleBlur = async () => {
     if (!proposal || title === proposal.title) return;
@@ -551,10 +563,21 @@ export function ProposalEditor() {
             >
               Day
             </button>
+            <button
+              type="button"
+              onClick={() => setCalendarView('month')}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                calendarView === 'month'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Month
+            </button>
           </div>
         </div>
 
-        {calendarView === 'week' ? (
+        {calendarView === 'week' && (
           <WeekView
             weekStart={weekStart}
             timezone={TIMEZONE}
@@ -566,7 +589,9 @@ export function ProposalEditor() {
             onSlotClick={openNewDraftModal}
             onSessionClick={openEditDraftModal}
           />
-        ) : (
+        )}
+
+        {calendarView === 'day' && (
           <DayView
             day={day}
             timezone={TIMEZONE}
@@ -577,6 +602,20 @@ export function ProposalEditor() {
             preferences={preferences}
             onSlotClick={openNewDraftModal}
             onSessionClick={openEditDraftModal}
+          />
+        )}
+
+        {calendarView === 'month' && (
+          <MonthView
+            monthStart={monthStart}
+            timezone={TIMEZONE}
+            students={students}
+            classes={classes}
+            enrollments={enrollments}
+            sessions={calendarSessions}
+            onMonthChange={handleMonthChange}
+            onSessionClick={openEditDraftModal}
+            inlineDetail
           />
         )}
       </div>
