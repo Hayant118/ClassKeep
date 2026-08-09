@@ -41,8 +41,11 @@ function StatusBadge({ status }: { status: Proposal['status'] }) {
   );
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return 'Not saved yet';
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return 'Not saved yet';
+  return date.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -107,7 +110,7 @@ function SkeletonCalendar() {
 export function ProposalEditor() {
   const { proposalId } = useParams<{ proposalId: string }>();
   const navigate = useNavigate();
-  const { proposals, loading, error, updateProposal, updateProposalStatus, updateDraftSessions, commitProposal } =
+  const { proposals, loading, error, updateProposal, updateProposalStatus, updateDraftSessions, commitProposal, deleteProposal } =
     useProposals();
   const { students } = useStudents();
   const { classes } = useClasses();
@@ -131,6 +134,7 @@ export function ProposalEditor() {
   const [committing, setCommitting] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -310,6 +314,20 @@ export function ProposalEditor() {
     navigate('/proposals');
   };
 
+  const handleDelete = async () => {
+    if (!proposal) return;
+    if (!window.confirm('Delete this proposal and all its draft sessions? This cannot be undone.')) return;
+    setDeleting(true);
+    try {
+      await deleteProposal(proposal.id);
+      navigate('/proposals');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleExport = async () => {
     if (!proposal || proposal.draftSessions.length === 0) return;
     setExporting(true);
@@ -422,6 +440,14 @@ export function ProposalEditor() {
               className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {archiving ? 'Archiving...' : proposal.status === 'archived' ? 'Archived' : 'Archive'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="px-4 py-2 rounded-lg border border-red-300 bg-white text-red-700 text-sm font-medium hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
             </button>
             <button
               type="button"

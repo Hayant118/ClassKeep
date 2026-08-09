@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProposals } from '../hooks/useProposals';
 import type { Proposal } from '../types';
-import { formatDate } from '../utils/date';
 
 const STATUS_STYLES: Record<Proposal['status'], string> = {
   draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -22,6 +21,14 @@ function StatusBadge({ status }: { status: Proposal['status'] }) {
       {status}
     </span>
   );
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 function SkeletonList() {

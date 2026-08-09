@@ -121,17 +121,3 @@ export function parseTime(time: string): { hour: number; minute: number } {
   const [hour, minute] = time.split(':').map(Number);
   return { hour: isNaN(hour) ? 0 : hour, minute: isNaN(minute) ? 0 : minute };
 }
-
-export function formatDate(value: string | null | undefined): string {
-  if (!value) return '—';
-  let date = new Date(value);
-  if (isNaN(date.getTime())) {
-    date = new Date(value.replace(' ', 'T'));
-  }
-  if (isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}

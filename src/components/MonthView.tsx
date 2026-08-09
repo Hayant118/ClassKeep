@@ -6,6 +6,7 @@ import {
   formatDisplayDateInTz,
   formatMonthYearInTz,
   getCalendarDaysForMonth,
+  startOfMonthInTz,
 } from '../utils/timezone';
 import { findOverlappingSessions, type SessionWithOverlap } from '../utils/calendar';
 import { SessionCard } from './SessionCard';
@@ -23,6 +24,7 @@ interface MonthViewProps {
   onSessionClick?: (session: Session) => void;
   onAddSession?: (dateKey: string) => void;
   onDeleteSession?: (id: string) => void;
+  inlineDetail?: boolean;
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -45,6 +47,88 @@ function getMonthDotColor(
   return student?.color ?? '#6366f1';
 }
 
+interface DetailContentProps {
+  selectedDay: Date;
+  timezone: string;
+  sessions: SessionWithOverlap[];
+  onClose: () => void;
+  onAddSession?: (dateKey: string) => void;
+  onSessionClick?: (session: Session) => void;
+  onDeleteSession?: (id: string) => void;
+  students: Student[];
+  enrollments: Enrollment[];
+}
+
+function DetailContent({
+  selectedDay,
+  timezone,
+  sessions,
+  onClose,
+  onAddSession,
+  onSessionClick,
+  onDeleteSession,
+  students,
+  enrollments,
+}: DetailContentProps) {
+  const dateKey = formatDateKeyInTz(selectedDay.toISOString(), timezone);
+  return (
+    <>
+      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between">
+        <h3 className="text-base sm:text-lg font-semibold text-slate-800">
+          {formatDisplayDateInTz(selectedDay.toISOString(), timezone)}
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-slate-400 hover:text-slate-600"
+          aria-label="Close details"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-slate-500">
+            {sessions.length} session{sessions.length === 1 ? '' : 's'}
+          </span>
+          {onAddSession && (
+            <button
+              type="button"
+              onClick={() => {
+                onAddSession(dateKey);
+                onClose();
+              }}
+              className="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              + Add session
+            </button>
+          )}
+        </div>
+
+        {sessions.length === 0 ? (
+          <p className="text-slate-500 text-sm">No sessions for this day.</p>
+        ) : (
+          sessions.map((session) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              student={getSessionStudent(session, enrollments, students)}
+              timezone={timezone}
+              students={students}
+              onEdit={onSessionClick}
+              onDelete={(id) => {
+                onDeleteSession?.(id);
+                if (sessions.length <= 1) onClose();
+              }}
+            />
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
 export function MonthView({
   monthStart,
   timezone,
@@ -56,12 +140,18 @@ export function MonthView({
   onSessionClick,
   onAddSession,
   onDeleteSession,
+  inlineDetail,
 }: MonthViewProps) {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
-  const calendarDays = useMemo(
-    () => getCalendarDaysForMonth(monthStart, timezone),
+  const normalizedMonthStart = useMemo(
+    () => startOfMonthInTz(monthStart, timezone),
     [monthStart, timezone]
+  );
+
+  const calendarDays = useMemo(
+    () => getCalendarDaysForMonth(normalizedMonthStart, timezone),
+    [normalizedMonthStart, timezone]
   );
 
   const sessionsWithOverlap = useMemo<SessionWithOverlap[]>(() => {
@@ -83,9 +173,9 @@ export function MonthView({
     return map;
   }, [sessionsWithOverlap, calendarDays, timezone]);
 
-  const monthEnd = addMonthsInTz(monthStart, 1, timezone);
+  const monthEnd = addMonthsInTz(normalizedMonthStart, 1, timezone);
   const isCurrentMonth = (day: Date) => {
-    return day.getTime() >= monthStart.getTime() && day.getTime() < monthEnd.getTime();
+    return day.getTime() >= normalizedMonthStart.getTime() && day.getTime() < monthEnd.getTime();
   };
 
   const handleDayClick = (day: Date) => {
@@ -116,7 +206,7 @@ export function MonthView({
           ← Prev
         </button>
         <h2 className="text-xl font-semibold text-slate-800">
-          {formatMonthYearInTz(monthStart, timezone)}
+          {formatMonthYearInTz(normalizedMonthStart, timezone)}
         </h2>
         <button
           type="button"
@@ -176,7 +266,7 @@ export function MonthView({
         </div>
       </div>
 
-      {selectedDay && (
+      {selectedDay && !inlineDetail && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
           onClick={closeDetail}
@@ -185,58 +275,34 @@ export function MonthView({
             className="bg-white w-full max-w-lg sm:rounded-xl rounded-t-xl shadow-lg max-h-[75vh] sm:max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between">
-              <h3 className="text-base sm:text-lg font-semibold text-slate-800">
-                {formatDisplayDateInTz(selectedDay.toISOString(), timezone)}
-              </h3>
-              <button
-                onClick={closeDetail}
-                className="text-slate-400 hover:text-slate-600"
-                aria-label="Close details"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">
-                  {selectedDaySessions.length} session{selectedDaySessions.length === 1 ? '' : 's'}
-                </span>
-                {onAddSession && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onAddSession(selectedDayKey || '');
-                      closeDetail();
-                    }}
-                    className="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    + Add session
-                  </button>
-                )}
-              </div>
-
-              {selectedDaySessions.length === 0 ? (
-                <p className="text-slate-500 text-sm">No sessions for this day.</p>
-              ) : (
-                selectedDaySessions.map((session) => (
-                  <SessionCard
-                    key={session.id}
-                    session={session}
-                    student={getSessionStudent(session, enrollments, students)}
-                    timezone={timezone}
-                    students={students}
-                    onEdit={onSessionClick}
-                    onDelete={(id) => {
-                      onDeleteSession?.(id);
-                      if (selectedDaySessions.length <= 1) closeDetail();
-                    }}
-                  />
-                ))
-              )}
-            </div>
+            <DetailContent
+              selectedDay={selectedDay}
+              timezone={timezone}
+              sessions={selectedDaySessions}
+              onClose={closeDetail}
+              onAddSession={onAddSession}
+              onSessionClick={onSessionClick}
+              onDeleteSession={onDeleteSession}
+              students={students}
+              enrollments={enrollments}
+            />
           </div>
+        </div>
+      )}
+
+      {selectedDay && inlineDetail && (
+        <div className="border border-slate-200 rounded-xl bg-white shadow-sm mt-4">
+            <DetailContent
+            selectedDay={selectedDay}
+            timezone={timezone}
+            sessions={selectedDaySessions}
+            onClose={closeDetail}
+            onAddSession={onAddSession}
+            onSessionClick={onSessionClick}
+            onDeleteSession={onDeleteSession}
+            students={students}
+            enrollments={enrollments}
+          />
         </div>
       )}
     </div>
