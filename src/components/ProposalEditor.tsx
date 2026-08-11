@@ -865,6 +865,7 @@ export function ProposalEditor() {
             sessions={calendarSessions}
             onMonthChange={handleMonthChange}
             onSessionClick={openEditDraftModal}
+            onAddSession={(dateKey) => openNewDraftModal(dateKey, preferences.calendarStartTime.slice(0, 5))}
             inlineDetail
           />
         )}

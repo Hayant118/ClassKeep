@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useStudents } from '../hooks/useStudents';
@@ -42,6 +42,9 @@ export function StudentsView() {
   const [color, setColor] = useState('');
   const [familyGroup, setFamilyGroup] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const formRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Class form state
   const [className, setClassName] = useState('');
@@ -108,6 +111,8 @@ export function StudentsView() {
     setNotes(student.notes);
     setColor(student.color ?? '');
     setFamilyGroup(student.familyGroup ?? '');
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => nameInputRef.current?.focus(), 300);
   };
 
   const handleDeleteStudent = async (id: string) => {
@@ -251,7 +256,7 @@ export function StudentsView() {
   return (
     <div className="space-y-8">
       {/* Student Form */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <div ref={formRef} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 scroll-mt-4">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">
           {editingId ? 'Edit Student' : 'Add Student'}
         </h2>
@@ -261,6 +266,7 @@ export function StudentsView() {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
               <input
+                ref={nameInputRef}
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
