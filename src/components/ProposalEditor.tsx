@@ -19,10 +19,21 @@ import { SessionModal } from './SessionModal';
 import { ProposalExport } from './ProposalExport';
 import { draftSessionsToSessions, sessionPayloadToDraftSession } from '../utils/draftSessionAdapter';
 import { checkOverlap } from '../utils/calendar';
-import { startOfMonthInTz, addMonthsInTz } from '../utils/timezone';
+import { timeToMinutes } from '../utils/date';
+import { startOfMonthInTz, addMonthsInTz, addDaysInTz, getDayIndexInWeek, formatDateKeyInTz } from '../utils/timezone';
 import type { Proposal, Session, Enrollment } from '../types';
 
 const TIMEZONE = 'Asia/Shanghai';
+
+const WEEKDAY_CHIPS = [
+  { label: 'Mon', value: 0 },
+  { label: 'Tue', value: 1 },
+  { label: 'Wed', value: 2 },
+  { label: 'Thu', value: 3 },
+  { label: 'Fri', value: 4 },
+  { label: 'Sat', value: 5 },
+  { label: 'Sun', value: 6 },
+];
 
 const STATUS_STYLES: Record<Proposal['status'], string> = {
   draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -138,6 +149,15 @@ export function ProposalEditor() {
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
+
+  const [repeatExpanded, setRepeatExpanded] = useState(false);
+  const [repeatClassId, setRepeatClassId] = useState('');
+  const [repeatDays, setRepeatDays] = useState<Set<number>>(new Set());
+  const [repeatStartTime, setRepeatStartTime] = useState('08:00');
+  const [repeatEndTime, setRepeatEndTime] = useState('09:00');
+  const [repeatEndMode, setRepeatEndMode] = useState<'weeks' | 'date'>('weeks');
+  const [repeatWeeks, setRepeatWeeks] = useState(4);
+  const [repeatUntilDate, setRepeatUntilDate] = useState('');
 
   useEffect(() => {
     if (proposal) {
@@ -338,6 +358,111 @@ export function ProposalEditor() {
     } finally {
       setDeleting(false);
     }
+  };
+
+  const toggleRepeatDay = (day: number) => {
+    setRepeatDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
+      return next;
+    });
+  };
+
+  const handleGenerateRepeat = async () => {
+    if (!proposal) return;
+
+    if (!repeatClassId) {
+      toast.error('Select a class');
+      return;
+    }
+    if (repeatDays.size === 0) {
+      toast.error('Select at least one day of the week');
+      return;
+    }
+
+    const startMinutes = timeToMinutes(repeatStartTime);
+    const endMinutes = timeToMinutes(repeatEndTime);
+    if (isNaN(startMinutes) || isNaN(endMinutes) || endMinutes <= startMinutes) {
+      toast.error('Enter a valid start and end time');
+      return;
+    }
+    const durationMinutes = endMinutes - startMinutes;
+
+    const todayDate = new Date();
+    const todayKey = formatDateKeyInTz(todayDate.toISOString(), TIMEZONE);
+
+    let endKey: string;
+    if (repeatEndMode === 'weeks') {
+      const endDate = addDaysInTz(todayDate, repeatWeeks * 7, TIMEZONE);
+      endKey = formatDateKeyInTz(endDate.toISOString(), TIMEZONE);
+    } else {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(repeatUntilDate)) {
+        toast.error('Enter a valid until date');
+        return;
+      }
+      endKey = repeatUntilDate;
+    }
+
+    if (endKey < todayKey) {
+      toast.error('End date must be today or later');
+      return;
+    }
+
+    const existingKeys = new Set(
+      calendarSessions
+        .filter((s) => s.classId === repeatClassId)
+        .map((s) => `${s.plannedDate}|${s.plannedTime}`)
+    );
+
+    const newDrafts: Record<string, unknown>[] = [];
+    const targetDays = Array.from(repeatDays).sort();
+
+    for (const dayIndex of targetDays) {
+      let current = todayDate;
+      for (let i = 0; i < 7; i++) {
+        if (getDayIndexInWeek(current, TIMEZONE) === dayIndex) break;
+        current = addDaysInTz(current, 1, TIMEZONE);
+      }
+
+      while (true) {
+        const currentKey = formatDateKeyInTz(current.toISOString(), TIMEZONE);
+        if (currentKey > endKey) break;
+
+        if (currentKey >= todayKey) {
+          const key = `${currentKey}|${repeatStartTime}`;
+          if (!existingKeys.has(key)) {
+            const payload: Omit<Session, 'id' | 'userId' | 'createdAt'> = {
+              classId: repeatClassId,
+              plannedDate: currentKey,
+              plannedTime: repeatStartTime,
+              actualDate: null,
+              actualTime: null,
+              durationMinutes,
+              rateMode: 'auto',
+              rateValue: null,
+              totalCharge: null,
+              status: 'scheduled',
+              movedFromDate: null,
+              movedFromTime: null,
+              notes: '',
+            };
+            newDrafts.push(buildDraftItem(payload));
+            existingKeys.add(key);
+          }
+        }
+
+        current = addDaysInTz(current, 7, TIMEZONE);
+      }
+    }
+
+    if (newDrafts.length === 0) {
+      toast.error('No new draft sessions to create');
+      return;
+    }
+
+    await updateDraftSessions(proposal.id, [...proposal.draftSessions, ...newDrafts]);
+    toast.success(`Created ${newDrafts.length} draft sessions`);
   };
 
   const handleExport = async () => {
@@ -575,6 +700,131 @@ export function ProposalEditor() {
               Month
             </button>
           </div>
+        </div>
+
+        <div className="border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            onClick={() => setRepeatExpanded((prev) => !prev)}
+            className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-indigo-600"
+          >
+            <span>{repeatExpanded ? '▾' : '▸'}</span>
+            Repeat weekly
+          </button>
+
+          {repeatExpanded && (
+            <div className="mt-3 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Class</label>
+                <select
+                  value={repeatClassId}
+                  onChange={(e) => setRepeatClassId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Select a class</option>
+                  {classes.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Days</label>
+                <div className="flex flex-wrap gap-2">
+                  {WEEKDAY_CHIPS.map(({ label, value }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => toggleRepeatDay(value)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        repeatDays.has(value)
+                          ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Start</label>
+                  <input
+                    type="time"
+                    value={repeatStartTime}
+                    onChange={(e) => setRepeatStartTime(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">End</label>
+                  <input
+                    type="time"
+                    value={repeatEndTime}
+                    onChange={(e) => setRepeatEndTime(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">End condition</label>
+                <div className="flex items-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setRepeatEndMode('weeks')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors ${
+                      repeatEndMode === 'weeks'
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Number of weeks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRepeatEndMode('date')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors ${
+                      repeatEndMode === 'date'
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Until date
+                  </button>
+                </div>
+
+                {repeatEndMode === 'weeks' ? (
+                  <input
+                    type="number"
+                    min={1}
+                    value={repeatWeeks}
+                    onChange={(e) => setRepeatWeeks(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                ) : (
+                  <input
+                    type="date"
+                    value={repeatUntilDate}
+                    onChange={(e) => setRepeatUntilDate(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerateRepeat}
+                className="w-full px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+              >
+                Generate
+              </button>
+            </div>
+          )}
         </div>
 
         {calendarView === 'week' && (
