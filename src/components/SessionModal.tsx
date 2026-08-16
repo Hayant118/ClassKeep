@@ -138,6 +138,28 @@ async function syncPrepaidBalance(
   }
 }
 
+async function findOneOnOneClass(studentId: string): Promise<string | null> {
+  const { data: enrollmentData, error: enrollmentError } = await supabase
+    .from('ck_enrollments')
+    .select('class_id')
+    .eq('student_id', studentId)
+    .eq('status', 'active');
+
+  if (enrollmentError || !enrollmentData || enrollmentData.length === 0) return null;
+
+  const classIds = enrollmentData.map((row) => row.class_id as string).filter(Boolean);
+  if (classIds.length === 0) return null;
+
+  const { data: classData, error: classError } = await supabase
+    .from('ck_classes')
+    .select('id')
+    .in('id', classIds)
+    .eq('type', 'one-on-one');
+
+  if (classError || !classData || classData.length === 0) return null;
+  return classData[0].id as string;
+}
+
 export function SessionModal({
   isOpen,
   onClose,
@@ -149,7 +171,7 @@ export function SessionModal({
   classes,
   enrollments = [],
   isDraft = false,
-  onResolveClassForStudent: _onResolveClassForStudent,
+  onResolveClassForStudent,
   onSave,
   onUpdate,
   onDelete,
@@ -216,6 +238,35 @@ export function SessionModal({
       setStatus('scheduled');
     }
   }, [isOpen, session, initialDate, initialTime, classes, students]);
+
+  const handleStudentChange = async (value: string) => {
+    if (!value) {
+      setStudentId('');
+      return;
+    }
+
+    try {
+      const resolvedClassId = await findOneOnOneClass(value);
+      if (resolvedClassId) {
+        setClassId(resolvedClassId);
+        setStudentId('');
+        return;
+      }
+
+      if (onResolveClassForStudent) {
+        const createdClassId = await onResolveClassForStudent(value);
+        setClassId(createdClassId);
+        setStudentId('');
+        return;
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to resolve 1-on-1 class');
+    }
+
+    // Fallback to legacy student-only session if no 1-on-1 class exists.
+    setStudentId(value);
+    setClassId('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -324,7 +375,21 @@ export function SessionModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Class (group)</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Student (1-on-1)</label>
+            <select
+              value={studentId}
+              onChange={(e) => handleStudentChange(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">{students.length > 0 ? 'Select a student' : 'No students'}</option>
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Class</label>
             <select
               value={classId}
               onChange={(e) => {
@@ -339,30 +404,6 @@ export function SessionModal({
                 .map((cls) => (
                   <option key={cls.id} value={cls.id}>{cls.name}</option>
                 ))}
-            </select>
-          </div>
-
-          <div className="relative text-center text-xs text-slate-400">
-            <span className="relative z-10 bg-white px-2">or</span>
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Student (one-on-one)</label>
-            <select
-              value={studentId}
-              onChange={(e) => {
-                setStudentId(e.target.value);
-                if (e.target.value) setClassId('');
-              }}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">{students.length > 0 ? 'Select a student' : 'No students'}</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
             </select>
           </div>
 

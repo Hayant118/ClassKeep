@@ -4,6 +4,10 @@ import { supabase } from '../lib/supabase';
 import type { Student } from '../types';
 import { assignColor, assignFamilyShade, normalizeColor } from '../utils/colors';
 
+function todayKey(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
 function fromDb(row: Record<string, unknown>): Student {
   return {
     id: row.id as string,
@@ -96,8 +100,41 @@ export function useStudents() {
 
     if (sbError) throw new Error(sbError.message);
 
-    setStudents(prev => [fromDb(data), ...prev]);
-    return fromDb(data);
+    const newStudent = fromDb(data);
+
+    // Auto-create a 1-on-1 class for the new student and enroll them.
+    const { data: classData, error: classError } = await supabase
+      .from('ck_classes')
+      .insert({
+        name: `${newStudent.name} (1-on-1)`,
+        type: 'one-on-one',
+        max_capacity: 1,
+        color: newStudent.color,
+        textbook: '',
+        current_unit: '',
+        user_id: userData.user.id,
+      })
+      .select()
+      .single();
+
+    if (classError) throw new Error(classError.message);
+
+    const { error: enrollmentError } = await supabase.from('ck_enrollments').insert({
+      student_id: newStudent.id,
+      class_id: classData.id,
+      joined_at: todayKey(),
+      left_at: null,
+      custom_rate: null,
+      payment_type: 'monthly_advance',
+      prepaid_balance: 0,
+      status: 'active',
+      user_id: userData.user.id,
+    });
+
+    if (enrollmentError) throw new Error(enrollmentError.message);
+
+    setStudents(prev => [newStudent, ...prev]);
+    return newStudent;
   };
 
   const updateStudent = async (id: string, updates: Partial<Student>) => {
