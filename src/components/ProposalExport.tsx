@@ -227,6 +227,7 @@ export const MOCK_PROPOSAL: Proposal = {
   userId: 'mock-user',
   title: 'Summer Schedule',
   status: 'draft',
+   guests: [],
   draftSessions: [
     {
       id: 'ds-1',
