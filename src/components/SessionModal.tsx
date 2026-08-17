@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
-import type { Session, Student, Class, Enrollment } from '../types';
+import type { Session, Student, Class, Enrollment, Guest } from '../types';
 
 function isValidDateString(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -25,6 +25,7 @@ interface SessionModalProps {
   students: Student[];
   classes: Class[];
   enrollments?: Enrollment[];
+  guests?: Guest[];
   isDraft?: boolean;
   onResolveClassForStudent?: (studentId: string) => Promise<string>;
   onSave: (session: Omit<Session, 'id' | 'userId' | 'createdAt'>) => void;
@@ -170,6 +171,7 @@ export function SessionModal({
   students,
   classes,
   enrollments = [],
+  guests = [],
   isDraft = false,
   onResolveClassForStudent,
   onSave,
@@ -182,6 +184,8 @@ export function SessionModal({
 
   const [classId, setClassId] = useState('');
   const [studentId, setStudentId] = useState('');
+  const [guestName, setGuestName] = useState('');
+  const [guestRate, setGuestRate] = useState<number | null>(null);
   const [date, setDate] = useState(
     isValidDateString(initialDate || '') ? initialDate || todayKey() : todayKey()
   );
@@ -214,6 +218,8 @@ export function SessionModal({
     if (session) {
       setClassId(session.classId ?? '');
       setStudentId(session.studentId ?? '');
+      setGuestName(session.guestName ?? '');
+      setGuestRate(session.guestRate ?? null);
       setDate(session.plannedDate);
       setTime(session.plannedTime);
       const preset = DURATION_OPTIONS.includes(session.durationMinutes);
@@ -227,6 +233,8 @@ export function SessionModal({
     } else {
       setClassId('');
       setStudentId('');
+      setGuestName('');
+      setGuestRate(null);
       setDate(isValidDateString(initialDate || '') ? initialDate || todayKey() : todayKey());
       setTime(isValidTimeString(initialTime || '') ? initialTime || '09:00' : '09:00');
       setDurationMode('preset');
@@ -244,6 +252,10 @@ export function SessionModal({
       setStudentId('');
       return;
     }
+
+    // Guest and student/class selections are mutually exclusive.
+    setGuestName('');
+    setGuestRate(null);
 
     try {
       const resolvedClassId = await findOneOnOneClass(value);
@@ -268,16 +280,36 @@ export function SessionModal({
     setClassId('');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!classId && !studentId) {
-      toast.error('Please select a class or a student');
+  const handleGuestChange = (value: string) => {
+    if (!value) {
+      setGuestName('');
+      setGuestRate(null);
       return;
     }
 
-    if (classId && studentId) {
-      toast.error('Please select either a class or a student, not both');
+    const guest = guests.find((g) => g.name === value);
+    if (!guest) return;
+
+    setGuestName(guest.name);
+    setGuestRate(guest.hourlyRate);
+    setClassId('');
+    setStudentId('');
+    setRateMode('override');
+    setRateValue(guest.hourlyRate.toString());
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const selectionCount = (classId ? 1 : 0) + (studentId ? 1 : 0) + (guestName ? 1 : 0);
+
+    if (selectionCount === 0) {
+      toast.error('Please select a class, student, or guest');
+      return;
+    }
+
+    if (selectionCount > 1) {
+      toast.error('Please select only one of class, student, or guest');
       return;
     }
 
@@ -309,6 +341,8 @@ export function SessionModal({
     const payload = {
       classId: classId || undefined,
       studentId: studentId || undefined,
+      guestName: guestName || undefined,
+      guestRate: guestRate ?? undefined,
       plannedDate: date,
       plannedTime: time,
       actualDate: nowCompleted ? (session?.actualDate ?? date) : (session?.actualDate ?? null),
@@ -374,6 +408,22 @@ export function SessionModal({
             Timezone: {defaultTimezone}
           </div>
 
+          {isDraft && guests.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Guest (draft only)</label>
+              <select
+                value={guestName}
+                onChange={(e) => handleGuestChange(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">{guests.length > 0 ? 'Select a guest' : 'No guests'}</option>
+                {guests.map((g) => (
+                  <option key={g.name} value={g.name}>Guest: {g.name} (${g.hourlyRate}/hr)</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Student (1-on-1)</label>
             <select
@@ -394,7 +444,11 @@ export function SessionModal({
               value={classId}
               onChange={(e) => {
                 setClassId(e.target.value);
-                if (e.target.value) setStudentId('');
+                if (e.target.value) {
+                  setStudentId('');
+                  setGuestName('');
+                  setGuestRate(null);
+                }
               }}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >

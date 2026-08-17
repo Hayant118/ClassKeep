@@ -13,6 +13,10 @@ export interface DraftSessionItem {
   student_id?: string;
   classId?: string;
   class_id?: string;
+  guestName?: string;
+  guest_name?: string;
+  guestRate?: number;
+  guest_rate?: number;
   rateMode?: 'auto' | 'override' | 'flat';
   rate_mode?: 'auto' | 'override' | 'flat';
   rateValue?: number | null;
@@ -55,6 +59,8 @@ export function draftSessionsToSessions(
     const durationMinutes = getNumber(raw, ['durationMinutes', 'duration_minutes']) ?? 60;
     const id = getString(raw, ['id']) ?? `${options.proposalId ?? 'proposal'}-draft-${index}`;
 
+    const guestName = getString(raw, ['guestName', 'guest_name']);
+
     return {
       id,
       userId: options.userId ?? '',
@@ -73,6 +79,8 @@ export function draftSessionsToSessions(
       notes: getString(raw, ['notes']) ?? '',
       createdAt: new Date().toISOString(),
       studentId: getString(raw, ['studentId', 'student_id']),
+      guestName,
+      guestRate: guestName ? (getNumber(raw, ['guestRate', 'guest_rate']) ?? 0) : undefined,
     };
   });
 }
@@ -85,16 +93,21 @@ export function sessionPayloadToDraftSession(
   payload: Omit<Session, 'id' | 'userId' | 'createdAt'>,
   options: { id?: string; studentId?: string } = {}
 ): DraftSessionItem {
-  return {
+  const item: DraftSessionItem = {
     id: options.id,
     plannedDate: payload.plannedDate,
     plannedTime: payload.plannedTime,
     durationMinutes: payload.durationMinutes,
     classId: payload.classId,
-    studentId: options.studentId,
     rateMode: payload.rateMode,
     rateValue: payload.rateValue,
     status: payload.status,
     notes: payload.notes,
   };
+  if (options.studentId) item.studentId = options.studentId;
+  if (payload.guestName) {
+    item.guestName = payload.guestName;
+    item.guestRate = payload.guestRate ?? 0;
+  }
+  return item;
 }

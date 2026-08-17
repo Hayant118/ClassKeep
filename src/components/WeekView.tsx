@@ -96,6 +96,9 @@ export function WeekView({
   const renderSessionBlock = (session: SessionWithOverlap) => {
     const student = getSessionStudent(session, enrollments, students);
     const cls = classes.find(c => c.id === session.classId);
+    const displayName = session.guestName
+      ? `Guest: ${session.guestName}`
+      : (student?.name ?? cls?.name ?? 'Unknown');
     const color = getSessionColor(session, students, preferences.colorConflict);
     const isOverride = session.rateMode === 'override';
     const isAutoCompleted = isSessionAutoCompleted(session.id);
@@ -121,10 +124,10 @@ export function WeekView({
           height: `${height}%`,
           backgroundColor: color,
         }}
-        title={`${student?.name ?? cls?.name ?? 'Unknown'} • ${timeStr} - ${endTime}`}
+        title={`${displayName} • ${timeStr} - ${endTime}`}
       >
         <div className="font-semibold truncate">
-          {student?.name ?? cls?.name ?? 'Unknown'}
+          {displayName}
           <StatusIcon status={session.status} />
           {isOverride && <span className="ml-1">⚡</span>}
         </div>
@@ -179,6 +182,9 @@ export function WeekView({
   const renderMobileSession = (session: SessionWithOverlap) => {
     const student = getSessionStudent(session, enrollments, students);
     const cls = classes.find((c) => c.id === session.classId);
+    const displayName = session.guestName
+      ? `Guest: ${session.guestName}`
+      : (student?.name ?? cls?.name ?? 'Unknown');
     const color = getSessionColor(session, students, preferences.colorConflict);
     const isOverride = session.rateMode === 'override';
     const isAutoCompleted = isSessionAutoCompleted(session.id);
@@ -201,7 +207,7 @@ export function WeekView({
         />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-slate-900 truncate">
-            {student?.name ?? cls?.name ?? 'Unknown'}
+            {displayName}
             {isOverride && <span className="ml-1" title="Rate override">⚡</span>}
           </div>
           <div className="text-xs text-slate-600">

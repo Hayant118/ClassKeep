@@ -42,6 +42,8 @@ export interface Session {
   userId: string;
   classId?: string;
   studentId?: string;
+  guestName?: string;
+  guestRate?: number;
   plannedDate: string;      // YYYY-MM-DD
   plannedTime: string;      // HH:MM
   actualDate: string | null;
@@ -84,12 +86,18 @@ export interface Attendance {
   createdAt: string;
 }
 
+export interface Guest {
+  name: string;
+  hourlyRate: number;
+}
+
 export interface Proposal {
   id: string;
   userId: string;
   title: string;
   status: 'draft' | 'committed' | 'sent' | 'accepted' | 'rejected' | 'archived';
   draftSessions: Record<string, unknown>[];
+  guests: Guest[];
   committedAt: string | null;
   createdAt: string;
   updatedAt: string;

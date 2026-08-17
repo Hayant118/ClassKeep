@@ -1,7 +1,18 @@
 // src/hooks/useProposals.ts
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Proposal } from '../types';
+import type { Guest, Proposal } from '../types';
+
+function parseGuests(raw: unknown): Guest[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object')
+    .map((item) => ({
+      name: (item.name as string) ?? '',
+      hourlyRate: typeof item.hourlyRate === 'number' ? item.hourlyRate : Number(item.hourlyRate) || 0,
+    }))
+    .filter((guest) => guest.name.trim() !== '');
+}
 
 function fromDb(row: Record<string, unknown>): Proposal {
   return {
@@ -10,6 +21,7 @@ function fromDb(row: Record<string, unknown>): Proposal {
     title: (row.title as string) ?? 'Untitled Proposal',
     status: (row.status as Proposal['status']) ?? 'draft',
     draftSessions: Array.isArray(row.draft_sessions) ? (row.draft_sessions as Record<string, unknown>[]) : [],
+    guests: parseGuests(row.guests),
     committedAt: (row.committed_at as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -21,6 +33,7 @@ function toDb(p: Partial<Proposal>): Record<string, unknown> {
   if (p.title !== undefined) map.title = p.title;
   if (p.status !== undefined) map.status = p.status;
   if (p.draftSessions !== undefined) map.draft_sessions = p.draftSessions;
+  if (p.guests !== undefined) map.guests = p.guests;
   if (p.committedAt !== undefined) map.committed_at = p.committedAt;
   return map;
 }
@@ -80,6 +93,7 @@ export function useProposals() {
       title,
       status: 'draft',
       draftSessions: [],
+      guests: [],
       committedAt: null,
     });
   };

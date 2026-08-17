@@ -75,6 +75,10 @@ export function getSessionColor(
   students: Student[],
   colorConflict = '#ef4444'
 ): string {
+  if (session.guestName) {
+    return '#9ca3af'; // gray-400 for guest drafts
+  }
+
   const studentId = (session as unknown as { studentId?: string }).studentId;
   const student = students.find((s) => s.id === studentId);
   const studentColor = (student as unknown as { color?: string })?.color;

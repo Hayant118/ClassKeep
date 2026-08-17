@@ -21,7 +21,7 @@ import { draftSessionsToSessions, sessionPayloadToDraftSession } from '../utils/
 import { checkOverlap } from '../utils/calendar';
 import { timeToMinutes } from '../utils/date';
 import { startOfMonthInTz, addMonthsInTz, addDaysInTz, getDayIndexInWeek, formatDateKeyInTz } from '../utils/timezone';
-import type { Proposal, Session, Enrollment } from '../types';
+import type { Proposal, Session, Enrollment, Guest } from '../types';
 
 const TIMEZONE = 'Asia/Shanghai';
 
@@ -159,6 +159,9 @@ export function ProposalEditor() {
   const [repeatWeeks, setRepeatWeeks] = useState(4);
   const [repeatUntilDate, setRepeatUntilDate] = useState('');
 
+  const [guestNameInput, setGuestNameInput] = useState('');
+  const [guestRateInput, setGuestRateInput] = useState('');
+
   useEffect(() => {
     if (proposal) {
       setTitle(proposal.title);
@@ -264,6 +267,9 @@ export function ProposalEditor() {
     const existingDraft = draftSessionsToSessions([existing], { proposalId: proposal.id, userId: proposal.userId })[0];
     const merged: Omit<Session, 'id' | 'userId' | 'createdAt'> = {
       classId: payload.classId ?? existingDraft.classId,
+      studentId: payload.studentId ?? existingDraft.studentId,
+      guestName: payload.guestName ?? existingDraft.guestName,
+      guestRate: payload.guestRate ?? existingDraft.guestRate,
       plannedDate: payload.plannedDate ?? existingDraft.plannedDate,
       plannedTime: payload.plannedTime ?? existingDraft.plannedTime,
       actualDate: payload.actualDate ?? existingDraft.actualDate,
@@ -296,6 +302,10 @@ export function ProposalEditor() {
 
   const handleCommit = async () => {
     if (!proposal || proposal.draftSessions.length === 0) return;
+    if (proposal.guests.length > 0) {
+      toast.error('Guest conversion not yet supported');
+      return;
+    }
     setCommitting(true);
     setCommitError(null);
 
@@ -360,6 +370,38 @@ export function ProposalEditor() {
     }
   };
 
+  const handleAddGuest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!proposal) return;
+    const name = guestNameInput.trim();
+    const rate = parseFloat(guestRateInput);
+    if (!name) {
+      toast.error('Guest name is required');
+      return;
+    }
+    if (isNaN(rate) || rate < 0) {
+      toast.error('Enter a valid hourly rate');
+      return;
+    }
+    if (proposal.guests.some((g) => g.name === name)) {
+      toast.error('A guest with this name already exists');
+      return;
+    }
+
+    const nextGuests: Guest[] = [...proposal.guests, { name, hourlyRate: rate }];
+    await updateProposal(proposal.id, { guests: nextGuests });
+    setGuestNameInput('');
+    setGuestRateInput('');
+    toast.success('Guest added');
+  };
+
+  const handleRemoveGuest = async (name: string) => {
+    if (!proposal) return;
+    const nextGuests = proposal.guests.filter((g) => g.name !== name);
+    await updateProposal(proposal.id, { guests: nextGuests });
+    toast.success('Guest removed');
+  };
+
   const toggleRepeatDay = (day: number) => {
     setRepeatDays((prev) => {
       const next = new Set(prev);
@@ -373,7 +415,7 @@ export function ProposalEditor() {
     if (!proposal) return;
 
     if (!repeatClassId) {
-      toast.error('Select a class');
+      toast.error('Select a class or guest');
       return;
     }
     if (repeatDays.size === 0) {
@@ -409,9 +451,15 @@ export function ProposalEditor() {
       return;
     }
 
+    const repeatGuest = repeatClassId.startsWith('guest:')
+      ? proposal.guests.find((g) => g.name === repeatClassId.slice(6)) ?? null
+      : null;
+
     const existingKeys = new Set(
       calendarSessions
-        .filter((s) => s.classId === repeatClassId)
+        .filter((s) =>
+          repeatGuest ? s.guestName === repeatGuest.name : s.classId === repeatClassId
+        )
         .map((s) => `${s.plannedDate}|${s.plannedTime}`)
     );
 
@@ -433,14 +481,16 @@ export function ProposalEditor() {
           const key = `${currentKey}|${repeatStartTime}`;
           if (!existingKeys.has(key)) {
             const payload: Omit<Session, 'id' | 'userId' | 'createdAt'> = {
-              classId: repeatClassId,
+              classId: repeatGuest ? undefined : repeatClassId,
+              guestName: repeatGuest?.name,
+              guestRate: repeatGuest?.hourlyRate,
               plannedDate: currentKey,
               plannedTime: repeatStartTime,
               actualDate: null,
               actualTime: null,
               durationMinutes,
-              rateMode: 'auto',
-              rateValue: null,
+              rateMode: repeatGuest ? 'override' : 'auto',
+              rateValue: repeatGuest ? repeatGuest.hourlyRate : null,
               totalCharge: null,
               status: 'scheduled',
               movedFromDate: null,
@@ -647,6 +697,57 @@ export function ProposalEditor() {
         </div>
       </div>
 
+      <div className="max-w-4xl mx-auto bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <h3 className="text-sm font-semibold text-slate-700">Guest students</h3>
+
+        <form onSubmit={handleAddGuest} className="flex flex-col sm:flex-row gap-3">
+          <input
+            type="text"
+            value={guestNameInput}
+            onChange={(e) => setGuestNameInput(e.target.value)}
+            placeholder="Guest name"
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={guestRateInput}
+            onChange={(e) => setGuestRateInput(e.target.value)}
+            placeholder="Hourly rate"
+            className="w-full sm:w-40 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+          >
+            Add guest
+          </button>
+        </form>
+
+        {proposal.guests.length > 0 && (
+          <ul className="space-y-2">
+            {proposal.guests.map((guest) => (
+              <li
+                key={guest.name}
+                className="flex items-center justify-between gap-3 text-sm text-slate-700 bg-slate-50 rounded-lg px-3 py-2"
+              >
+                <span>
+                  {guest.name} — ${guest.hourlyRate.toFixed(2)}/hr
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveGuest(guest.name)}
+                  className="text-xs font-medium text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {conflictCount > 0 && (
         <div
           className="max-w-4xl mx-auto p-3 rounded-lg text-sm font-medium border"
@@ -715,18 +816,29 @@ export function ProposalEditor() {
           {repeatExpanded && (
             <div className="mt-3 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Class</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Class / Guest</label>
                 <select
                   value={repeatClassId}
                   onChange={(e) => setRepeatClassId(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Select a class</option>
-                  {classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name}
-                    </option>
-                  ))}
+                  <option value="">Select a class or guest</option>
+                  <optgroup label="Classes">
+                    {classes.map((cls) => (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {proposal.guests.length > 0 && (
+                    <optgroup label="Guests">
+                      {proposal.guests.map((guest) => (
+                        <option key={guest.name} value={`guest:${guest.name}`}>
+                          Guest: {guest.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
 
@@ -880,6 +992,7 @@ export function ProposalEditor() {
         initialTimezone={TIMEZONE}
         students={students}
         classes={classes}
+        guests={proposal.guests}
         isDraft
         onSave={handleSaveDraft}
         onUpdate={handleUpdateDraft}
