@@ -20,7 +20,7 @@ import { ProposalExport } from './ProposalExport';
 import { draftSessionsToSessions, sessionPayloadToDraftSession } from '../utils/draftSessionAdapter';
 import { checkOverlap } from '../utils/calendar';
 import { timeToMinutes } from '../utils/date';
-import { startOfMonthInTz, addMonthsInTz, addDaysInTz, getDayIndexInWeek, formatDateKeyInTz } from '../utils/timezone';
+import { startOfMonthInTz, startOfWeekInTz, addMonthsInTz, addDaysInTz, getDayIndexInWeek, formatDateKeyInTz, formatWeekRangeInTz } from '../utils/timezone';
 import type { Proposal, Session, Enrollment, Guest } from '../types';
 
 const TIMEZONE = 'Asia/Shanghai';
@@ -63,13 +63,6 @@ function formatDate(iso: string | null | undefined): string {
     month: 'short',
     day: 'numeric',
   });
-}
-
-function getWeekStart(date: Date): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() - d.getDay() + 1);
-  d.setHours(0, 0, 0, 0);
-  return d;
 }
 
 function generateDraftId(): string {
@@ -137,7 +130,7 @@ export function ProposalEditor() {
   );
 
   const [title, setTitle] = useState('');
-  const [calendarView, setCalendarView] = useState<'week' | 'day' | 'month'>('week');
+  const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('day');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | undefined>(undefined);
@@ -199,8 +192,12 @@ export function ProposalEditor() {
     return firstDate ? new Date(`${firstDate}T00:00:00`) : new Date();
   }, [calendarSessions]);
 
-  const weekStart = useMemo(() => getWeekStart(anchorDate), [anchorDate]);
+  const [weekStart, setWeekStart] = useState(() => startOfWeekInTz(anchorDate, TIMEZONE));
   const day = useMemo(() => anchorDate, [anchorDate]);
+
+  useEffect(() => {
+    setWeekStart(startOfWeekInTz(anchorDate, TIMEZONE));
+  }, [anchorDate]);
 
   const [monthStart, setMonthStart] = useState(() => startOfMonthInTz(anchorDate, TIMEZONE));
 
@@ -210,6 +207,18 @@ export function ProposalEditor() {
 
   const handleMonthChange = (offset: number) => {
     setMonthStart((prev) => addMonthsInTz(prev, offset, TIMEZONE));
+  };
+
+  const handleWeekPrev = () => {
+    setWeekStart((prev) => addDaysInTz(prev, -7, TIMEZONE));
+  };
+
+  const handleWeekNext = () => {
+    setWeekStart((prev) => addDaysInTz(prev, 7, TIMEZONE));
+  };
+
+  const handleWeekToday = () => {
+    setWeekStart(startOfWeekInTz(new Date(), TIMEZONE));
   };
 
   const handleTitleBlur = async () => {
@@ -769,17 +778,6 @@ export function ProposalEditor() {
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
             <button
               type="button"
-              onClick={() => setCalendarView('week')}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                calendarView === 'week'
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Week
-            </button>
-            <button
-              type="button"
               onClick={() => setCalendarView('day')}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 calendarView === 'day'
@@ -788,6 +786,17 @@ export function ProposalEditor() {
               }`}
             >
               Day
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalendarView('week')}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                calendarView === 'week'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Week
             </button>
             <button
               type="button"
@@ -940,17 +949,47 @@ export function ProposalEditor() {
         </div>
 
         {calendarView === 'week' && (
-          <WeekView
-            weekStart={weekStart}
-            timezone={TIMEZONE}
-            students={students}
-            classes={classes}
-            enrollments={enrollments}
-            sessions={allCalendarSessions}
-            preferences={preferences}
-            onSlotClick={openNewDraftModal}
-            onSessionClick={openEditDraftModal}
-          />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleWeekPrev}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+                >
+                  ← Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWeekToday}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWeekNext}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+                >
+                  Next →
+                </button>
+              </div>
+              <h2 className="text-lg font-semibold text-slate-800">
+                {formatWeekRangeInTz(weekStart, TIMEZONE)}
+              </h2>
+            </div>
+            <WeekView
+              weekStart={weekStart}
+              timezone={TIMEZONE}
+              students={students}
+              classes={classes}
+              enrollments={enrollments}
+              sessions={allCalendarSessions}
+              preferences={preferences}
+              onSlotClick={(dateKey) => openNewDraftModal(dateKey, preferences.calendarStartTime.slice(0, 5))}
+              onSessionClick={openEditDraftModal}
+            />
+          </div>
         )}
 
         {calendarView === 'day' && (
