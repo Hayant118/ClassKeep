@@ -98,6 +98,8 @@ export interface Proposal {
   status: 'draft' | 'committed' | 'sent' | 'accepted' | 'rejected' | 'archived';
   draftSessions: Record<string, unknown>[];
   guests: Guest[];
+  quotedAmount?: number | null;
+  currency?: string;
   committedAt: string | null;
   createdAt: string;
   updatedAt: string;

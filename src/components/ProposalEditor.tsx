@@ -72,6 +72,33 @@ function generateDraftId(): string {
   return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+const CURRENCIES = [
+  { code: 'CNY', symbol: '¥' },
+  { code: 'HKD', symbol: 'HK$' },
+  { code: 'GBP', symbol: '£' },
+  { code: 'USD', symbol: '$' },
+];
+
+const CURRENCY_LOCALES: Record<string, string> = {
+  CNY: 'zh-CN',
+  HKD: 'zh-HK',
+  GBP: 'en-GB',
+  USD: 'en-US',
+};
+
+function formatMoney(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(CURRENCY_LOCALES[currency] ?? 'en-US', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`;
+  }
+}
+
 function getPrimaryStudentId(
   classId: string | undefined,
   studentId: string | undefined,
@@ -155,11 +182,25 @@ export function ProposalEditor() {
   const [guestNameInput, setGuestNameInput] = useState('');
   const [guestRateInput, setGuestRateInput] = useState('');
 
+  const [currency, setCurrency] = useState('CNY');
+  const [quotedInput, setQuotedInput] = useState('');
+  const [quotedTouched, setQuotedTouched] = useState(false);
+
   useEffect(() => {
     if (proposal) {
       setTitle(proposal.title);
     }
   }, [proposal]);
+
+  useEffect(() => {
+    if (proposal) {
+      setCurrency(proposal.currency ?? 'CNY');
+      const quoted = proposal.quotedAmount;
+      setQuotedTouched(quoted != null);
+      setQuotedInput(quoted != null ? quoted.toFixed(2) : '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposal?.id]);
 
   const calendarSessions = useMemo(
     () =>
@@ -186,6 +227,57 @@ export function ProposalEditor() {
     () => calendarSessions.filter(s => overlapIds.has(s.id)).length,
     [calendarSessions, overlapIds]
   );
+
+  const billing = useMemo(() => {
+    const rows = new Map<string, { key: string; name: string; sessions: number; subtotal: number }>();
+
+    for (const s of calendarSessions) {
+      const hours = s.durationMinutes / 60;
+      let key: string;
+      let name: string;
+      let charge: number;
+
+      if (s.guestName) {
+        key = `guest:${s.guestName}`;
+        name = `${s.guestName} (guest)`;
+        charge = (s.guestRate ?? 0) * hours;
+      } else {
+        const student = s.studentId ? students.find((st) => st.id === s.studentId) : undefined;
+        key = student ? student.id : s.classId ?? 'unknown';
+        name = student?.name ?? classes.find((c) => c.id === s.classId)?.name ?? 'Unknown';
+
+        if (s.rateMode === 'flat' && s.rateValue != null) {
+          charge = s.rateValue;
+        } else {
+          let hourly = 0;
+          if (s.rateMode === 'override' && s.rateValue != null) {
+            hourly = s.rateValue;
+          } else if (student) {
+            const enrollment = s.classId
+              ? enrollments.find(
+                  (e) => e.studentId === student.id && e.classId === s.classId && e.status === 'active'
+                )
+              : undefined;
+            hourly = enrollment?.customRate ?? student.defaultRate ?? 0;
+          }
+          charge = hourly * hours;
+        }
+      }
+
+      const row = rows.get(key) ?? { key, name, sessions: 0, subtotal: 0 };
+      row.sessions += 1;
+      row.subtotal += charge;
+      rows.set(key, row);
+    }
+
+    const list = Array.from(rows.values()).sort((a, b) => a.name.localeCompare(b.name));
+    const total = Math.round(list.reduce((sum, r) => sum + r.subtotal, 0) * 100) / 100;
+    return { rows: list, total };
+  }, [calendarSessions, students, classes, enrollments]);
+
+  const billingRows = billing.rows;
+  const calculatedTotal = billing.total;
+  const quotedDisplay = quotedTouched ? quotedInput : calculatedTotal > 0 ? calculatedTotal.toFixed(2) : '';
 
   const anchorDate = useMemo(() => {
     const firstDate = calendarSessions.find(s => s.plannedDate)?.plannedDate;
@@ -411,6 +503,51 @@ export function ProposalEditor() {
     toast.success('Guest removed');
   };
 
+  const handleCurrencyChange = async (value: string) => {
+    setCurrency(value);
+    if (!proposal) return;
+    try {
+      await updateProposal(proposal.id, { currency: value });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save currency');
+    }
+  };
+
+  const handleQuotedChange = (value: string) => {
+    setQuotedTouched(true);
+    setQuotedInput(value);
+  };
+
+  const handleQuotedBlur = async () => {
+    if (!proposal) return;
+    const trimmed = quotedInput.trim();
+    const parsed = parseFloat(trimmed);
+    const value = trimmed === '' || isNaN(parsed) || parsed < 0 ? null : Math.round(parsed * 100) / 100;
+    try {
+      await updateProposal(proposal.id, { quotedAmount: value });
+      if (value == null) {
+        setQuotedTouched(false);
+        setQuotedInput('');
+      } else {
+        setQuotedInput(value.toFixed(2));
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save quoted amount');
+    }
+  };
+
+  const handleResetQuoted = async () => {
+    setQuotedTouched(false);
+    setQuotedInput('');
+    if (proposal && proposal.quotedAmount != null) {
+      try {
+        await updateProposal(proposal.id, { quotedAmount: null });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to reset quoted amount');
+      }
+    }
+  };
+
   const toggleRepeatDay = (day: number) => {
     setRepeatDays((prev) => {
       const next = new Set(prev);
@@ -539,7 +676,14 @@ export function ProposalEditor() {
     try {
       flushSync(() => {
         root.render(
-          <ProposalExport proposal={proposal} classes={classes} students={students} locale="en" />
+          <ProposalExport
+            proposal={proposal}
+            classes={classes}
+            students={students}
+            locale="en"
+            currency={currency}
+            calculatedTotal={calculatedTotal}
+          />
         );
       });
 
@@ -742,7 +886,7 @@ export function ProposalEditor() {
                 className="flex items-center justify-between gap-3 text-sm text-slate-700 bg-slate-50 rounded-lg px-3 py-2"
               >
                 <span>
-                  {guest.name} — ${guest.hourlyRate.toFixed(2)}/hr
+                  {guest.name} — {formatMoney(guest.hourlyRate, currency)}/hr
                 </span>
                 <button
                   type="button"
@@ -755,6 +899,77 @@ export function ProposalEditor() {
             ))}
           </ul>
         )}
+      </div>
+
+      <div className="max-w-4xl mx-auto bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <h3 className="text-sm font-semibold text-slate-700">Billing</h3>
+          <select
+            value={currency}
+            onChange={(e) => handleCurrencyChange(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} ({c.symbol})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {billingRows.length === 0 ? (
+          <p className="text-sm text-slate-500">Add draft sessions to see the calculated total.</p>
+        ) : (
+          <>
+            <ul className="space-y-1">
+              {billingRows.map((row) => (
+                <li key={row.key} className="flex items-center justify-between gap-3 text-sm text-slate-700">
+                  <span className="min-w-0">
+                    {row.name}{' '}
+                    <span className="text-slate-400">
+                      · {row.sessions} {row.sessions === 1 ? 'session' : 'sessions'}
+                    </span>
+                  </span>
+                  <span className="font-medium whitespace-nowrap">{formatMoney(row.subtotal, currency)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-sm">
+              <span className="font-medium text-slate-700">Calculated total</span>
+              <span className="font-semibold text-slate-900">{formatMoney(calculatedTotal, currency)}</span>
+            </div>
+          </>
+        )}
+
+        <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">
+            Quoted amount <span className="font-normal text-slate-500">(manual override)</span>
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={quotedDisplay}
+              onChange={(e) => handleQuotedChange(e.target.value)}
+              onBlur={handleQuotedBlur}
+              placeholder="0.00"
+              className="w-full sm:w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            {quotedTouched && (
+              <button
+                type="button"
+                onClick={handleResetQuoted}
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-700 whitespace-nowrap"
+              >
+                Reset to calculated
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Prefilled from the calculated total — edit for discounts or carried-over classes.
+          </p>
+        </div>
       </div>
 
       {conflictCount > 0 && (

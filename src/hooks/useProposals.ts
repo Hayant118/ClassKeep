@@ -22,6 +22,8 @@ function fromDb(row: Record<string, unknown>): Proposal {
     status: (row.status as Proposal['status']) ?? 'draft',
     draftSessions: Array.isArray(row.draft_sessions) ? (row.draft_sessions as Record<string, unknown>[]) : [],
     guests: parseGuests(row.guests),
+    quotedAmount: (row.quoted_amount as number | null) ?? null,
+    currency: (row.currency as string) ?? 'CNY',
     committedAt: (row.committed_at as string | null) ?? null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -34,6 +36,8 @@ function toDb(p: Partial<Proposal>): Record<string, unknown> {
   if (p.status !== undefined) map.status = p.status;
   if (p.draftSessions !== undefined) map.draft_sessions = p.draftSessions;
   if (p.guests !== undefined) map.guests = p.guests;
+  if (p.quotedAmount !== undefined) map.quoted_amount = p.quotedAmount;
+  if (p.currency !== undefined) map.currency = p.currency;
   if (p.committedAt !== undefined) map.committed_at = p.committedAt;
   return map;
 }

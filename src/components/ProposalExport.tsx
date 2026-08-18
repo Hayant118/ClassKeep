@@ -7,6 +7,8 @@ interface ProposalExportProps {
   classes: Class[];
   students: Student[];
   locale?: 'en' | 'zh';
+  currency?: string;
+  calculatedTotal?: number;
 }
 
 const LABELS = {
@@ -85,7 +87,7 @@ function monthName(yearMonth: string, locale: 'en' | 'zh'): string {
   return date.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'long' });
 }
 
-export function ProposalExport({ proposal, classes, students, locale = 'en' }: ProposalExportProps) {
+export function ProposalExport({ proposal, classes, students, locale = 'en', currency, calculatedTotal }: ProposalExportProps) {
   const t = LABELS[locale];
   const drafts = draftSessionsToSessions(proposal.draftSessions ?? [], {
     proposalId: proposal.id,
@@ -98,11 +100,13 @@ export function ProposalExport({ proposal, classes, students, locale = 'en' }: P
 
   const studentName = getStudentName(drafts, students, classes, locale);
   const totalCost = drafts.reduce((sum, d) => sum + getSessionCost(d, students), 0);
-  const currency = locale === 'zh' ? 'CNY' : 'USD';
-  const formatter = new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
+  const CURRENCY_LOCALES: Record<string, string> = { CNY: 'zh-CN', HKD: 'zh-HK', GBP: 'en-GB', USD: 'en-US' };
+  const currencyCode = currency ?? proposal.currency ?? 'CNY';
+  const formatter = new Intl.NumberFormat(CURRENCY_LOCALES[currencyCode] ?? 'en-US', {
     style: 'currency',
-    currency,
+    currency: currencyCode,
   });
+  const displayTotal = proposal.quotedAmount ?? calculatedTotal ?? totalCost;
 
   const months = groupByMonth(drafts);
 
@@ -214,7 +218,7 @@ export function ProposalExport({ proposal, classes, students, locale = 'en' }: P
         </div>
         <div className="flex items-center justify-between text-sm mt-1">
           <span className="text-slate-600">{t.cost}</span>
-          <span className="font-semibold text-slate-900">{formatter.format(totalCost)}</span>
+          <span className="font-semibold text-slate-900">{formatter.format(displayTotal)}</span>
         </div>
       </div>
     </div>
@@ -227,7 +231,9 @@ export const MOCK_PROPOSAL: Proposal = {
   userId: 'mock-user',
   title: 'Summer Schedule',
   status: 'draft',
-   guests: [],
+  guests: [],
+  quotedAmount: null,
+  currency: 'CNY',
   draftSessions: [
     {
       id: 'ds-1',
