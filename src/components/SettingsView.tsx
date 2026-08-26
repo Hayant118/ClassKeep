@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { CalendarPreferences } from '../types';
-import { Bell, Clock, AlertTriangle, ClipboardCheck, Sun } from 'lucide-react';
+import { Bell, Clock, AlertTriangle, ClipboardCheck, Sun, ChevronDown } from 'lucide-react';
 import { usePreferences } from '../hooks/usePreferences';
 import { useReminderSettings } from '../hooks/useReminderSettings';
 import { useStudents } from '../hooks/useStudents';
@@ -171,6 +171,48 @@ function ColorEditor({
   );
 }
 
+function DisclosureSection({
+  title,
+  children,
+  defaultOpen = false,
+  className = '',
+  contentClassName = '',
+  icon,
+}: {
+  title: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+  contentClassName?: string;
+  icon?: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between p-4 text-left"
+        aria-expanded={open}
+      >
+        <div className="flex items-center gap-3">
+          {icon}
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-white">{title}</h2>
+        </div>
+        <ChevronDown
+          className={`w-5 h-5 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className={`p-6 pt-0 border-t border-slate-100 ${contentClassName}`}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsView() {
   const { preferences, setPreferences } = usePreferences();
   const { settings, updateSettings } = useReminderSettings();
@@ -234,9 +276,9 @@ export function SettingsView() {
 
   return (
     <div className="space-y-8">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <DisclosureSection title="Colors" defaultOpen>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-800">Color Scheme</h2>
+          <h3 className="text-lg font-semibold text-slate-800">Color Scheme</h3>
           <button
             type="button"
             onClick={resetColors}
@@ -286,74 +328,74 @@ export function SettingsView() {
             ))}
           </div>
         </div>
-      </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-800">Colors</h2>
-          <p className="text-sm text-slate-500">Click a swatch to edit</p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Students</h3>
-            {students.length === 0 ? (
-              <p className="text-sm text-slate-500">No students yet.</p>
-            ) : (
-              <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
-                {students.map((student) => (
-                  <div
-                    key={student.id}
-                    className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-slate-50"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <ColorEditor
-                        value={student.color}
-                        onChange={(color) => updateStudentColor(student.id, { color })}
-                      />
-                      <span className="text-sm text-slate-700 truncate">{student.name}</span>
-                    </div>
-                    {student.familyGroup && (
-                      <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full truncate max-w-[120px]">
-                        {student.familyGroup}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+        <div className="mt-8 pt-6 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-slate-800">Student & Class Colors</h3>
+            <p className="text-sm text-slate-500">Click a swatch to edit</p>
           </div>
 
-          <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Classes</h3>
-            {classes.length === 0 ? (
-              <p className="text-sm text-slate-500">No classes yet.</p>
-            ) : (
-              <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
-                {classes.map((cls) => (
-                  <div
-                    key={cls.id}
-                    className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-slate-50"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <ColorEditor
-                        value={cls.color}
-                        onChange={(color) => updateClassColor(cls.id, { color })}
-                      />
-                      <span className="text-sm text-slate-700 truncate">{cls.name}</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">Students</h3>
+              {students.length === 0 ? (
+                <p className="text-sm text-slate-500">No students yet.</p>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                  {students.map((student) => (
+                    <div
+                      key={student.id}
+                      className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-slate-50"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <ColorEditor
+                          value={student.color}
+                          onChange={(color) => updateStudentColor(student.id, { color })}
+                        />
+                        <span className="text-sm text-slate-700 truncate">{student.name}</span>
+                      </div>
+                      {student.familyGroup && (
+                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full truncate max-w-[120px]">
+                          {student.familyGroup}
+                        </span>
+                      )}
                     </div>
-                    <span className="text-xs text-slate-500 capitalize">{cls.type}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">Classes</h3>
+              {classes.length === 0 ? (
+                <p className="text-sm text-slate-500">No classes yet.</p>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                  {classes.map((cls) => (
+                    <div
+                      key={cls.id}
+                      className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-slate-50"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <ColorEditor
+                          value={cls.color}
+                          onChange={(color) => updateClassColor(cls.id, { color })}
+                        />
+                        <span className="text-sm text-slate-700 truncate">{cls.name}</span>
+                      </div>
+                      <span className="text-xs text-slate-500 capitalize">{cls.type}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      </DisclosureSection>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <DisclosureSection title="Calendar & time scale">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-800">Time Scale</h2>
+          <h3 className="text-lg font-semibold text-slate-800">Time Scale</h3>
           <button
             type="button"
             onClick={resetTimeScale}
@@ -409,15 +451,14 @@ export function SettingsView() {
           Calendar will show slots from {preferences.calendarStartTime.slice(0, 5)} to {preferences.calendarEndTime.slice(0, 5)} in{' '}
           {preferences.calendarSlotMinutes}-minute increments.
         </p>
-      </div>
+      </DisclosureSection>
 
-      {/* Reminders */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 dark:bg-gray-800 dark:border-gray-700">
-        <div className="flex items-center gap-3 mb-6">
-          <Bell className="w-5 h-5 text-indigo-600" />
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Reminders</h2>
-        </div>
-
+      <DisclosureSection
+        title="Reminders"
+        icon={<Bell className="w-5 h-5 text-indigo-600" />}
+        className="dark:bg-gray-800 dark:border-gray-700"
+        contentClassName="dark:border-gray-700"
+      >
         <div className="space-y-5">
           {/* Toggles */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -544,7 +585,7 @@ export function SettingsView() {
             </div>
           </div>
         </div>
-      </div>
+      </DisclosureSection>
     </div>
   );
 }
