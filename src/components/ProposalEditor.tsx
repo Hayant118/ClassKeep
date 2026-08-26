@@ -145,7 +145,7 @@ export function ProposalEditor() {
   const navigate = useNavigate();
   const { proposals, loading, error, updateProposal, updateProposalStatus, updateDraftSessions, commitProposal, deleteProposal } =
     useProposals();
-  const { students } = useStudents();
+  const { students, addStudent } = useStudents();
   const { classes } = useClasses();
   const { enrollments } = useEnrollments();
   const { sessions: realSessions } = useSessions();
@@ -403,18 +403,93 @@ export function ProposalEditor() {
 
   const handleCommit = async () => {
     if (!proposal || proposal.draftSessions.length === 0) return;
-    if (proposal.guests.length > 0) {
-      toast.error('Guest conversion not yet supported');
-      return;
-    }
     setCommitting(true);
     setCommitError(null);
 
     try {
+      let workingDrafts = proposal.draftSessions;
+
+      if (proposal.guests.length > 0) {
+        const guestMap = new Map<string, { studentId: string; classId: string }>();
+
+        for (const guest of proposal.guests) {
+          try {
+            const newStudent = await addStudent({
+              name: guest.name,
+              contact: '',
+              defaultRate: guest.hourlyRate,
+              timezone: 'Asia/Shanghai',
+              notes: '',
+            });
+
+            const { data: enrollmentRows, error: enrollmentError } = await supabase
+              .from('ck_enrollments')
+              .select('class_id')
+              .eq('student_id', newStudent.id)
+              .eq('status', 'active');
+
+            if (enrollmentError) throw new Error(enrollmentError.message);
+
+            const activeClassIds = (enrollmentRows ?? []).map(
+              (row: Record<string, unknown>) => row.class_id as string
+            );
+
+            const { data: classRows, error: classError } = await supabase
+              .from('ck_classes')
+              .select('id')
+              .in('id', activeClassIds)
+              .eq('type', 'one-on-one');
+
+            if (classError) throw new Error(classError.message);
+            if (!classRows || classRows.length === 0) {
+              throw new Error('No active 1-on-1 class found');
+            }
+
+            guestMap.set(guest.name, {
+              studentId: newStudent.id,
+              classId: classRows[0].id as string,
+            });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'Conversion failed';
+            toast.error(`Guest ${guest.name} failed: ${message}`);
+            setCommitError(`Guest ${guest.name}: ${message}`);
+            setCommitting(false);
+            return;
+          }
+        }
+
+        workingDrafts = workingDrafts.map((item) => {
+          const raw = item as Record<string, unknown>;
+          const guestName =
+            (raw.guestName as string | undefined) ?? (raw.guest_name as string | undefined);
+          if (!guestName) return item;
+
+          const mapping = guestMap.get(guestName);
+          if (!mapping) return item;
+
+          const next: Record<string, unknown> = { ...raw };
+          next.studentId = mapping.studentId;
+          next.classId = mapping.classId;
+          next.rateMode = 'auto';
+          next.rateValue = null;
+          delete next.guestName;
+          delete next.guest_name;
+          delete next.guestRate;
+          delete next.guest_rate;
+          return next;
+        });
+
+        const updatedProposal = await updateProposal(proposal.id, {
+          draftSessions: workingDrafts,
+          guests: [],
+        });
+        workingDrafts = updatedProposal.draftSessions;
+      }
+
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error('Not authenticated');
 
-      const sessionsToInsert = draftSessionsToSessions(proposal.draftSessions, {
+      const sessionsToInsert = draftSessionsToSessions(workingDrafts, {
         proposalId: proposal.id,
         userId: proposal.userId,
       });
@@ -422,6 +497,7 @@ export function ProposalEditor() {
       const rows = sessionsToInsert.map((s) => ({
         user_id: userData.user.id,
         class_id: s.classId,
+        student_id: s.studentId ?? null,
         planned_date: s.plannedDate,
         planned_time: s.plannedTime,
         actual_date: null as string | null,
