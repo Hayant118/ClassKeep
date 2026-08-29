@@ -198,7 +198,7 @@ function DisclosureSection({
       >
         <div className="flex items-center gap-3">
           {icon}
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-white">{title}</h2>
+          <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
         </div>
         <ChevronDown
           className={`w-5 h-5 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}
@@ -393,7 +393,7 @@ export function SettingsView() {
         </div>
       </DisclosureSection>
 
-      <DisclosureSection title="Calendar & time scale">
+      <DisclosureSection title="Calendar & Time">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-slate-800">Time Scale</h3>
           <button
@@ -456,8 +456,6 @@ export function SettingsView() {
       <DisclosureSection
         title="Reminders"
         icon={<Bell className="w-5 h-5 text-indigo-600" />}
-        className="dark:bg-gray-800 dark:border-gray-700"
-        contentClassName="dark:border-gray-700"
       >
         <div className="space-y-5">
           {/* Toggles */}
