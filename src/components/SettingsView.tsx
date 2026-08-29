@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { toast } from 'sonner';
 import type { CalendarPreferences } from '../types';
-import { Bell, Clock, AlertTriangle, ClipboardCheck, Sun, ChevronDown } from 'lucide-react';
+import { Bell, Clock, AlertTriangle, ClipboardCheck, Sun, ChevronDown, Download } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { usePreferences } from '../hooks/usePreferences';
 import { useReminderSettings } from '../hooks/useReminderSettings';
 import { useStudents } from '../hooks/useStudents';
@@ -115,6 +117,37 @@ const DEFAULT_COLORS: Record<string, string> = {
   colorDraft: '#3b82f6',
   colorConflict: '#ef4444',
 };
+
+function escapeCsvCell(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const str = typeof value === 'string' ? value : JSON.stringify(value);
+  if (/[",\n\r]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function rowsToCsv(rows: Record<string, unknown>[]): string {
+  if (rows.length === 0) return '';
+  const keys = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
+  const lines = [
+    keys.join(','),
+    ...rows.map((row) => keys.map((key) => escapeCsvCell(row[key])).join(',')),
+  ];
+  return lines.join('\n');
+}
+
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 function ColorEditor({
   value,
@@ -273,6 +306,53 @@ export function SettingsView() {
     'colorDraft',
     'colorConflict',
   ];
+
+  const exportAllData = async () => {
+    try {
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      if (authError || !userData.user) {
+        toast.error('You must be signed in to export data');
+        return;
+      }
+      const userId = userData.user.id;
+
+      const tables = [
+        { name: 'students', table: 'ck_students' },
+        { name: 'classes', table: 'ck_classes' },
+        { name: 'enrollments', table: 'ck_enrollments' },
+        { name: 'sessions', table: 'ck_sessions' },
+        { name: 'payments', table: 'ck_payments' },
+        { name: 'proposals', table: 'ck_proposals' },
+      ] as const;
+
+      const results = await Promise.all(
+        tables.map(async ({ name, table }) => {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .eq('user_id', userId);
+          return { name, table, data: (data ?? []) as Record<string, unknown>[], error };
+        })
+      );
+
+      const failed = results.filter((r) => r.error);
+      if (failed.length > 0) {
+        throw new Error(`Failed to fetch ${failed.map((r) => r.table).join(', ')}`);
+      }
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      let totalRows = 0;
+      for (const { name, data } of results) {
+        const csv = rowsToCsv(data);
+        downloadCsv(`classkeep-${name}-${dateStr}.csv`, csv);
+        totalRows += data.length;
+      }
+
+      toast.success(`Exported ${totalRows} rows across ${tables.length} tables`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Export failed');
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -582,6 +662,22 @@ export function SettingsView() {
               </div>
             </div>
           </div>
+        </div>
+      </DisclosureSection>
+
+      <DisclosureSection title="Data" icon={<Download className="w-5 h-5 text-indigo-600" />}>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600">
+            Download all your ClassKeep data as CSV files. One file is generated for each table.
+          </p>
+          <button
+            type="button"
+            onClick={exportAllData}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export all data (CSV)
+          </button>
         </div>
       </DisclosureSection>
     </div>

@@ -372,7 +372,7 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                 onClick={handleDayClick}
                 className={`flex flex-col items-center justify-start pt-2 pb-1 px-1 rounded-lg border transition-colors min-h-[44px] ${
                   isToday
-                    ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800'
+                    ? 'bg-indigo-100 border-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700'
                     : 'bg-white border-slate-100 hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700'
                 }`}
               >
