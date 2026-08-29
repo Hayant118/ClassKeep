@@ -43,8 +43,8 @@ function getWeekStart(date: Date): Date {
     return getWeekStart(new Date());
   }
   d.setHours(0, 0, 0, 0);
-  const day = d.getDay(); // 0 = Sunday
-  d.setDate(d.getDate() - day);
+  const day = d.getDay(); // 0 = Sunday, 1 = Monday
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
   return d;
 }
 
@@ -331,30 +331,30 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
 
       {/* Compact week overview */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 dark:bg-gray-800 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-col gap-3 mb-3">
+          <div className="flex items-center gap-2 flex-nowrap">
             <button
               type="button"
               onClick={movePrevious}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 shrink-0 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 shrink-0" />
               <span className="hidden sm:inline">Prev</span>
             </button>
             <button
               type="button"
               onClick={goToToday}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 shrink-0 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
             >
               Today
             </button>
             <button
               type="button"
               onClick={moveNext}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 shrink-0 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
             >
               <span className="hidden sm:inline">Next</span>
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 shrink-0" />
             </button>
           </div>
           <h2 className="text-sm font-semibold text-slate-700 dark:text-gray-200">{weekRangeLabel}</h2>
