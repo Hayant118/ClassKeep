@@ -17,8 +17,15 @@ interface HomeViewProps {
   onResolveClassForStudent?: (studentId: string) => Promise<string>;
 }
 
+function formatLocalDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function todayStr(): string {
-  return new Date().toISOString().split('T')[0];
+  return formatLocalDateKey(new Date());
 }
 
 function formatToday(dateStr: string): string {
@@ -33,10 +40,9 @@ function formatToday(dateStr: string): string {
 
 function dateKey(date: Date): string {
   if (!(date instanceof Date) || isNaN(date.getTime())) {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
+    return formatLocalDateKey(new Date());
   }
-  return date.toISOString().split('T')[0];
+  return formatLocalDateKey(date);
 }
 
 function getWeekStart(date: Date): Date {
