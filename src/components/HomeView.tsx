@@ -1,10 +1,12 @@
 // src/components/HomeView.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, UserX } from 'lucide-react';
+import { toast } from 'sonner';
 import { useSessions } from '../hooks/useSessions';
 import { useProposals } from '../hooks/useProposals';
 import { useReminders } from '../hooks/useReminders';
+import { SessionModal } from './SessionModal';
 import type { Reminder, Student, Class, Enrollment, Session } from '../types';
 import { CURATED_PALETTE, DEFAULT_COLOR, normalizeColor } from '../utils/colors';
 
@@ -129,11 +131,14 @@ function useGroupedStudents(students: Student[]) {
   }, [students]);
 }
 
-export function HomeView({ students, classes, enrollments }: HomeViewProps) {
+export function HomeView({ students, classes, enrollments, onResolveClassForStudent }: HomeViewProps) {
   const navigate = useNavigate();
-  const { sessions, loading: sessionsLoading } = useSessions();
+  const { sessions, loading: sessionsLoading, updateSession, fetchSessions } = useSessions();
   const { proposals, loading: proposalsLoading } = useProposals();
   const { reminders, dismissReminder } = useReminders();
+
+  const [editingSession, setEditingSession] = useState<Session | undefined>();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const today = todayStr();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
@@ -203,10 +208,10 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const isLoading = sessionsLoading || proposalsLoading;
 
   const TYPE_CHIP_COLORS: Record<Reminder['type'], string> = {
-    pre_class: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
-    low_balance: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800',
-    unreviewed: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800',
-    daily_digest: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
+    pre_class: 'bg-blue-100 text-blue-900 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
+    low_balance: 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800',
+    unreviewed: 'bg-purple-100 text-purple-900 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800',
+    daily_digest: 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
   };
 
   const TYPE_CHIP_ICONS: Record<Reminder['type'], React.ReactNode> = {
@@ -242,6 +247,35 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
 
   const handleDayClick = () => {
     navigate('/calendar');
+  };
+
+  const handleQuickStatus = async (session: Session, status: Session['status']) => {
+    try {
+      await updateSession(session.id, { status });
+      await fetchSessions();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update session');
+    }
+  };
+
+  const openEditModal = (session: Session) => {
+    setEditingSession(session);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingSession(undefined);
+  };
+
+  const handleUpdateSession = async (id: string, updates: Partial<Session>) => {
+    try {
+      await updateSession(id, updates);
+      await fetchSessions();
+      toast.success('Session updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update session');
+    }
   };
 
   const getSessionDotColor = (session: Session): string => {
@@ -284,7 +318,7 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                 className="flex items-center gap-1.5"
               >
                 {TYPE_CHIP_ICONS[reminder.type]}
-                <span className="max-w-[160px] truncate">{reminder.title}</span>
+                <span className="truncate whitespace-nowrap overflow-hidden max-w-[160px]">{reminder.title}</span>
               </button>
               <button
                 type="button"
@@ -442,6 +476,42 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                   }`}>
                     {session.status}
                   </span>
+                  {session.status === 'scheduled' && (
+                    <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleQuickStatus(session, 'completed')}
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-medium hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/50"
+                      >
+                        <Check className="w-3 h-3" />
+                        Taught
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickStatus(session, 'no-show')}
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-medium hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800 dark:hover:bg-amber-900/50"
+                      >
+                        <UserX className="w-3 h-3" />
+                        No-show
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickStatus(session, 'cancelled')}
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-red-200 bg-red-50 text-red-700 text-[10px] font-medium hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-900/50"
+                      >
+                        <X className="w-3 h-3" />
+                        Cancelled
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(session)}
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-slate-200 bg-white text-slate-600 text-[10px] font-medium hover:bg-slate-100 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+                      >
+                        <CalendarIcon className="w-3 h-3" />
+                        Move
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -506,6 +576,19 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
           ))}
         </div>
       </div>
+
+      <SessionModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        session={editingSession}
+        students={students}
+        classes={classes}
+        enrollments={enrollments}
+        onResolveClassForStudent={onResolveClassForStudent}
+        onSave={() => {}}
+        onUpdate={handleUpdateSession}
+        onDelete={() => {}}
+      />
     </div>
   );
 }
