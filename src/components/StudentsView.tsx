@@ -89,6 +89,12 @@ export function StudentsView() {
         await updateStudent(editingId, updates);
         toast.success('Student updated');
       } else {
+        const duplicate = students.find(
+          (s) => s.name.trim().toLowerCase() === name.trim().toLowerCase()
+        );
+        if (duplicate && !confirm(`A student named "${duplicate.name}" already exists — add anyway?`)) {
+          return;
+        }
         await addStudent({
           ...updates,
           color: normalizedColor,

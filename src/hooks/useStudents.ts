@@ -153,6 +153,42 @@ export function useStudents() {
   };
 
   const deleteStudent = async (id: string) => {
+    const student = students.find((s) => s.id === id);
+    const studentName = student?.name ?? 'This student';
+
+    // Sessions are billing history: never cascade-delete them. Count sessions
+    // linked directly to the student or to any class they were enrolled in.
+    const { data: enrollmentRows, error: enrollmentsError } = await supabase
+      .from('ck_enrollments')
+      .select('class_id')
+      .eq('student_id', id);
+    if (enrollmentsError) throw new Error(enrollmentsError.message);
+
+    const classIds = ((enrollmentRows ?? []) as { class_id: string | null }[])
+      .map((r) => r.class_id)
+      .filter((v): v is string => Boolean(v));
+    const sessionFilter =
+      classIds.length > 0
+        ? `student_id.eq.${id},class_id.in.(${classIds.join(',')})`
+        : `student_id.eq.${id}`;
+
+    const { count: sessionCount, error: countError } = await supabase
+      .from('ck_sessions')
+      .select('id', { count: 'exact', head: true })
+      .or(sessionFilter);
+    if (countError) throw new Error(countError.message);
+
+    if (sessionCount && sessionCount > 0) {
+      throw new Error(`${studentName} has ${sessionCount} sessions — archive instead of deleting`);
+    }
+
+    // No sessions: safe to cascade — remove enrollments first (FK), then the student.
+    const { error: deleteEnrollmentsError } = await supabase
+      .from('ck_enrollments')
+      .delete()
+      .eq('student_id', id);
+    if (deleteEnrollmentsError) throw new Error(deleteEnrollmentsError.message);
+
     const { error: sbError } = await supabase.from('ck_students').delete().eq('id', id);
 
     if (sbError) throw new Error(sbError.message);
