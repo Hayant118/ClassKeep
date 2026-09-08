@@ -1,6 +1,6 @@
 // src/components/ReviewExport.tsx
 import type { ReactNode } from 'react';
-import type { Session, Class, Student } from '../types';
+import type { Session, Class, Student, Enrollment } from '../types';
 
 interface ReviewExportProps {
   month: number;
@@ -8,6 +8,8 @@ interface ReviewExportProps {
   sessions: Session[];
   classes: Class[];
   students: Student[];
+  enrollments?: Enrollment[];
+  student?: Student;
   locale?: 'en' | 'zh';
 }
 
@@ -32,7 +34,7 @@ const LABELS = {
       if (additional > 0) parts.push(`${additional} additional`);
       return parts.length > 0 ? parts.join(', ') : 'No changes this month.';
     },
-    weekday: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
+    weekday: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
   },
   zh: {
     titleSuffix: '回顾',
@@ -52,7 +54,7 @@ const LABELS = {
       if (additional > 0) parts.push(`${additional}节加课`);
       return parts.length > 0 ? parts.join('，') : '本月无变更。';
     },
-    weekday: ['日', '一', '二', '三', '四', '五', '六'],
+    weekday: ['一', '二', '三', '四', '五', '六', '日'],
   },
 };
 
@@ -171,12 +173,39 @@ function formatCurrency(amount: number, locale: 'en' | 'zh'): string {
   }).format(amount);
 }
 
-export function ReviewExport({ month, year, sessions, classes, students: _students, locale = 'en' }: ReviewExportProps) {
+// Same rate logic as proposals: guest sessions bill guestRate hourly;
+// flat is a fixed per-session charge; override bills rateValue hourly;
+// auto bills the enrollment customRate (or the student's defaultRate) hourly.
+function computeSessionCharge(
+  session: Session,
+  student: Student | undefined,
+  enrollments: Enrollment[]
+): number {
+  const hours = session.durationMinutes / 60;
+  if (session.rateMode === 'flat' && session.rateValue != null) {
+    return session.rateValue;
+  }
+  let hourly = 0;
+  if (session.rateMode === 'override' && session.rateValue != null) {
+    hourly = session.rateValue;
+  } else if (student) {
+    const enrollment = session.classId
+      ? enrollments.find(
+          (e) => e.studentId === student.id && e.classId === session.classId && e.status === 'active'
+        )
+      : undefined;
+    hourly = enrollment?.customRate ?? student.defaultRate ?? 0;
+  }
+  return hourly * hours;
+}
+
+export function ReviewExport({ month, year, sessions, classes, students: _students, enrollments = [], student, locale = 'en' }: ReviewExportProps) {
   const t = LABELS[locale];
   const title = `${new Date(year, month - 1, 1).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'long' })} ${t.titleSuffix}`;
-  const headerName = getHeaderName(sessions, classes, locale);
+  const headerName = student?.name ?? getHeaderName(sessions, classes, locale);
 
-  const firstDay = new Date(year, month - 1, 1).getDay();
+  // Monday-first grid: column index of the 1st (0 = Monday).
+  const firstDay = (new Date(year, month - 1, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month, 0).getDate();
 
   const sessionsByDay = new Map<number, Session[]>();
@@ -201,12 +230,15 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
   const plannedCount = sessions.filter(s => !s.isAdditional).length;
   const actualCount = sessions.filter(s => s.status !== 'cancelled' && s.status !== 'no-show').length;
 
-  const totalCharge = sessions.reduce((sum, s) => {
-    if ((s.status === 'completed' || s.isAdditional) && s.totalCharge != null) {
-      return sum + s.totalCharge;
-    }
-    return sum;
-  }, 0);
+  const totalCharge = Math.round(
+    sessions.reduce((sum, s) => {
+      if (s.status !== 'completed' && !s.isAdditional) return sum;
+      if (student) {
+        return sum + computeSessionCharge(s, student, enrollments);
+      }
+      return sum + (s.totalCharge ?? 0);
+    }, 0) * 100
+  ) / 100;
 
   const legendItems: SymbolType[] = ['completed', 'moved-time', 'moved-day', 'cancelled', 'additional'];
 

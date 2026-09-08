@@ -433,7 +433,7 @@ function AppContent() {
           />
           <Route path="/proposals" element={<ProposalsView />} />
           <Route path="/proposals/:proposalId" element={<ProposalEditor />} />
-          <Route path="/review" element={<ReviewView students={students} classes={classes} />} />
+          <Route path="/review" element={<ReviewView students={students} classes={classes} enrollments={enrollments} />} />
           <Route path="/billing" element={<BillingView classes={classes} students={students} />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="/reminders" element={<RemindersView />} />

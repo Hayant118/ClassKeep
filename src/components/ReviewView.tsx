@@ -6,11 +6,12 @@ import html2canvas from 'html2canvas';
 import { toast } from 'sonner';
 import { useSessions } from '../hooks/useSessions';
 import { ReviewExport } from './ReviewExport';
-import type { Class, Student } from '../types';
+import type { Class, Enrollment, Student } from '../types';
 
 interface ReviewViewProps {
   students: Student[];
   classes: Class[];
+  enrollments?: Enrollment[];
 }
 
 const now = new Date();
@@ -29,13 +30,14 @@ function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
 
-export function ReviewView({ students, classes }: ReviewViewProps) {
+export function ReviewView({ students, classes, enrollments = [] }: ReviewViewProps) {
   const { sessions, loading, error, fetchSessions } = useSessions();
 
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [locale, setLocale] = useState<'en' | 'zh'>('zh');
   const [exporting, setExporting] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   useEffect(() => {
     const start = new Date(year, month - 1, 1);
@@ -56,8 +58,46 @@ export function ReviewView({ students, classes }: ReviewViewProps) {
     );
   }, [sessions, month, year]);
 
+  const selectedStudent = selectedStudentId
+    ? students.find((s) => s.id === selectedStudentId) ?? null
+    : null;
+
+  const studentSessions = useMemo(() => {
+    if (!selectedStudentId) return filteredSessions;
+    return filteredSessions.filter((s) => {
+      if (s.studentId) return s.studentId === selectedStudentId;
+      if (s.classId) {
+        return enrollments.some(
+          (e) => e.classId === s.classId && e.studentId === selectedStudentId
+        );
+      }
+      return false;
+    });
+  }, [filteredSessions, selectedStudentId, enrollments]);
+
+  const studentMonthCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const session of filteredSessions) {
+      if (session.studentId) {
+        counts.set(session.studentId, (counts.get(session.studentId) ?? 0) + 1);
+      } else if (session.classId) {
+        for (const e of enrollments) {
+          if (e.classId === session.classId) {
+            counts.set(e.studentId, (counts.get(e.studentId) ?? 0) + 1);
+          }
+        }
+      }
+    }
+    return counts;
+  }, [filteredSessions, enrollments]);
+
+  const sortedStudents = useMemo(
+    () => [...students].sort((a, b) => a.name.localeCompare(b.name)),
+    [students]
+  );
+
   const handleExport = async () => {
-    if (filteredSessions.length === 0) return;
+    if (studentSessions.length === 0) return;
     setExporting(true);
 
     const container = document.createElement('div');
@@ -74,9 +114,11 @@ export function ReviewView({ students, classes }: ReviewViewProps) {
           <ReviewExport
             month={month}
             year={year}
-            sessions={filteredSessions}
+            sessions={studentSessions}
             classes={classes}
             students={students}
+            enrollments={enrollments}
+            student={selectedStudent ?? undefined}
             locale={locale}
           />
         );
@@ -151,7 +193,7 @@ export function ReviewView({ students, classes }: ReviewViewProps) {
           <button
             type="button"
             onClick={handleExport}
-            disabled={exporting || loading || filteredSessions.length === 0}
+            disabled={exporting || loading || studentSessions.length === 0}
             className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#4f46e5', color: '#ffffff' }}
           >
@@ -168,7 +210,42 @@ export function ReviewView({ students, classes }: ReviewViewProps) {
 
       {loading ? (
         <div className="p-8 text-center text-sm" style={{ color: '#64748b' }}>Loading sessions...</div>
-      ) : filteredSessions.length === 0 ? (
+      ) : !selectedStudent ? (
+        <div
+          className="rounded-xl border overflow-hidden"
+          style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}
+        >
+          {sortedStudents.length === 0 ? (
+            <div className="p-8 text-center text-sm" style={{ color: '#64748b' }}>
+              {locale === 'zh' ? '暂无学生。' : 'No students yet.'}
+            </div>
+          ) : (
+            sortedStudents.map((student) => {
+              const count = studentMonthCounts.get(student.id) ?? 0;
+              return (
+                <button
+                  key={student.id}
+                  type="button"
+                  onClick={() => setSelectedStudentId(student.id)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 border-b last:border-b-0"
+                  style={{ borderColor: '#e2e8f0' }}
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: student.color || '#6366f1' }}
+                  />
+                  <span className="flex-1 text-sm font-medium truncate" style={{ color: '#0f172a' }}>
+                    {student.name}
+                  </span>
+                  <span className="text-xs" style={{ color: '#64748b' }}>
+                    {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      ) : studentSessions.length === 0 ? (
         <div
           className="p-8 text-center text-sm rounded-xl border"
           style={{ color: '#64748b', backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}
@@ -176,15 +253,27 @@ export function ReviewView({ students, classes }: ReviewViewProps) {
           {locale === 'zh' ? '该月份没有课程记录。' : 'No sessions found for this month.'}
         </div>
       ) : (
-        <div className="flex justify-center">
-          <ReviewExport
-            month={month}
-            year={year}
-            sessions={filteredSessions}
-            classes={classes}
-            students={students}
-            locale={locale}
-          />
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={() => setSelectedStudentId(null)}
+            className="text-sm font-medium px-3 py-1.5 rounded-lg transition-colors hover:bg-slate-100"
+            style={{ color: '#4f46e5' }}
+          >
+            ← {locale === 'zh' ? '所有学生' : 'All students'}
+          </button>
+          <div className="flex justify-center">
+            <ReviewExport
+              month={month}
+              year={year}
+              sessions={studentSessions}
+              classes={classes}
+              students={students}
+              enrollments={enrollments}
+              student={selectedStudent ?? undefined}
+              locale={locale}
+            />
+          </div>
         </div>
       )}
     </div>
