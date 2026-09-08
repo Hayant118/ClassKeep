@@ -12,6 +12,27 @@ async function createReminder(reminder: Omit<Reminder, 'id' | 'created_at'>) {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return;
 
+  // One active reminder per type per reference: re-check against the DB at
+  // insert time so stale snapshots or overlapping check runs can't create
+  // duplicates.
+  let existingQuery = supabase
+    .from('ck_reminders')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userData.user.id)
+    .eq('type', reminder.type)
+    .is('dismissed_at', null);
+  existingQuery = reminder.reference_id
+    ? existingQuery.eq('reference_id', reminder.reference_id)
+    : existingQuery.is('reference_id', null);
+
+  const { count, error: checkError } = await existingQuery;
+  if (checkError) {
+    // eslint-disable-next-line no-console
+    console.error('[ClassKeep] Failed to check for existing reminder:', checkError);
+    return;
+  }
+  if (count && count > 0) return;
+
   const { error } = await supabase.from('ck_reminders').insert({
     user_id: userData.user.id,
     type: reminder.type,

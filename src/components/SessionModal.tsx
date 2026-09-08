@@ -15,6 +15,13 @@ function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function addDaysToDateKey(dateKey: string, days: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+
 interface SessionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -199,6 +206,8 @@ export function SessionModal({
   const [rateValue, setRateValue] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<Session['status']>('scheduled');
+  const [repeatWeekly, setRepeatWeekly] = useState(false);
+  const [repeatWeeks, setRepeatWeeks] = useState(4);
 
   const defaultTimezone = initialTimezone || 'Asia/Shanghai';
   const selectedClass = classes.find((c) => c.id === classId);
@@ -230,6 +239,8 @@ export function SessionModal({
       setRateValue(session.rateValue?.toString() || '');
       setNotes(session.notes);
       setStatus(session.status);
+      setRepeatWeekly(false);
+      setRepeatWeeks(4);
     } else {
       setClassId('');
       setStudentId('');
@@ -244,6 +255,8 @@ export function SessionModal({
       setRateValue('');
       setNotes('');
       setStatus('scheduled');
+      setRepeatWeekly(false);
+      setRepeatWeeks(4);
     }
   }, [isOpen, session, initialDate, initialTime, classes, students]);
 
@@ -362,6 +375,24 @@ export function SessionModal({
         await onUpdate(session.id, payload);
       } else {
         await onSave(payload);
+
+        if (repeatWeekly && repeatWeeks > 1) {
+          // Copies are plain scheduled sessions: same time, duration,
+          // student/class and rate settings, 7 days apart per week.
+          for (let i = 1; i < repeatWeeks; i += 1) {
+            await onSave({
+              ...payload,
+              plannedDate: addDaysToDateKey(date, i * 7),
+              status: 'scheduled',
+              notes: '',
+              actualDate: null,
+              actualTime: null,
+              totalCharge: null,
+              movedFromDate: null,
+              movedFromTime: null,
+            });
+          }
+        }
       }
 
       if (!isDraft) {
@@ -477,6 +508,38 @@ export function SessionModal({
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
             </div>
           </div>
+
+          {!isEditing && (
+            <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={repeatWeekly}
+                  onChange={(e) => setRepeatWeekly(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                Repeat weekly
+              </label>
+              {repeatWeekly && (
+                <div className="flex items-center gap-2 pl-6">
+                  <label className="text-sm text-slate-600">Weeks</label>
+                  <input
+                    type="number"
+                    min={2}
+                    max={12}
+                    value={repeatWeeks}
+                    onChange={(e) =>
+                      setRepeatWeeks(Math.min(12, Math.max(2, parseInt(e.target.value, 10) || 2)))
+                    }
+                    className="w-20 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-slate-500">
+                    creates {repeatWeeks} sessions, 7 days apart
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>

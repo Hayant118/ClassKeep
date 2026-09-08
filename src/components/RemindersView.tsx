@@ -16,11 +16,11 @@ const TYPE_ICONS: Record<Reminder['type'], React.ReactNode> = {
   daily_digest: <Sun className="w-5 h-5" />,
 };
 
-const TYPE_COLORS: Record<Reminder['type'], { bg: string; text: string; darkBg: string; darkText: string }> = {
-  pre_class: { bg: 'bg-blue-100', text: 'text-blue-700', darkBg: 'dark:bg-blue-900/30', darkText: 'dark:text-blue-300' },
-  low_balance: { bg: 'bg-amber-100', text: 'text-amber-700', darkBg: 'dark:bg-amber-900/30', darkText: 'dark:text-amber-300' },
-  unreviewed: { bg: 'bg-purple-100', text: 'text-purple-700', darkBg: 'dark:bg-purple-900/30', darkText: 'dark:text-purple-300' },
-  daily_digest: { bg: 'bg-emerald-100', text: 'text-emerald-700', darkBg: 'dark:bg-emerald-900/30', darkText: 'dark:text-emerald-300' },
+const TYPE_ACCENTS: Record<Reminder['type'], { dot: string; icon: string; border: string }> = {
+  pre_class: { dot: 'bg-blue-500', icon: 'text-blue-300', border: 'border-l-blue-500' },
+  low_balance: { dot: 'bg-amber-500', icon: 'text-amber-300', border: 'border-l-amber-500' },
+  unreviewed: { dot: 'bg-purple-500', icon: 'text-purple-300', border: 'border-l-purple-500' },
+  daily_digest: { dot: 'bg-emerald-500', icon: 'text-emerald-300', border: 'border-l-emerald-500' },
 };
 
 function formatRelativeTime(dateStr: string): string {
@@ -86,8 +86,8 @@ export function RemindersView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Reminders</h2>
-          <p className="text-sm text-slate-500 dark:text-gray-400">Stay on top of your schedule</p>
+          <h2 className="text-2xl font-bold text-slate-900">Reminders</h2>
+          <p className="text-sm text-slate-500">Stay on top of your schedule</p>
         </div>
         {reminders.length > 0 && (
           <button
@@ -121,36 +121,33 @@ export function RemindersView() {
       ) : (
         <div className="space-y-3">
           {sortedItems.map((reminder) => {
-            const colors = TYPE_COLORS[reminder.type];
+            const accent = TYPE_ACCENTS[reminder.type];
             const isHistory = activeTab === 'history';
 
             return (
               <div
                 key={reminder.id}
                 onClick={() => handleCardClick(reminder)}
-                className={`group relative bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm transition-all ${
+                className={`group relative bg-slate-900 rounded-xl border border-slate-700 shadow-sm transition-all ${
                   isHistory
                     ? 'opacity-60 grayscale'
                     : 'hover:shadow-md cursor-pointer'
                 }`}
               >
-                <div className="flex items-start gap-4">
-                  <div
-                    className={`p-2 rounded-lg ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText} shrink-0`}
-                  >
-                    {TYPE_ICONS[reminder.type]}
-                  </div>
+                <div className={`flex items-start gap-2.5 pl-3 pr-2 py-3 rounded-lg bg-slate-800/60 border border-slate-700 border-l-2 m-1.5 ${accent.border}`}>
+                  <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${accent.dot}`} />
+                  <span className={`mt-0.5 shrink-0 ${accent.icon}`}>{TYPE_ICONS[reminder.type]}</span>
 
                   <div className="flex-1 min-w-0">
-                    <h3 className={`font-semibold text-sm ${isHistory ? 'text-slate-500 dark:text-gray-500' : 'text-slate-900 dark:text-white'}`}>
+                    <h3 className={`font-semibold text-sm truncate ${isHistory ? 'text-slate-500' : 'text-slate-100'}`}>
                       {reminder.title}
                     </h3>
                     {reminder.body && (
-                      <p className="text-sm text-slate-600 dark:text-gray-400 mt-1 line-clamp-2">
+                      <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">
                         {reminder.body}
                       </p>
                     )}
-                    <p className="text-xs text-slate-400 dark:text-gray-500 mt-2">
+                    <p className="text-xs text-slate-500 mt-1.5">
                       {formatRelativeTime(reminder.created_at)}
                     </p>
                   </div>
@@ -162,7 +159,7 @@ export function RemindersView() {
                         e.stopPropagation();
                         dismissReminder(reminder.id);
                       }}
-                      className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg transition-colors shrink-0"
+                      className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg transition-colors shrink-0"
                       aria-label="Dismiss"
                     >
                       <X className="w-4 h-4" />
