@@ -145,6 +145,7 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
 
   const [editingSession, setEditingSession] = useState<Session | undefined>();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showAllReminders, setShowAllReminders] = useState(false);
 
   const today = todayStr();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
@@ -213,11 +214,11 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
 
   const isLoading = sessionsLoading || proposalsLoading;
 
-  const TYPE_CHIP_COLORS: Record<Reminder['type'], string> = {
-    pre_class: 'bg-blue-100 text-blue-900 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
-    low_balance: 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800',
-    unreviewed: 'bg-purple-100 text-purple-900 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800',
-    daily_digest: 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
+  const TYPE_ACCENTS: Record<Reminder['type'], { dot: string; icon: string; border: string }> = {
+    pre_class: { dot: 'bg-blue-500', icon: 'text-blue-300', border: 'border-l-blue-500' },
+    low_balance: { dot: 'bg-amber-500', icon: 'text-amber-300', border: 'border-l-amber-500' },
+    unreviewed: { dot: 'bg-purple-500', icon: 'text-purple-300', border: 'border-l-purple-500' },
+    daily_digest: { dot: 'bg-emerald-500', icon: 'text-emerald-300', border: 'border-l-emerald-500' },
   };
 
   const TYPE_CHIP_ICONS: Record<Reminder['type'], React.ReactNode> = {
@@ -310,21 +311,22 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Reminder chips */}
+      {/* Reminder notifications */}
       {reminders.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-          {reminders.map((reminder) => (
+        <div className="bg-slate-900 rounded-xl border border-slate-700 p-3 space-y-2">
+          {(showAllReminders ? reminders : reminders.slice(0, 2)).map((reminder) => (
             <div
               key={reminder.id}
-              className={`flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-medium whitespace-nowrap shrink-0 ${TYPE_CHIP_COLORS[reminder.type]}`}
+              className={`flex items-center gap-2.5 pl-3 pr-2 py-2 rounded-lg bg-slate-800/60 border border-slate-700 border-l-2 ${TYPE_ACCENTS[reminder.type].border}`}
             >
+              <span className={`w-2 h-2 rounded-full shrink-0 ${TYPE_ACCENTS[reminder.type].dot}`} />
               <button
                 type="button"
                 onClick={() => navigate('/reminders')}
-                className="flex items-center gap-1.5"
+                className="flex items-center gap-1.5 min-w-0 flex-1 text-left"
               >
-                {TYPE_CHIP_ICONS[reminder.type]}
-                <span className="truncate whitespace-nowrap overflow-hidden max-w-[160px]">{reminder.title}</span>
+                <span className={TYPE_ACCENTS[reminder.type].icon}>{TYPE_CHIP_ICONS[reminder.type]}</span>
+                <span className="truncate text-sm text-slate-100">{reminder.title}</span>
               </button>
               <button
                 type="button"
@@ -332,13 +334,22 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
                   e.stopPropagation();
                   dismissReminder(reminder.id);
                 }}
-                className="p-0.5 hover:bg-black/10 rounded-full transition-colors"
+                className="p-1 hover:bg-slate-700 rounded-full transition-colors shrink-0"
                 aria-label="Dismiss"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5 text-slate-400" />
               </button>
             </div>
           ))}
+          {!showAllReminders && reminders.length > 2 && (
+            <button
+              type="button"
+              onClick={() => setShowAllReminders(true)}
+              className="w-full text-left text-sm text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-800/60 transition-colors"
+            >
+              +{reminders.length - 2} more
+            </button>
+          )}
         </div>
       )}
 
