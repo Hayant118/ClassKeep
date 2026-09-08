@@ -30,6 +30,10 @@ interface MonthViewProps {
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function getSessionStudent(session: Session, enrollments: Enrollment[], students: Student[]): Student | undefined {
+  if (session.studentId) {
+    const direct = students.find(s => s.id === session.studentId);
+    if (direct) return direct;
+  }
   const classEnrollments = enrollments.filter(e => e.classId === session.classId && e.status === 'active');
   const primaryStudentId = classEnrollments[0]?.studentId;
   return students.find(s => s.id === primaryStudentId);
@@ -37,14 +41,11 @@ function getSessionStudent(session: Session, enrollments: Enrollment[], students
 
 function getMonthDotColor(
   session: Session,
-  classes: Class[],
   enrollments: Enrollment[],
   students: Student[]
 ): string {
-  const cls = classes.find(c => c.id === session.classId);
-  if (cls?.color) return cls.color;
   const student = getSessionStudent(session, enrollments, students);
-  return student?.color ?? '#6366f1';
+  return student?.color ?? '#9ca3af';
 }
 
 interface DetailContentProps {
@@ -133,7 +134,6 @@ export function MonthView({
   monthStart,
   timezone,
   students,
-  classes,
   enrollments,
   sessions,
   onMonthChange,
@@ -232,6 +232,14 @@ export function MonthView({
             const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
             const daySessions = sessionsByDay.get(dateKey) ?? [];
             const active = selectedDayKey === dateKey;
+            const seenDotStudentIds = new Set<string>();
+            const dotSessions = daySessions.filter((session) => {
+              const student = getSessionStudent(session, enrollments, students);
+              if (!student) return true;
+              if (seenDotStudentIds.has(student.id)) return false;
+              seenDotStudentIds.add(student.id);
+              return true;
+            });
 
             return (
               <button
@@ -247,13 +255,13 @@ export function MonthView({
                   {formatDisplayDateInTz(day.toISOString(), timezone).replace(/[^0-9]/g, '')}
                 </div>
                 <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-1">
-                  {daySessions.slice(0, 4).map((session) => (
+                  {dotSessions.slice(0, 4).map((session) => (
                     <span
                       key={session.id}
                       className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
                         isSessionAutoCompleted(session.id) ? 'ring-1 ring-amber-400' : ''
                       }`}
-                      style={{ backgroundColor: getMonthDotColor(session, classes, enrollments, students) }}
+                      style={{ backgroundColor: getMonthDotColor(session, enrollments, students) }}
                     />
                   ))}
                   {daySessions.length > 4 && (
