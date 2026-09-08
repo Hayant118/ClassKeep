@@ -22,14 +22,14 @@ import { useSessions } from '../hooks/useSessions';
 import { useEnrollments } from '../hooks/useEnrollments';
 import { usePayments } from '../hooks/usePayments';
 import { useBilling } from '../hooks/useBilling';
-import type { Session, Class, Student } from '../types';
+import type { Session, Class, Student, Enrollment } from '../types';
 import type { BillingPeriod } from '../utils/billing';
 import {
   formatCurrency,
   formatCurrencyCompact,
   getPeriods,
-  getSessionCharge,
   isDateInPeriod,
+  resolveSessionCharge,
 } from '../utils/billing';
 
 interface BillingViewProps {
@@ -68,7 +68,7 @@ function SummaryCard({ icon, label, value, subtext }: SummaryCardProps) {
   );
 }
 
-function getStudentClassIds(studentId: string, enrollments: Array<{ studentId: string; classId: string }>) {
+function getStudentClassIds(studentId: string, enrollments: Enrollment[]) {
   return enrollments.filter((e) => e.studentId === studentId).map((e) => e.classId);
 }
 
@@ -83,7 +83,8 @@ function sessionBelongsToStudent(
 function getStudentIncomeInPeriod(
   studentId: string,
   sessions: Session[],
-  enrollments: Array<{ studentId: string; classId: string }>,
+  enrollments: Enrollment[],
+  students: Student[],
   period: BillingPeriod
 ) {
   const classIds = getStudentClassIds(studentId, enrollments);
@@ -94,14 +95,14 @@ function getStudentIncomeInPeriod(
         sessionBelongsToStudent(s, studentId, classIds) &&
         isDateInPeriod(s.actualDate || s.plannedDate, period)
     )
-    .reduce((sum, s) => sum + getSessionCharge(s), 0);
+    .reduce((sum, s) => sum + resolveSessionCharge(s, students, enrollments), 0);
 }
 
 function getStudentSessionCount(
   studentId: string,
   status: Session['status'],
   sessions: Session[],
-  enrollments: Array<{ studentId: string; classId: string }>
+  enrollments: Enrollment[]
 ) {
   const classIds = getStudentClassIds(studentId, enrollments);
   return sessions.filter((s) => s.status === status && sessionBelongsToStudent(s, studentId, classIds)).length;
@@ -181,7 +182,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
     const period = timeRange === 'monthly' ? periods.month : timeRange === 'quarterly' ? periods.quarter : periods.year;
     return students
       .map((student) => {
-        const income = getStudentIncomeInPeriod(student.id, sessions, enrollments, period);
+        const income = getStudentIncomeInPeriod(student.id, sessions, enrollments, students, period);
         return {
           name: student.name,
           value: income,
@@ -195,6 +196,31 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
     () => studentMetrics.find((m) => m.studentId === selectedStudentId) || null,
     [studentMetrics, selectedStudentId]
   );
+
+  const monthlyBreakdown = useMemo(() => {
+    const { month } = getPeriods();
+    return students
+      .map((student) => {
+        const classIds = getStudentClassIds(student.id, enrollments);
+        const belongs = (s: Session) =>
+          s.studentId === student.id || (!!s.classId && classIds.includes(s.classId));
+        const monthSessions = sessions.filter(
+          (s) => belongs(s) && isDateInPeriod(s.plannedDate, month)
+        );
+        const scheduled = monthSessions.filter((s) => s.status !== 'cancelled');
+        const completedCount = monthSessions.filter((s) => s.status === 'completed').length;
+        const projectedFee = scheduled.reduce(
+          (sum, s) => sum + resolveSessionCharge(s, students, enrollments),
+          0
+        );
+        const activeEnrollment = enrollments.find(
+          (e) => e.studentId === student.id && e.status === 'active' && e.customRate != null
+        );
+        const hasRate = (activeEnrollment?.customRate ?? student.defaultRate ?? 0) > 0;
+        return { student, scheduledCount: scheduled.length, completedCount, projectedFee, hasRate };
+      })
+      .filter((row) => row.scheduledCount > 0);
+  }, [sessions, students, enrollments]);
 
   const isLoading = sessionsLoading || enrollmentsLoading || paymentsLoading;
 
@@ -241,8 +267,14 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
         <SummaryCard
           icon={<DollarSign className="w-5 h-5" />}
           label="This Month"
-          value={formatCurrency(summary.totalIncomeThisMonth)}
-          subtext="Completed sessions"
+          value={
+            <div className="space-y-0.5">
+              <div>Projected {formatCurrency(summary.projectedIncomeThisMonth)}</div>
+              <div className="text-sm font-semibold text-slate-500 dark:text-gray-400">
+                Actual so far {formatCurrency(summary.totalIncomeThisMonth)}
+              </div>
+            </div>
+          }
         />
         <SummaryCard
           icon={<TrendingUp className="w-5 h-5" />}
@@ -261,6 +293,39 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           value={formatCurrency(summary.outstandingPrepaid)}
         />
       </div>
+
+      {/* This Month per-student breakdown */}
+      {monthlyBreakdown.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm">
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">This Month by Student</h3>
+          </div>
+          <ul className="divide-y divide-slate-100 dark:divide-gray-700">
+            {monthlyBreakdown.map((row) => (
+              <li key={row.student.id} className="flex items-center gap-3 px-4 py-2.5">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: row.student.color || '#6366f1' }}
+                />
+                <span className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                  {row.student.name}
+                </span>
+                {!row.hasRate && (
+                  <span className="text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full shrink-0">
+                    no rate set
+                  </span>
+                )}
+                <span className="ml-auto text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
+                  {row.scheduledCount} scheduled · {row.completedCount} completed
+                </span>
+                <span className="text-sm font-semibold text-slate-900 dark:text-white w-24 text-right whitespace-nowrap">
+                  {formatCurrency(row.projectedFee)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Tab Bar */}
       <div className="flex gap-2">
@@ -401,9 +466,9 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
               {(() => {
                 const periods = getPeriods();
-                const thisMonth = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, periods.month);
-                const thisQuarter = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, periods.quarter);
-                const thisYear = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, periods.year);
+                const thisMonth = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, periods.month);
+                const thisQuarter = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, periods.quarter);
+                const thisYear = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, periods.year);
                 const completedCount = getStudentSessionCount(selectedStudent.studentId, 'completed', sessions, enrollments);
                 const cancelledCount = getStudentSessionCount(selectedStudent.studentId, 'cancelled', sessions, enrollments);
                 const studentEnrollments = enrollments.filter((e) => e.studentId === selectedStudent.studentId);
@@ -478,7 +543,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {studentMetrics.map((metric) => {
                 const periods = getPeriods();
-                const thisMonthIncome = getStudentIncomeInPeriod(metric.studentId, sessions, enrollments, periods.month);
+                const thisMonthIncome = getStudentIncomeInPeriod(metric.studentId, sessions, enrollments, students, periods.month);
                 const hasPrepaid = enrollments.some(
                   (e) => e.studentId === metric.studentId && e.paymentType === 'prepaid'
                 );

@@ -6,9 +6,9 @@ import {
   calculateQuarterlyIncome,
   calculateYearlyIncome,
   getPeriods,
-  getSessionCharge,
   isDateInPeriod,
   parseSessionDate,
+  resolveSessionCharge,
 } from '../utils/billing';
 import type {
   MonthlyIncome,
@@ -29,6 +29,7 @@ export interface ClassBillingMetrics {
 export interface BillingSummary {
   totalIncome: number;
   totalIncomeThisMonth: number;
+  projectedIncomeThisMonth: number;
   totalIncomeThisQuarter: number;
   totalIncomeThisYear: number;
   totalSessions: number;
@@ -47,7 +48,7 @@ export interface UseBillingResult {
   yearlyIncome: YearlyIncome[];
 }
 
-function buildSixMonthTrend(sessions: Session[]): { month: string; income: number }[] {
+function buildSixMonthTrend(sessions: Session[], students: Student[], enrollments: Enrollment[]): { month: string; income: number }[] {
   const now = new Date();
   const trend: { month: string; income: number }[] = [];
 
@@ -61,7 +62,7 @@ function buildSixMonthTrend(sessions: Session[]): { month: string; income: numbe
         const sessionMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         return sessionMonth === monthKey;
       })
-      .reduce((sum, session) => sum + getSessionCharge(session), 0);
+      .reduce((sum, session) => sum + resolveSessionCharge(session, students, enrollments), 0);
     trend.push({ month: monthKey, income });
   }
 
@@ -77,8 +78,9 @@ export function useBilling(
 ): UseBillingResult {
   return useMemo(() => {
     const completedSessions = sessions.filter((s) => s.status === 'completed');
+    const charge = (session: Session) => resolveSessionCharge(session, students, enrollments);
     const totalIncome = completedSessions.reduce(
-      (sum, session) => sum + getSessionCharge(session),
+      (sum, session) => sum + charge(session),
       0
     );
 
@@ -88,21 +90,31 @@ export function useBilling(
         const dateStr = session.actualDate || session.plannedDate;
         return dateStr ? isDateInPeriod(dateStr, periods.month) : false;
       })
-      .reduce((sum, session) => sum + getSessionCharge(session), 0);
+      .reduce((sum, session) => sum + charge(session), 0);
+
+    // Everything scheduled this month that isn't cancelled, billed at
+    // current rates — i.e. assuming everything goes ahead.
+    const projectedIncomeThisMonth = sessions
+      .filter(
+        (session) =>
+          session.status !== 'cancelled' &&
+          isDateInPeriod(session.plannedDate, periods.month)
+      )
+      .reduce((sum, session) => sum + charge(session), 0);
 
     const totalIncomeThisQuarter = completedSessions
       .filter((session) => {
         const dateStr = session.actualDate || session.plannedDate;
         return dateStr ? isDateInPeriod(dateStr, periods.quarter) : false;
       })
-      .reduce((sum, session) => sum + getSessionCharge(session), 0);
+      .reduce((sum, session) => sum + charge(session), 0);
 
     const totalIncomeThisYear = completedSessions
       .filter((session) => {
         const dateStr = session.actualDate || session.plannedDate;
         return dateStr ? isDateInPeriod(dateStr, periods.year) : false;
       })
-      .reduce((sum, session) => sum + getSessionCharge(session), 0);
+      .reduce((sum, session) => sum + charge(session), 0);
 
     const totalSessions = sessions.length;
     const completedSessionsCount = completedSessions.length;
@@ -116,7 +128,7 @@ export function useBilling(
     const classMetrics: ClassBillingMetrics[] = classes.map((cls) => {
       const classSessions = completedSessions.filter((s) => s.classId === cls.id);
       const income = classSessions.reduce(
-        (sum, session) => sum + getSessionCharge(session),
+        (sum, session) => sum + charge(session),
         0
       );
       const hours = classSessions.reduce(
@@ -143,7 +155,7 @@ export function useBilling(
           (!!session.classId && studentClassIds.includes(session.classId))
       );
       const income = studentSessions.reduce(
-        (sum, session) => sum + getSessionCharge(session),
+        (sum, session) => sum + charge(session),
         0
       );
       const hours = studentSessions.reduce(
@@ -161,13 +173,14 @@ export function useBilling(
         sessionCount,
         hours,
         averageRate,
-        trend: buildSixMonthTrend(studentSessions),
+        trend: buildSixMonthTrend(studentSessions, students, enrollments),
       };
     });
 
     const summary: BillingSummary = {
       totalIncome,
       totalIncomeThisMonth,
+      projectedIncomeThisMonth,
       totalIncomeThisQuarter,
       totalIncomeThisYear,
       totalSessions,
@@ -181,9 +194,9 @@ export function useBilling(
       summary,
       studentMetrics,
       classMetrics,
-      monthlyIncome: calculateMonthlyIncome(completedSessions),
-      quarterlyIncome: calculateQuarterlyIncome(completedSessions),
-      yearlyIncome: calculateYearlyIncome(completedSessions),
+      monthlyIncome: calculateMonthlyIncome(completedSessions, students, enrollments),
+      quarterlyIncome: calculateQuarterlyIncome(completedSessions, students, enrollments),
+      yearlyIncome: calculateYearlyIncome(completedSessions, students, enrollments),
     };
   }, [sessions, students, classes, enrollments]);
 }

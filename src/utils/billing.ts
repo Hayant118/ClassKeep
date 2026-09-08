@@ -1,6 +1,6 @@
 // src/utils/billing.ts
 import { format, parseISO } from 'date-fns';
-import type { Session } from '../types';
+import type { Enrollment, Session, Student } from '../types';
 
 export interface BillingPeriod {
   startDate: Date;
@@ -99,23 +99,60 @@ export function parseSessionDate(session: Session): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export function getSessionCharge(session: Session): number {
-  if (session.status !== 'completed') return 0;
-  if (session.totalCharge != null) return session.totalCharge;
-  if (session.rateValue != null) {
-    return session.rateValue * (session.durationMinutes / 60);
+// Same rate logic as proposal billing: guest sessions bill guestRate
+// hourly; 'flat' is a fixed per-session charge; 'override' bills rateValue
+// hourly; 'auto' bills the active enrollment's customRate, falling back to
+// the student's defaultRate, hourly.
+export function resolveSessionCharge(
+  session: Session,
+  students: Student[],
+  enrollments: Enrollment[]
+): number {
+  const hours = session.durationMinutes / 60;
+  if (session.guestName) {
+    return (session.guestRate ?? 0) * hours;
   }
-  return 0;
+  if (session.rateMode === 'flat' && session.rateValue != null) {
+    return session.rateValue;
+  }
+  let student: Student | undefined;
+  if (session.studentId) {
+    student = students.find((s) => s.id === session.studentId);
+  }
+  let enrollment: Enrollment | undefined;
+  if (session.classId) {
+    enrollment = enrollments.find(
+      (e) =>
+        e.classId === session.classId &&
+        e.status === 'active' &&
+        (!student || e.studentId === student.id)
+    );
+    if (!student && enrollment) {
+      student = students.find((s) => s.id === enrollment!.studentId);
+    }
+  }
+  if (session.rateMode === 'override' && session.rateValue != null) {
+    return session.rateValue * hours;
+  }
+  if (student) {
+    const hourly = enrollment?.customRate ?? student.defaultRate ?? 0;
+    const computed = hourly * hours;
+    if (computed === 0 && session.totalCharge != null) {
+      return session.totalCharge;
+    }
+    return computed;
+  }
+  return session.totalCharge ?? 0;
 }
 
-export function calculateMonthlyIncome(sessions: Session[]): MonthlyIncome[] {
+export function calculateMonthlyIncome(sessions: Session[], students: Student[], enrollments: Enrollment[]): MonthlyIncome[] {
   const map = new Map<string, { income: number; sessionCount: number }>();
 
   for (const session of sessions) {
     if (session.status !== 'completed') continue;
     const key = getMonthKey(session);
     if (!key) continue;
-    const charge = getSessionCharge(session);
+    const charge = resolveSessionCharge(session, students, enrollments);
     const current = map.get(key) ?? { income: 0, sessionCount: 0 };
     current.income += charge;
     current.sessionCount += 1;
@@ -127,14 +164,14 @@ export function calculateMonthlyIncome(sessions: Session[]): MonthlyIncome[] {
     .sort((a, b) => a.month.localeCompare(b.month));
 }
 
-export function calculateQuarterlyIncome(sessions: Session[]): QuarterlyIncome[] {
+export function calculateQuarterlyIncome(sessions: Session[], students: Student[], enrollments: Enrollment[]): QuarterlyIncome[] {
   const map = new Map<string, { income: number; sessionCount: number }>();
 
   for (const session of sessions) {
     if (session.status !== 'completed') continue;
     const key = getQuarterKey(session);
     if (!key) continue;
-    const charge = getSessionCharge(session);
+    const charge = resolveSessionCharge(session, students, enrollments);
     const current = map.get(key) ?? { income: 0, sessionCount: 0 };
     current.income += charge;
     current.sessionCount += 1;
@@ -146,14 +183,14 @@ export function calculateQuarterlyIncome(sessions: Session[]): QuarterlyIncome[]
     .sort((a, b) => a.quarter.localeCompare(b.quarter));
 }
 
-export function calculateYearlyIncome(sessions: Session[]): YearlyIncome[] {
+export function calculateYearlyIncome(sessions: Session[], students: Student[], enrollments: Enrollment[]): YearlyIncome[] {
   const map = new Map<string, { income: number; sessionCount: number }>();
 
   for (const session of sessions) {
     if (session.status !== 'completed') continue;
     const key = getYearKey(session);
     if (!key) continue;
-    const charge = getSessionCharge(session);
+    const charge = resolveSessionCharge(session, students, enrollments);
     const current = map.get(key) ?? { income: 0, sessionCount: 0 };
     current.income += charge;
     current.sessionCount += 1;
