@@ -1,6 +1,7 @@
 // src/components/ProposalsView.tsx
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import { useProposals } from '../hooks/useProposals';
 import type { Proposal } from '../types';
 
@@ -49,7 +50,7 @@ function SkeletonList() {
 
 export function ProposalsView() {
   const navigate = useNavigate();
-  const { proposals, loading, error, createDraft } = useProposals();
+  const { proposals, loading, error, createDraft, deleteProposal } = useProposals();
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState<'active' | 'archived'>('active');
 
@@ -72,6 +73,15 @@ export function ProposalsView() {
 
   const handleOpen = (id: string) => {
     navigate(`/proposals/${id}`);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this proposal? This cannot be undone.')) return;
+    try {
+      await deleteProposal(id);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete proposal');
+    }
   };
 
   return (
@@ -132,11 +142,11 @@ export function ProposalsView() {
       {!loading && !error && filteredProposals.length > 0 && (
         <ul className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
           {filteredProposals.map((proposal) => (
-            <li key={proposal.id}>
+            <li key={proposal.id} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-slate-50 transition-colors">
               <button
                 type="button"
                 onClick={() => handleOpen(proposal.id)}
-                className="w-full text-left px-5 py-4 hover:bg-slate-50 transition-colors flex items-center justify-between gap-4"
+                className="flex-1 min-w-0 text-left flex items-center justify-between gap-4"
               >
                 <div className="min-w-0">
                   <div className="font-medium text-slate-900 truncate">
@@ -150,6 +160,14 @@ export function ProposalsView() {
                   </div>
                 </div>
                 <StatusBadge status={proposal.status} />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(proposal.id)}
+                className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                aria-label="Delete proposal"
+              >
+                <Trash2 className="w-4 h-4" />
               </button>
             </li>
           ))}

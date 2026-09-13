@@ -199,27 +199,65 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
   const monthlyBreakdown = useMemo(() => {
     const { month } = getPeriods();
-    return students
-      .map((student) => {
-        const classIds = getStudentClassIds(student.id, enrollments);
-        const belongs = (s: Session) =>
-          s.studentId === student.id || (!!s.classId && classIds.includes(s.classId));
-        const monthSessions = sessions.filter(
-          (s) => belongs(s) && isDateInPeriod(s.plannedDate, month)
-        );
-        const scheduled = monthSessions.filter((s) => s.status !== 'cancelled');
-        const completedCount = monthSessions.filter((s) => s.status === 'completed').length;
+    const monthSessions = sessions.filter((s) => isDateInPeriod(s.plannedDate, month));
+
+    // Bucket each session by its owner: direct studentId, or every student
+    // enrolled in the session's class. Orphaned studentIds (student deleted)
+    // get their own bucket so they still show up, labeled.
+    const buckets = new Map<string, { student: Student | null; sessions: Session[] }>();
+    for (const session of monthSessions) {
+      const ownerIds: string[] = [];
+      if (session.studentId) {
+        ownerIds.push(session.studentId);
+      } else if (session.classId) {
+        for (const e of enrollments) {
+          if (e.classId === session.classId) ownerIds.push(e.studentId);
+        }
+      }
+      for (const id of ownerIds) {
+        const bucket = buckets.get(id) ?? {
+          student: students.find((st) => st.id === id) ?? null,
+          sessions: [],
+        };
+        bucket.sessions.push(session);
+        buckets.set(id, bucket);
+      }
+    }
+
+    return Array.from(buckets.entries())
+      .map(([studentId, bucket]) => {
+        const scheduled = bucket.sessions.filter((s) => s.status !== 'cancelled');
+        const completedCount = bucket.sessions.filter((s) => s.status === 'completed').length;
         const projectedFee = scheduled.reduce(
           (sum, s) => sum + resolveSessionCharge(s, students, enrollments),
           0
         );
-        const activeEnrollment = enrollments.find(
-          (e) => e.studentId === student.id && e.status === 'active' && e.customRate != null
-        );
-        const hasRate = (activeEnrollment?.customRate ?? student.defaultRate ?? 0) > 0;
-        return { student, scheduledCount: scheduled.length, completedCount, projectedFee, hasRate };
+        const student = bucket.student;
+        const activeEnrollment = student
+          ? enrollments.find(
+              (e) => e.studentId === student.id && e.status === 'active' && e.customRate != null
+            )
+          : undefined;
+        const hasRate = student
+          ? (activeEnrollment?.customRate ?? student.defaultRate ?? 0) > 0
+          : false;
+        return {
+          studentId,
+          student,
+          scheduledCount: scheduled.length,
+          completedCount,
+          projectedFee,
+          hasRate,
+        };
       })
-      .filter((row) => row.scheduledCount > 0);
+      .filter((row) => row.scheduledCount > 0)
+      .sort((a, b) => {
+        // Former students last; the rest alphabetical by name.
+        if (!a.student && !b.student) return 0;
+        if (!a.student) return 1;
+        if (!b.student) return -1;
+        return a.student.name.localeCompare(b.student.name);
+      });
   }, [sessions, students, enrollments]);
 
   const isLoading = sessionsLoading || enrollmentsLoading || paymentsLoading;
@@ -302,20 +340,20 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           </div>
           <ul className="divide-y divide-slate-100 dark:divide-gray-700">
             {monthlyBreakdown.map((row) => (
-              <li key={row.student.id} className="flex items-center gap-3 px-4 py-2.5">
+              <li key={row.studentId} className="flex items-center gap-3 px-4 py-2.5">
                 <span
                   className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: row.student.color || '#6366f1' }}
+                  style={{ backgroundColor: row.student?.color || '#94a3b8' }}
                 />
-                <span className="text-sm font-medium text-slate-900 dark:text-white truncate">
-                  {row.student.name}
+                <span className="flex-1 min-w-0 text-sm font-medium text-slate-900 dark:text-white truncate">
+                  {row.student?.name || 'Former student (deleted)'}
                 </span>
-                {!row.hasRate && (
+                {row.student && !row.hasRate && (
                   <span className="text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full shrink-0">
                     no rate set
                   </span>
                 )}
-                <span className="ml-auto text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
+                <span className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
                   {row.scheduledCount} scheduled · {row.completedCount} completed
                 </span>
                 <span className="text-sm font-semibold text-slate-900 dark:text-white w-24 text-right whitespace-nowrap">
