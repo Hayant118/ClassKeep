@@ -22,8 +22,10 @@ import { useSessions } from '../hooks/useSessions';
 import { useEnrollments } from '../hooks/useEnrollments';
 import { usePayments } from '../hooks/usePayments';
 import { useBilling } from '../hooks/useBilling';
+import { MonthView } from './MonthView';
 import type { Session, Class, Student, Enrollment } from '../types';
 import type { BillingPeriod } from '../utils/billing';
+import { DEFAULT_TIMEZONE } from '../utils/timezone';
 import {
   formatCurrency,
   formatCurrencyCompact,
@@ -157,6 +159,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
   const [chartType, setChartType] = useState<ChartType>('line');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [breakdownStudentId, setBreakdownStudentId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPayments();
@@ -260,6 +263,35 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       });
   }, [sessions, students, enrollments]);
 
+  // Drill-in view for a "This Month by Student" row.
+  const breakdownDetail = useMemo(() => {
+    if (!breakdownStudentId) return null;
+    const { month } = getPeriods();
+    const classIds = enrollments
+      .filter((e) => e.studentId === breakdownStudentId)
+      .map((e) => e.classId);
+    const monthSessions = sessions.filter(
+      (s) =>
+        (s.studentId === breakdownStudentId ||
+          (!!s.classId && classIds.includes(s.classId))) &&
+        isDateInPeriod(s.plannedDate, month)
+    );
+    const charge = (s: Session) => resolveSessionCharge(s, students, enrollments);
+    return {
+      student: students.find((st) => st.id === breakdownStudentId) ?? null,
+      monthSessions,
+      projected: monthSessions
+        .filter((s) => s.status !== 'cancelled')
+        .reduce((sum, s) => sum + charge(s), 0),
+      earned: monthSessions
+        .filter((s) => s.status === 'completed')
+        .reduce((sum, s) => sum + charge(s), 0),
+      lost: monthSessions
+        .filter((s) => s.status === 'cancelled')
+        .reduce((sum, s) => sum + charge(s), 0),
+    };
+  }, [breakdownStudentId, sessions, students, enrollments]);
+
   const isLoading = sessionsLoading || enrollmentsLoading || paymentsLoading;
 
   if (isLoading) {
@@ -274,6 +306,65 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
     return (
       <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
         Error loading sessions: {sessionsError}
+      </div>
+    );
+  }
+
+  // Drill-in: per-student detail from "This Month by Student".
+  if (breakdownDetail) {
+    return (
+      <div className="space-y-6">
+        <button
+          type="button"
+          onClick={() => setBreakdownStudentId(null)}
+          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
+          ← Back to billing
+        </button>
+
+        <div className="flex items-center gap-3">
+          <span
+            className="w-4 h-4 rounded-full"
+            style={{ backgroundColor: breakdownDetail.student?.color || '#94a3b8' }}
+          />
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+            {breakdownDetail.student?.name || 'Former student (deleted)'}
+          </h3>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div className="text-xs text-slate-500 dark:text-gray-400">Projected this month</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-white">
+                {formatCurrency(breakdownDetail.projected)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500 dark:text-gray-400">Earned so far</div>
+              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                {formatCurrency(breakdownDetail.earned)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500 dark:text-gray-400">Lost to cancellations</div>
+              <div className="text-lg font-bold text-red-600 dark:text-red-400">
+                {formatCurrency(breakdownDetail.lost)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <MonthView
+          monthStart={new Date()}
+          timezone={breakdownDetail.student?.timezone || DEFAULT_TIMEZONE}
+          students={students}
+          classes={classes}
+          enrollments={enrollments}
+          sessions={breakdownDetail.monthSessions}
+          onMonthChange={() => {}}
+          inlineDetail
+        />
       </div>
     );
   }
@@ -340,25 +431,31 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           </div>
           <ul className="divide-y divide-slate-100 dark:divide-gray-700">
             {monthlyBreakdown.map((row) => (
-              <li key={row.studentId} className="flex items-center gap-3 px-4 py-2.5">
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: row.student?.color || '#94a3b8' }}
-                />
-                <span className="flex-1 min-w-0 text-sm font-medium text-slate-900 dark:text-white truncate">
-                  {row.student?.name || 'Former student (deleted)'}
-                </span>
-                {row.student && !row.hasRate && (
-                  <span className="text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full shrink-0">
-                    no rate set
+              <li key={row.studentId}>
+                <button
+                  type="button"
+                  onClick={() => setBreakdownStudentId(row.studentId)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-colors"
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: row.student?.color || '#94a3b8' }}
+                  />
+                  <span className="flex-1 min-w-0 text-sm font-medium text-slate-900 dark:text-white truncate">
+                    {row.student?.name || 'Former student (deleted)'}
                   </span>
-                )}
-                <span className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
-                  {row.scheduledCount} scheduled · {row.completedCount} completed
-                </span>
-                <span className="text-sm font-semibold text-slate-900 dark:text-white w-24 text-right whitespace-nowrap">
-                  {formatCurrency(row.projectedFee)}
-                </span>
+                  {row.student && !row.hasRate && (
+                    <span className="text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full shrink-0">
+                      no rate set
+                    </span>
+                  )}
+                  <span className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
+                    {row.scheduledCount} scheduled · {row.completedCount} completed
+                  </span>
+                  <span className="text-sm font-semibold text-slate-900 dark:text-white w-24 text-right whitespace-nowrap">
+                    {formatCurrency(row.projectedFee)}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
