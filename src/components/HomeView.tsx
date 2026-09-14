@@ -45,6 +45,12 @@ function dateKey(date: Date): string {
   return formatLocalDateKey(date);
 }
 
+function shiftDateKey(dateKey: string, days: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  return formatLocalDateKey(dt);
+}
+
 function getWeekStart(date: Date): Date {
   const d = new Date(date);
   if (isNaN(d.getTime())) {
@@ -149,6 +155,7 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
 
   const today = todayStr();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
+  const [selectedDayKey, setSelectedDayKey] = useState<string>(today);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set());
   const [hasInitializedFilter, setHasInitializedFilter] = useState(false);
 
@@ -206,11 +213,22 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
     [proposals]
   );
 
-  const todaysSessions = useMemo(() => {
+  const selectedDaySessions = useMemo(() => {
     return sessions
-      .filter((s) => s.plannedDate === today)
+      .filter((s) => s.plannedDate === selectedDayKey)
       .sort((a, b) => a.plannedTime.localeCompare(b.plannedTime));
-  }, [sessions, today]);
+  }, [sessions, selectedDayKey]);
+
+  const sessionsHeading = useMemo(() => {
+    if (selectedDayKey === today) return 'Upcoming Today';
+    const [y, m, d] = selectedDayKey.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return `Sessions — ${date.toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    })}`;
+  }, [selectedDayKey, today]);
 
   const isLoading = sessionsLoading || proposalsLoading;
 
@@ -228,16 +246,21 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
     daily_digest: <Sun className="w-3.5 h-3.5" />,
   };
 
-  const goToToday = () => setCurrentWeekStart(getWeekStart(new Date()));
+  const goToToday = () => {
+    setCurrentWeekStart(getWeekStart(new Date()));
+    setSelectedDayKey(today);
+  };
   const movePrevious = () => {
     const d = new Date(currentWeekStart);
     d.setDate(d.getDate() - 7);
     setCurrentWeekStart(d);
+    setSelectedDayKey((prev) => shiftDateKey(prev, -7));
   };
   const moveNext = () => {
     const d = new Date(currentWeekStart);
     d.setDate(d.getDate() + 7);
     setCurrentWeekStart(d);
+    setSelectedDayKey((prev) => shiftDateKey(prev, 7));
   };
 
   const toggleStudent = (id: string) => {
@@ -252,8 +275,8 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
   const selectAllStudents = () => setSelectedStudentIds(new Set(students.map((s) => s.id)));
   const clearAllStudents = () => setSelectedStudentIds(new Set());
 
-  const handleDayClick = () => {
-    navigate('/calendar');
+  const handleDayClick = (key: string) => {
+    setSelectedDayKey(key);
   };
 
   const handleQuickStatus = async (session: Session, status: Session['status']) => {
@@ -416,14 +439,17 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
             const key = dateKey(day);
             const daySessions = weekSessionsByDay.get(key) ?? [];
             const isToday = key === today;
+            const isSelected = key === selectedDayKey;
             return (
               <button
                 key={key}
                 type="button"
-                onClick={handleDayClick}
+                onClick={() => handleDayClick(key)}
                 className={`flex flex-col items-center justify-start pt-2 pb-1 px-1 rounded-lg border transition-colors min-h-[44px] ${
                   isToday
                     ? 'bg-indigo-100 border-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700'
+                    : isSelected
+                    ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800'
                     : 'bg-white border-slate-100 hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700'
                 }`}
               >
@@ -455,20 +481,20 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
         </div>
       </div>
 
-      {/* Today's upcoming classes */}
+      {/* Sessions for the selected day */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex items-center gap-2 mb-4">
           <CalendarIcon className="w-5 h-5 text-indigo-600" />
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-white">Upcoming Today</h2>
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-white">{sessionsHeading}</h2>
         </div>
 
-        {todaysSessions.length === 0 ? (
+        {selectedDaySessions.length === 0 ? (
           <div className="text-center py-8 text-slate-500 dark:text-gray-400">
-            <p>No classes scheduled for today.</p>
+            <p>No classes scheduled for this day.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {todaysSessions.map((session) => (
+            {selectedDaySessions.map((session) => (
               <div
                 key={session.id}
                 className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-700/30 hover:shadow-sm transition-shadow"
@@ -493,8 +519,7 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
                   }`}>
                     {session.status}
                   </span>
-                  {session.status === 'scheduled' && (
-                    <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                  <div className="flex flex-wrap items-center gap-1 mt-1.5">
                       <button
                         type="button"
                         onClick={() => handleQuickStatus(session, 'completed')}
@@ -527,8 +552,7 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
                         <CalendarIcon className="w-3 h-3" />
                         Move
                       </button>
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
             ))}
