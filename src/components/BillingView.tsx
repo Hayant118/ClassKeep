@@ -17,7 +17,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { DollarSign, TrendingUp, Calendar, CreditCard, Users } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, CreditCard, Users, ChevronRight } from 'lucide-react';
 import { useSessions } from '../hooks/useSessions';
 import { useEnrollments } from '../hooks/useEnrollments';
 import { usePayments } from '../hooks/usePayments';
@@ -45,6 +45,24 @@ type TimeRange = 'monthly' | 'quarterly' | 'yearly';
 type ChartType = 'line' | 'bar' | 'area';
 
 const CHART_COLORS = ['#6366f1', '#ec4899', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16'];
+
+const STATUS_LABELS: Record<Session['status'], string> = {
+  scheduled: 'Scheduled',
+  completed: 'Completed',
+  moved: 'Moved',
+  cancelled: 'Cancelled',
+  holiday: 'Holiday',
+  'no-show': 'No-show',
+};
+
+const STATUS_COLORS: Record<Session['status'], string> = {
+  scheduled: '#6366f1',
+  completed: '#22c55e',
+  moved: '#f97316',
+  cancelled: '#ef4444',
+  holiday: '#94a3b8',
+  'no-show': '#f59e0b',
+};
 
 interface SummaryCardProps {
   icon: React.ReactNode;
@@ -150,6 +168,11 @@ function StudentTooltip({ active, payload }: { active?: boolean; payload?: Array
   return null;
 }
 
+function monthLabel(yearMonth: string): string {
+  const [y, m] = yearMonth.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
 export function BillingView({ sessions: sessionsProp, classes, students }: BillingViewProps) {
   const { sessions: fetchedSessions, loading: sessionsLoading, error: sessionsError } = useSessions();
   const { enrollments, loading: enrollmentsLoading } = useEnrollments();
@@ -160,6 +183,8 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
   const [chartType, setChartType] = useState<ChartType>('line');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [breakdownStudentId, setBreakdownStudentId] = useState<string | null>(null);
+  // Drill-down month navigation (defaults to current month).
+  const [detailMonthOffset, setDetailMonthOffset] = useState(0);
 
   useEffect(() => {
     fetchPayments();
@@ -263,34 +288,67 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       });
   }, [sessions, students, enrollments]);
 
-  // Drill-in view for a "This Month by Student" row.
+  // Drill-in view for a "This Month by Student" row. Month-navigable.
   const breakdownDetail = useMemo(() => {
     if (!breakdownStudentId) return null;
-    const { month } = getPeriods();
+
+    const base = new Date();
+    const detailMonth = new Date(base.getFullYear(), base.getMonth() + detailMonthOffset, 1);
+    const monthStart = new Date(detailMonth.getFullYear(), detailMonth.getMonth(), 1);
+    const monthEnd = new Date(detailMonth.getFullYear(), detailMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+    const period: BillingPeriod = { startDate: monthStart, endDate: monthEnd };
+
     const classIds = enrollments
       .filter((e) => e.studentId === breakdownStudentId)
       .map((e) => e.classId);
-    const monthSessions = sessions.filter(
-      (s) =>
-        (s.studentId === breakdownStudentId ||
-          (!!s.classId && classIds.includes(s.classId))) &&
-        isDateInPeriod(s.plannedDate, month)
-    );
+    const monthSessions = sessions
+      .filter(
+        (s) =>
+          (s.studentId === breakdownStudentId ||
+            (!!s.classId && classIds.includes(s.classId))) &&
+          isDateInPeriod(s.plannedDate, period)
+      )
+      .sort((a, b) => {
+        const d = a.plannedDate.localeCompare(b.plannedDate);
+        if (d !== 0) return d;
+        return a.plannedTime.localeCompare(b.plannedTime);
+      });
+
     const charge = (s: Session) => resolveSessionCharge(s, students, enrollments);
+    const projected = monthSessions
+      .filter((s) => s.status !== 'cancelled')
+      .reduce((sum, s) => sum + charge(s), 0);
+    const earned = monthSessions
+      .filter((s) => s.status === 'completed')
+      .reduce((sum, s) => sum + charge(s), 0);
+    const lost = monthSessions
+      .filter((s) => s.status === 'cancelled')
+      .reduce((sum, s) => sum + charge(s), 0);
+
+    // Payments received this month via this student's enrollments.
+    const studentEnrollmentIds = enrollments
+      .filter((e) => e.studentId === breakdownStudentId)
+      .map((e) => e.id);
+    const received = payments
+      .filter(
+        (p) =>
+          studentEnrollmentIds.includes(p.enrollmentId) &&
+          isDateInPeriod(p.paymentDate, period)
+      )
+      .reduce((sum, p) => sum + p.amount, 0);
+
     return {
       student: students.find((st) => st.id === breakdownStudentId) ?? null,
+      monthStart: detailMonth,
+      monthKey: `${detailMonth.getFullYear()}-${String(detailMonth.getMonth() + 1).padStart(2, '0')}`,
       monthSessions,
-      projected: monthSessions
-        .filter((s) => s.status !== 'cancelled')
-        .reduce((sum, s) => sum + charge(s), 0),
-      earned: monthSessions
-        .filter((s) => s.status === 'completed')
-        .reduce((sum, s) => sum + charge(s), 0),
-      lost: monthSessions
-        .filter((s) => s.status === 'cancelled')
-        .reduce((sum, s) => sum + charge(s), 0),
+      projected,
+      earned,
+      lost,
+      received,
+      hasEnrollments: studentEnrollmentIds.length > 0,
     };
-  }, [breakdownStudentId, sessions, students, enrollments]);
+  }, [breakdownStudentId, detailMonthOffset, sessions, students, enrollments, payments]);
 
   const isLoading = sessionsLoading || enrollmentsLoading || paymentsLoading;
 
@@ -312,11 +370,15 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
   // Drill-in: per-student detail from "This Month by Student".
   if (breakdownDetail) {
+    const { student } = breakdownDetail;
     return (
       <div className="space-y-6">
         <button
           type="button"
-          onClick={() => setBreakdownStudentId(null)}
+          onClick={() => {
+            setBreakdownStudentId(null);
+            setDetailMonthOffset(0);
+          }}
           className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
         >
           ← Back to billing
@@ -324,47 +386,147 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
         <div className="flex items-center gap-3">
           <span
-            className="w-4 h-4 rounded-full"
-            style={{ backgroundColor: breakdownDetail.student?.color || '#94a3b8' }}
+            className="w-4 h-4 rounded-full shrink-0"
+            style={{ backgroundColor: student?.color || '#94a3b8' }}
           />
           <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-            {breakdownDetail.student?.name || 'Former student (deleted)'}
+            {student?.name || 'Former student (deleted)'}
           </h3>
         </div>
 
+        {/* Money summary */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <div>
-              <div className="text-xs text-slate-500 dark:text-gray-400">Projected this month</div>
+              <div className="text-xs text-slate-500 dark:text-gray-400">Projected</div>
               <div className="text-lg font-bold text-slate-900 dark:text-white">
                 {formatCurrency(breakdownDetail.projected)}
               </div>
             </div>
             <div>
-              <div className="text-xs text-slate-500 dark:text-gray-400">Earned so far</div>
+              <div className="text-xs text-slate-500 dark:text-gray-400">Earned</div>
               <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                 {formatCurrency(breakdownDetail.earned)}
               </div>
             </div>
             <div>
-              <div className="text-xs text-slate-500 dark:text-gray-400">Lost to cancellations</div>
+              <div className="text-xs text-slate-500 dark:text-gray-400">Received</div>
+              <div className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                {formatCurrency(breakdownDetail.received)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500 dark:text-gray-400">Lost (cancelled)</div>
               <div className="text-lg font-bold text-red-600 dark:text-red-400">
                 {formatCurrency(breakdownDetail.lost)}
               </div>
             </div>
           </div>
+          {breakdownDetail.received === 0 && !breakdownDetail.hasEnrollments && student && (
+            <p className="text-xs text-slate-400 dark:text-gray-500 mt-3 text-center">
+              Payment tracking requires an enrollment — record 1-on-1 payments against a group class enrollment, or wait for the solo-payment update.
+            </p>
+          )}
         </div>
 
+        {/* Month navigation */}
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setDetailMonthOffset((o) => o - 1)}
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
+          >
+            ← Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => setDetailMonthOffset(0)}
+            className="text-sm font-semibold text-slate-800 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400"
+          >
+            {monthLabel(breakdownDetail.monthKey)}
+          </button>
+          <button
+            type="button"
+            onClick={() => setDetailMonthOffset((o) => o + 1)}
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
+          >
+            Next →
+          </button>
+        </div>
+
+        {/* Their calendar */}
         <MonthView
-          monthStart={new Date()}
-          timezone={breakdownDetail.student?.timezone || DEFAULT_TIMEZONE}
+          monthStart={breakdownDetail.monthStart}
+          timezone={student?.timezone || DEFAULT_TIMEZONE}
           students={students}
           classes={classes}
           enrollments={enrollments}
           sessions={breakdownDetail.monthSessions}
-          onMonthChange={() => {}}
+          onMonthChange={(offset) => setDetailMonthOffset((o) => o + offset)}
           inlineDetail
         />
+
+        {/* Itemized session list */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">
+              Sessions · {monthLabel(breakdownDetail.monthKey)}
+            </h3>
+          </div>
+          {breakdownDetail.monthSessions.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-slate-500 dark:text-gray-400">
+              No sessions this month.
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100 dark:divide-gray-700">
+              {breakdownDetail.monthSessions.map((s) => {
+                const charge = resolveSessionCharge(s, students, enrollments);
+                const dateLabel = new Date(`${s.plannedDate}T00:00:00`).toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                });
+                return (
+                  <li key={s.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: STATUS_COLORS[s.status] || '#94a3b8' }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-slate-900 dark:text-white">
+                        {dateLabel} · {s.plannedTime.slice(0, 5)}
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-gray-400">
+                        {s.durationMinutes} min · {STATUS_LABELS[s.status] || s.status}
+                        {s.classId &&
+                          ` · ${classes.find((c) => c.id === s.classId)?.name ?? 'Group class'}`}
+                      </div>
+                    </div>
+                    <div
+                      className={`text-sm font-semibold whitespace-nowrap ${
+                        s.status === 'cancelled'
+                          ? 'text-red-500 dark:text-red-400 line-through'
+                          : s.status === 'completed'
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-slate-700 dark:text-gray-200'
+                      }`}
+                    >
+                      {formatCurrency(charge)}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {breakdownDetail.monthSessions.length > 0 && (
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-gray-700 flex items-center justify-between text-sm">
+              <span className="font-medium text-slate-700 dark:text-gray-200">Projected total</span>
+              <span className="font-bold text-slate-900 dark:text-white">
+                {formatCurrency(breakdownDetail.projected)}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -434,27 +596,34 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
               <li key={row.studentId}>
                 <button
                   type="button"
-                  onClick={() => setBreakdownStudentId(row.studentId)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-colors"
+                  onClick={() => {
+                    setBreakdownStudentId(row.studentId);
+                    setDetailMonthOffset(0);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-colors"
                 >
                   <span
                     className="w-2.5 h-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: row.student?.color || '#94a3b8' }}
                   />
-                  <span className="flex-1 min-w-0 text-sm font-medium text-slate-900 dark:text-white truncate">
-                    {row.student?.name || 'Former student (deleted)'}
-                  </span>
-                  {row.student && !row.hasRate && (
-                    <span className="text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full shrink-0">
-                      no rate set
+                  {/* Two-line layout: full name never truncated */}
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-medium text-slate-900 dark:text-white break-words">
+                      {row.student?.name || 'Former student (deleted)'}
                     </span>
-                  )}
-                  <span className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
-                    {row.scheduledCount} scheduled · {row.completedCount} completed
+                    <span className="block text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                      {row.scheduledCount} scheduled · {row.completedCount} completed
+                      {row.student && !row.hasRate && (
+                        <span className="ml-2 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
+                          no rate set
+                        </span>
+                      )}
+                    </span>
                   </span>
-                  <span className="text-sm font-semibold text-slate-900 dark:text-white w-24 text-right whitespace-nowrap">
+                  <span className="text-sm font-semibold text-slate-900 dark:text-white whitespace-nowrap">
                     {formatCurrency(row.projectedFee)}
                   </span>
+                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                 </button>
               </li>
             ))}
@@ -695,7 +864,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: metric.color || '#6366f1' }}
                       />
-                      <span className="font-semibold text-slate-900 dark:text-white">{metric.studentName}</span>
+                      <span className="font-semibold text-slate-900 dark:text-white break-words">{metric.studentName}</span>
                       {hasPrepaid && (
                         <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
                           Prepaid
