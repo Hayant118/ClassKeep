@@ -18,6 +18,8 @@ export interface Class {
   name: string;
   type: 'one-on-one' | 'group';
   maxCapacity: number;
+  /** Default per-student hourly fee for new enrollments (group classes). */
+  defaultRate?: number | null;
   color?: string;
   textbook: string;
   currentUnit: string;
@@ -62,7 +64,6 @@ export interface Session {
   createdAt: string;
 }
 
-// src/types.ts — update CalendarPreferences
 export interface CalendarPreferences {
   id: string;
   userId: string;
@@ -71,9 +72,9 @@ export interface CalendarPreferences {
   colorCancelled: string;
   colorDraft: string;
   colorConflict: string;
-  calendarStartTime: string;   // was timeScale.startTime
-  calendarEndTime: string;     // was timeScale.endTime
-  calendarSlotMinutes: number; // was timeScale.slotMinutes
+  calendarStartTime: string;
+  calendarEndTime: string;
+  calendarSlotMinutes: number;
   updatedAt: string;
 }
 
@@ -148,7 +149,6 @@ export interface Review {
   createdAt: string;
 }
 
-// Helper type for sessions with overlap flag
 export interface SessionWithOverlap extends Session {
   hasOverlap: boolean;
 }

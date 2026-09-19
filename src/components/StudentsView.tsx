@@ -46,15 +46,21 @@ export function StudentsView() {
   const formRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // Class form state
+  // Group class form state (student-first model: classes are GROUPS only)
   const [className, setClassName] = useState('');
-  const [classType, setClassType] = useState<'one-on-one' | 'group'>('one-on-one');
-  const [selectedClassForEnroll, setSelectedClassForEnroll] = useState('');
-  const [selectedStudentForEnroll, setSelectedStudentForEnroll] = useState('');
+  const [classCapacity, setClassCapacity] = useState('6');
+  const [classFee, setClassFee] = useState('');
 
   const [editingClassId, setEditingClassId] = useState<string | null>(null);
   const [editClassName, setEditClassName] = useState('');
-  const [editClassType, setEditClassType] = useState<'one-on-one' | 'group'>('one-on-one');
+  const [editClassCapacity, setEditClassCapacity] = useState('6');
+  const [editClassFee, setEditClassFee] = useState('');
+
+  // Per-class inline add-student state
+  const [enrollPickByClass, setEnrollPickByClass] = useState<Record<string, string>>({});
+  const [enrollFeeByClass, setEnrollFeeByClass] = useState<Record<string, string>>({});
+  const [quickNameByClass, setQuickNameByClass] = useState<Record<string, string>>({});
+  const [quickFeeByClass, setQuickFeeByClass] = useState<Record<string, string>>({});
 
   const resetStudentForm = () => {
     setName('');
@@ -89,12 +95,6 @@ export function StudentsView() {
         await updateStudent(editingId, updates);
         toast.success('Student updated');
       } else {
-        const duplicate = students.find(
-          (s) => s.name.trim().toLowerCase() === name.trim().toLowerCase()
-        );
-        if (duplicate && !confirm(`A student named "${duplicate.name}" already exists — add anyway?`)) {
-          return;
-        }
         await addStudent({
           ...updates,
           color: normalizedColor,
@@ -131,19 +131,27 @@ export function StudentsView() {
     }
   };
 
+  const parseFee = (raw: string): number | null => {
+    const fee = parseFloat(raw);
+    return raw.trim() === '' || isNaN(fee) || fee < 0 ? null : fee;
+  };
+
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!className.trim()) return;
     try {
       await addClass({
         name: className.trim(),
-        type: classType,
-        maxCapacity: classType === 'one-on-one' ? 1 : 6,
+        type: 'group',
+        maxCapacity: Math.max(1, parseInt(classCapacity, 10) || 6),
+        defaultRate: parseFee(classFee),
         textbook: '',
         currentUnit: '',
       });
       setClassName('');
-      toast.success('Class created');
+      setClassCapacity('6');
+      setClassFee('');
+      toast.success('Group class created');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create class');
     }
@@ -152,7 +160,8 @@ export function StudentsView() {
   const startEditClass = (cls: Class) => {
     setEditingClassId(cls.id);
     setEditClassName(cls.name);
-    setEditClassType(cls.type);
+    setEditClassCapacity(cls.maxCapacity.toString());
+    setEditClassFee(cls.defaultRate != null ? cls.defaultRate.toString() : '');
   };
 
   const cancelEditClass = () => {
@@ -166,8 +175,8 @@ export function StudentsView() {
     try {
       await updateClass(id, {
         name: editClassName.trim(),
-        type: editClassType,
-        maxCapacity: editClassType === 'one-on-one' ? 1 : 6,
+        maxCapacity: Math.max(1, parseInt(editClassCapacity, 10) || 6),
+        defaultRate: parseFee(editClassFee),
       });
       setEditingClassId(null);
       toast.success('Class updated');
@@ -176,44 +185,99 @@ export function StudentsView() {
     }
   };
 
-  const handleEnroll = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedClassForEnroll || !selectedStudentForEnroll) return;
+  const getClassStudents = (classId: string) => {
+    const classEnrollments = enrollments.filter(e => e.classId === classId);
+    return classEnrollments.map(e => students.find(s => s.id === e.studentId)).filter(Boolean) as Student[];
+  };
 
-    const alreadyEnrolled = enrollments.some(
-      (e) => e.classId === selectedClassForEnroll && e.studentId === selectedStudentForEnroll
-    );
-    if (alreadyEnrolled) {
-      toast.error('This student is already enrolled in that class');
+  const handleEnrollExisting = async (cls: Class) => {
+    const studentId = enrollPickByClass[cls.id] ?? '';
+    if (!studentId) {
+      toast.error('Select a student to add');
       return;
     }
 
+    const alreadyEnrolled = enrollments.some(
+      (e) => e.classId === cls.id && e.studentId === studentId
+    );
+    if (alreadyEnrolled) {
+      toast.error('This student is already in that class');
+      return;
+    }
+
+    const feeInput = enrollFeeByClass[cls.id] ?? '';
+    const fee = parseFee(feeInput) ?? cls.defaultRate ?? null;
+
     try {
       await addEnrollment({
-        studentId: selectedStudentForEnroll,
-        classId: selectedClassForEnroll,
+        studentId,
+        classId: cls.id,
         joinedAt: new Date().toISOString().split('T')[0],
         leftAt: null,
-        customRate: null,
+        customRate: fee,
         paymentType: 'monthly_advance',
         prepaidBalance: 0,
         status: 'active',
       });
-      setSelectedClassForEnroll('');
-      setSelectedStudentForEnroll('');
-      toast.success('Student enrolled');
+      setEnrollPickByClass((prev) => ({ ...prev, [cls.id]: '' }));
+      setEnrollFeeByClass((prev) => ({ ...prev, [cls.id]: '' }));
+      toast.success('Student added to class');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to enroll student');
+      toast.error(err instanceof Error ? err.message : 'Failed to add student');
+    }
+  };
+
+  const handleQuickAddStudent = async (cls: Class) => {
+    const quickName = (quickNameByClass[cls.id] ?? '').trim();
+    if (!quickName) {
+      toast.error('Enter a name for the new student');
+      return;
+    }
+
+    const feeInput = quickFeeByClass[cls.id] ?? '';
+    const fee = parseFee(feeInput) ?? cls.defaultRate ?? null;
+
+    try {
+      const newStudent = await addStudent({
+        name: quickName,
+        contact: '',
+        defaultRate: fee ?? 0,
+        timezone: DEFAULT_TIMEZONE,
+        notes: '',
+      } as Omit<Student, 'id' | 'userId' | 'createdAt'>);
+
+      await addEnrollment({
+        studentId: newStudent.id,
+        classId: cls.id,
+        joinedAt: new Date().toISOString().split('T')[0],
+        leftAt: null,
+        customRate: fee,
+        paymentType: 'monthly_advance',
+        prepaidBalance: 0,
+        status: 'active',
+      });
+
+      setQuickNameByClass((prev) => ({ ...prev, [cls.id]: '' }));
+      setQuickFeeByClass((prev) => ({ ...prev, [cls.id]: '' }));
+      toast.success(`${quickName} created and added to ${cls.name}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create student');
+    }
+  };
+
+  const handleRemoveEnrollment = async (classId: string, studentId: string) => {
+    const en = enrollments.find(e => e.classId === classId && e.studentId === studentId);
+    if (!en) return;
+    try {
+      await deleteEnrollment(en.id);
+      toast.success('Student removed from class');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove student');
     }
   };
 
   const getStudentEnrollments = (studentId: string) => {
     return enrollments.filter(e => e.studentId === studentId);
-  };
-
-  const getClassStudents = (classId: string) => {
-    const classEnrollments = enrollments.filter(e => e.classId === classId);
-    return classEnrollments.map(e => students.find(s => s.id === e.studentId)).filter(Boolean) as Student[];
   };
 
   const groupedStudents = useMemo(() => {
@@ -242,6 +306,12 @@ export function StudentsView() {
     }
     return Array.from(groups).sort();
   }, [students]);
+
+  // Student-first model: only GROUP classes are shown/managed here.
+  const groupClasses = useMemo(
+    () => classes.filter((c) => c.type === 'group'),
+    [classes]
+  );
 
   if (studentsLoading || classesLoading) {
     return (
@@ -296,7 +366,9 @@ export function StudentsView() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Default Rate</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Default hourly rate <span className="text-xs font-normal text-slate-500">(1-on-1)</span>
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -415,28 +487,42 @@ export function StudentsView() {
         </form>
       </div>
 
-      {/* Class Management */}
+      {/* Group Class Management — student-first model: classes are GROUPS only */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h2 className="text-lg font-semibold text-slate-800 mb-4">Classes</h2>
+        <h2 className="text-lg font-semibold text-slate-800 mb-1">Group Classes</h2>
+        <p className="text-xs text-slate-500 mb-4">
+          1-on-1 lessons need no class — schedule students directly on the calendar.
+        </p>
 
-        {/* Create Class */}
-        <form onSubmit={handleCreateClass} className="flex gap-3 mb-6">
+        {/* Create Group Class */}
+        <form onSubmit={handleCreateClass} className="flex flex-col sm:flex-row gap-3 mb-6">
           <input
             type="text"
             value={className}
             onChange={(e) => setClassName(e.target.value)}
-            placeholder="Class name (e.g., Abby IELTS)"
+            placeholder="Class name (e.g., Saturday IELTS group)"
             className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             required
           />
-          <select
-            value={classType}
-            onChange={(e) => setClassType(e.target.value as 'one-on-one' | 'group')}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          >
-            <option value="one-on-one">1-on-1</option>
-            <option value="group">Group</option>
-          </select>
+          <input
+            type="number"
+            min={2}
+            value={classCapacity}
+            onChange={(e) => setClassCapacity(e.target.value)}
+            placeholder="Capacity"
+            title="Max students"
+            className="w-full sm:w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <input
+            type="number"
+            step="0.01"
+            min={0}
+            value={classFee}
+            onChange={(e) => setClassFee(e.target.value)}
+            placeholder="Fee/hr (optional)"
+            title="Default per-student hourly fee — prefills when adding students"
+            className="w-full sm:w-36 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
           <button
             type="submit"
             className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
@@ -445,67 +531,49 @@ export function StudentsView() {
           </button>
         </form>
 
-        {/* Enroll Student */}
-        {classes.length > 0 && students.length > 0 && (
-          <form onSubmit={handleEnroll} className="flex gap-3 mb-6 p-4 bg-slate-50 rounded-lg">
-            <select
-              value={selectedClassForEnroll}
-              onChange={(e) => setSelectedClassForEnroll(e.target.value)}
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              required
-            >
-              <option value="">Select class</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <select
-              value={selectedStudentForEnroll}
-              onChange={(e) => setSelectedStudentForEnroll(e.target.value)}
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              required
-            >
-              <option value="">Select student</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-            >
-              Enroll
-            </button>
-          </form>
-        )}
-
-        {/* Classes List */}
-        {classes.length === 0 ? (
-          <p className="text-slate-500 text-sm">No classes yet. Create one above.</p>
+        {/* Group Classes List */}
+        {groupClasses.length === 0 ? (
+          <p className="text-slate-500 text-sm">
+            No group classes yet. Create one above, or schedule students directly on the calendar for 1-on-1 lessons.
+          </p>
         ) : (
           <div className="space-y-3">
-            {classes.map((cls) => {
+            {groupClasses.map((cls) => {
               const classStudents = getClassStudents(cls.id);
               const isEditing = editingClassId === cls.id;
+              const enrolledIds = new Set(
+                enrollments.filter((e) => e.classId === cls.id).map((e) => e.studentId)
+              );
+              const availableStudents = students.filter((s) => !enrolledIds.has(s.id));
               return (
                 <div key={cls.id} className="border border-slate-200 rounded-lg p-4">
                   {isEditing ? (
-                    <form onSubmit={(e) => handleUpdateClass(e, cls.id)} className="flex flex-col sm:flex-row gap-3">
+                    <form onSubmit={(e) => handleUpdateClass(e, cls.id)} className="flex flex-col sm:flex-row flex-wrap gap-3">
                       <input
                         type="text"
                         value={editClassName}
                         onChange={(e) => setEditClassName(e.target.value)}
-                        className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="flex-1 min-w-[160px] rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         required
                       />
-                      <select
-                        value={editClassType}
-                        onChange={(e) => setEditClassType(e.target.value as 'one-on-one' | 'group')}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                      >
-                        <option value="one-on-one">1-on-1</option>
-                        <option value="group">Group</option>
-                      </select>
+                      <input
+                        type="number"
+                        min={2}
+                        value={editClassCapacity}
+                        onChange={(e) => setEditClassCapacity(e.target.value)}
+                        title="Max students"
+                        className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={editClassFee}
+                        onChange={(e) => setEditClassFee(e.target.value)}
+                        placeholder="Fee/hr"
+                        title="Default per-student hourly fee for new additions"
+                        className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
                       <div className="flex gap-2">
                         <button
                           type="submit"
@@ -523,12 +591,15 @@ export function StudentsView() {
                       </div>
                     </form>
                   ) : (
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-slate-800">{cls.name}</div>
-                        <div className="text-xs text-slate-500 capitalize">{cls.type}</div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-800 truncate">{cls.name}</div>
+                        <div className="text-xs text-slate-500">
+                          Group · {classStudents.length}/{cls.maxCapacity} students
+                          {cls.defaultRate != null && ` · ${cls.defaultRate.toFixed(2)}/hr default fee`}
+                        </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-shrink-0">
                         <button
                           onClick={() => startEditClass(cls)}
                           className="text-xs text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
@@ -552,33 +623,112 @@ export function StudentsView() {
                       </div>
                     </div>
                   )}
+
+                  {/* Enrolled students */}
                   {classStudents.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {classStudents.map((s) => (
-                        <span
-                          key={s.id}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 text-xs rounded-full"
-                        >
-                          {s.name}
-                          <button
-                            onClick={async () => {
-                              const en = enrollments.find(e => e.classId === cls.id && e.studentId === s.id);
-                              if (!en) return;
-                              try {
-                                await deleteEnrollment(en.id);
-                                toast.success('Enrollment removed');
-                              } catch (err) {
-                                toast.error(err instanceof Error ? err.message : 'Failed to remove enrollment');
-                              }
-                            }}
-                            className="text-indigo-400 hover:text-indigo-600"
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {classStudents.map((s) => {
+                        const en = enrollments.find(e => e.classId === cls.id && e.studentId === s.id);
+                        return (
+                          <span
+                            key={s.id}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 text-xs rounded-full"
                           >
-                            ×
-                          </button>
-                        </span>
-                      ))}
+                            <span
+                              className="w-2 h-2 rounded-full"
+                              style={{ backgroundColor: s.color || '#6366f1' }}
+                            />
+                            {s.name}
+                            {en?.customRate != null && (
+                              <span className="text-indigo-400">· {en.customRate.toFixed(2)}/hr</span>
+                            )}
+                            <button
+                              onClick={() => handleRemoveEnrollment(cls.id, s.id)}
+                              className="text-indigo-400 hover:text-indigo-600"
+                              aria-label={`Remove ${s.name} from class`}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
+
+                  {/* Add existing student */}
+                  {availableStudents.length > 0 && (
+                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                      <select
+                        value={enrollPickByClass[cls.id] ?? ''}
+                        onChange={(e) =>
+                          setEnrollPickByClass((prev) => ({ ...prev, [cls.id]: e.target.value }))
+                        }
+                        className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">Add existing student…</option>
+                        {availableStudents.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={enrollFeeByClass[cls.id] ?? ''}
+                        onChange={(e) =>
+                          setEnrollFeeByClass((prev) => ({ ...prev, [cls.id]: e.target.value }))
+                        }
+                        placeholder={cls.defaultRate != null ? `${cls.defaultRate.toFixed(2)}/hr` : 'Fee/hr (optional)'}
+                        title="Per-student hourly fee for this class — billing uses enrollment.customRate"
+                        className="w-full sm:w-36 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleEnrollExisting(cls)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Quick-create new student straight into the class */}
+                  <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={quickNameByClass[cls.id] ?? ''}
+                      onChange={(e) =>
+                        setQuickNameByClass((prev) => ({ ...prev, [cls.id]: e.target.value }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleQuickAddStudent(cls);
+                        }
+                      }}
+                      placeholder="New student name — create & add"
+                      className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={quickFeeByClass[cls.id] ?? ''}
+                      onChange={(e) =>
+                        setQuickFeeByClass((prev) => ({ ...prev, [cls.id]: e.target.value }))
+                      }
+                      placeholder={cls.defaultRate != null ? `${cls.defaultRate.toFixed(2)}/hr` : 'Fee/hr (optional)'}
+                      title="Also set as the student's 1-on-1 default rate"
+                      className="w-full sm:w-36 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddStudent(cls)}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Create & add
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -614,7 +764,7 @@ export function StudentsView() {
                       const studentEnrollments = getStudentEnrollments(student.id);
                       const detailParts = [
                         student.contact,
-                        student.defaultRate > 0 ? `Rate: ${student.defaultRate.toFixed(2)}` : null,
+                        student.defaultRate > 0 ? `1-on-1 rate: ${student.defaultRate.toFixed(2)}/hr` : null,
                       ].filter((part): part is string => Boolean(part));
                       return (
                         <li
@@ -651,6 +801,7 @@ export function StudentsView() {
                                       className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded"
                                     >
                                       {cls.name}
+                                      {en.customRate != null && ` · ${en.customRate.toFixed(2)}/hr`}
                                     </span>
                                   ) : null;
                                 })}

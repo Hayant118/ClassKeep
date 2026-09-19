@@ -21,7 +21,7 @@ import { draftSessionsToSessions, sessionPayloadToDraftSession } from '../utils/
 import { checkOverlap } from '../utils/calendar';
 import { timeToMinutes } from '../utils/date';
 import { startOfMonthInTz, startOfWeekInTz, addMonthsInTz, addDaysInTz, getDayIndexInWeek, formatDateKeyInTz, formatWeekRangeInTz } from '../utils/timezone';
-import type { Proposal, Session, Enrollment, Guest } from '../types';
+import type { Proposal, Session, Guest } from '../types';
 
 const TIMEZONE = 'Asia/Shanghai';
 
@@ -99,17 +99,6 @@ function formatMoney(amount: number, currency: string): string {
   }
 }
 
-function getPrimaryStudentId(
-  classId: string | undefined,
-  studentId: string | undefined,
-  enrollments: Enrollment[]
-): string | undefined {
-  if (studentId) return studentId;
-  if (!classId) return undefined;
-  const enrollment = enrollments.find(e => e.classId === classId && e.status === 'active');
-  return enrollment?.studentId;
-}
-
 function SkeletonHeader() {
   return (
     <div className="flex items-center justify-between animate-pulse">
@@ -145,7 +134,7 @@ export function ProposalEditor() {
   const navigate = useNavigate();
   const { proposals, loading, error, updateProposal, updateProposalStatus, updateDraftSessions, commitProposal, deleteProposal } =
     useProposals();
-  const { students, addStudent } = useStudents();
+  const { students } = useStudents();
   const { classes } = useClasses();
   const { enrollments } = useEnrollments();
   const { sessions: realSessions } = useSessions();
@@ -171,7 +160,8 @@ export function ProposalEditor() {
   const [commitError, setCommitError] = useState<string | null>(null);
 
   const [repeatExpanded, setRepeatExpanded] = useState(false);
-  const [repeatClassId, setRepeatClassId] = useState('');
+  // Student-first model: repeat targets a STUDENT directly (or a guest), not a class.
+  const [repeatTarget, setRepeatTarget] = useState('');
   const [repeatDays, setRepeatDays] = useState<Set<number>>(new Set());
   const [repeatStartTime, setRepeatStartTime] = useState('08:00');
   const [repeatEndTime, setRepeatEndTime] = useState('09:00');
@@ -342,11 +332,11 @@ export function ProposalEditor() {
     payload: Omit<Session, 'id' | 'userId' | 'createdAt'>,
     id?: string
   ): Record<string, unknown> => {
-    const studentId = getPrimaryStudentId(payload.classId, payload.studentId, enrollments);
-    return sessionPayloadToDraftSession(payload, { id: id ?? generateDraftId(), studentId }) as Record<
-      string,
-      unknown
-    >;
+    // Student-first: keep the direct studentId from the payload; no class resolution.
+    return sessionPayloadToDraftSession(payload, {
+      id: id ?? generateDraftId(),
+      studentId: payload.studentId,
+    }) as Record<string, unknown>;
   };
 
   const handleSaveDraft = async (payload: Omit<Session, 'id' | 'userId' | 'createdAt'>) => {
@@ -403,101 +393,28 @@ export function ProposalEditor() {
 
   const handleCommit = async () => {
     if (!proposal || proposal.draftSessions.length === 0) return;
+    if (proposal.guests.length > 0) {
+      toast.error('Guest conversion not yet supported');
+      return;
+    }
     setCommitting(true);
     setCommitError(null);
 
     try {
-      let workingDrafts = proposal.draftSessions;
-
-      if (proposal.guests.length > 0) {
-        const guestMap = new Map<string, { studentId: string; classId: string }>();
-
-        for (const guest of proposal.guests) {
-          try {
-            const newStudent = await addStudent({
-              name: guest.name,
-              contact: '',
-              defaultRate: guest.hourlyRate,
-              timezone: 'Asia/Shanghai',
-              notes: '',
-            });
-
-            const { data: enrollmentRows, error: enrollmentError } = await supabase
-              .from('ck_enrollments')
-              .select('class_id')
-              .eq('student_id', newStudent.id)
-              .eq('status', 'active');
-
-            if (enrollmentError) throw new Error(enrollmentError.message);
-
-            const activeClassIds = (enrollmentRows ?? []).map(
-              (row: Record<string, unknown>) => row.class_id as string
-            );
-
-            const { data: classRows, error: classError } = await supabase
-              .from('ck_classes')
-              .select('id')
-              .in('id', activeClassIds)
-              .eq('type', 'one-on-one');
-
-            if (classError) throw new Error(classError.message);
-            if (!classRows || classRows.length === 0) {
-              throw new Error('No active 1-on-1 class found');
-            }
-
-            guestMap.set(guest.name, {
-              studentId: newStudent.id,
-              classId: classRows[0].id as string,
-            });
-          } catch (err) {
-            const message = err instanceof Error ? err.message : 'Conversion failed';
-            toast.error(`Guest ${guest.name} failed: ${message}`);
-            setCommitError(`Guest ${guest.name}: ${message}`);
-            setCommitting(false);
-            return;
-          }
-        }
-
-        workingDrafts = workingDrafts.map((item) => {
-          const raw = item as Record<string, unknown>;
-          const guestName =
-            (raw.guestName as string | undefined) ?? (raw.guest_name as string | undefined);
-          if (!guestName) return item;
-
-          const mapping = guestMap.get(guestName);
-          if (!mapping) return item;
-
-          const next: Record<string, unknown> = { ...raw };
-          next.studentId = mapping.studentId;
-          next.classId = mapping.classId;
-          next.rateMode = 'auto';
-          next.rateValue = null;
-          delete next.guestName;
-          delete next.guest_name;
-          delete next.guestRate;
-          delete next.guest_rate;
-          return next;
-        });
-
-        const updatedProposal = await updateProposal(proposal.id, {
-          draftSessions: workingDrafts,
-          guests: [],
-        });
-        workingDrafts = updatedProposal.draftSessions;
-      }
-
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error('Not authenticated');
 
-      const sessionsToInsert = draftSessionsToSessions(workingDrafts, {
+      const sessionsToInsert = draftSessionsToSessions(proposal.draftSessions, {
         proposalId: proposal.id,
         userId: proposal.userId,
       });
 
       const rows = sessionsToInsert.map((s) => ({
         user_id: userData.user.id,
-        class_id: s.classId,
+        class_id: s.classId ?? null,
         student_id: s.studentId ?? null,
+        guest_name: s.guestName ?? null,
+        guest_rate: s.guestRate ?? null,
         planned_date: s.plannedDate,
         planned_time: s.plannedTime,
         actual_date: null as string | null,
@@ -636,8 +553,8 @@ export function ProposalEditor() {
   const handleGenerateRepeat = async () => {
     if (!proposal) return;
 
-    if (!repeatClassId) {
-      toast.error('Select a class or guest');
+    if (!repeatTarget) {
+      toast.error('Select a student or guest');
       return;
     }
     if (repeatDays.size === 0) {
@@ -673,14 +590,17 @@ export function ProposalEditor() {
       return;
     }
 
-    const repeatGuest = repeatClassId.startsWith('guest:')
-      ? proposal.guests.find((g) => g.name === repeatClassId.slice(6)) ?? null
+    const repeatStudent = repeatTarget.startsWith('student:')
+      ? students.find((s) => s.id === repeatTarget.slice(8)) ?? null
+      : null;
+    const repeatGuest = repeatTarget.startsWith('guest:')
+      ? proposal.guests.find((g) => g.name === repeatTarget.slice(6)) ?? null
       : null;
 
     const existingKeys = new Set(
       calendarSessions
         .filter((s) =>
-          repeatGuest ? s.guestName === repeatGuest.name : s.classId === repeatClassId
+          repeatGuest ? s.guestName === repeatGuest.name : s.studentId === repeatStudent?.id
         )
         .map((s) => `${s.plannedDate}|${s.plannedTime}`)
     );
@@ -703,7 +623,8 @@ export function ProposalEditor() {
           const key = `${currentKey}|${repeatStartTime}`;
           if (!existingKeys.has(key)) {
             const payload: Omit<Session, 'id' | 'userId' | 'createdAt'> = {
-              classId: repeatGuest ? undefined : repeatClassId,
+              classId: undefined,
+              studentId: repeatStudent?.id,
               guestName: repeatGuest?.name,
               guestRate: repeatGuest?.hourlyRate,
               plannedDate: currentKey,
@@ -828,6 +749,7 @@ export function ProposalEditor() {
     proposal.draftSessions.length > 0 &&
     proposal.status !== 'committed' &&
     proposal.status !== 'archived';
+
 
   return (
     <div className="space-y-6">
@@ -1116,17 +1038,17 @@ export function ProposalEditor() {
           {repeatExpanded && (
             <div className="mt-3 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Class / Guest</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Student / Guest</label>
                 <select
-                  value={repeatClassId}
-                  onChange={(e) => setRepeatClassId(e.target.value)}
+                  value={repeatTarget}
+                  onChange={(e) => setRepeatTarget(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Select a class or guest</option>
-                  <optgroup label="Classes">
-                    {classes.map((cls) => (
-                      <option key={cls.id} value={cls.id}>
-                        {cls.name}
+                  <option value="">Select a student or guest</option>
+                  <optgroup label="Students (1-on-1)">
+                    {students.map((student) => (
+                      <option key={student.id} value={`student:${student.id}`}>
+                        {student.name}
                       </option>
                     ))}
                   </optgroup>

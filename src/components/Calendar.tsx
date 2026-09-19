@@ -15,13 +15,14 @@ interface CalendarProps {
   students: Student[];
   classes: Class[];
   enrollments?: Enrollment[];
+  /** @deprecated Student-first model: no longer used. Safe to remove from callers. */
   onResolveClassForStudent?: (studentId: string) => Promise<string>;
 }
 
-export function Calendar({ students, classes, enrollments = [], onResolveClassForStudent }: CalendarProps) {
+export function Calendar({ students, classes, enrollments = [] }: CalendarProps) {
   const { preferences, loading: prefsLoading } = usePreferences();
   const { sessions, loading, error, fetchSessions, addSession, updateSession, deleteSession } = useSessions();
-  
+
   const [view, setView] = useState<CalendarView>('week');
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set(students.map((s) => s.id)));
@@ -50,7 +51,7 @@ export function Calendar({ students, classes, enrollments = [], onResolveClassFo
     return map;
   }, [enrollments]);
 
-  // Filter sessions by selected students (via class enrollments or direct student link)
+  // Filter sessions by selected students (via direct student link or class enrollments)
   const filteredSessions = useMemo(() => {
     return sessions.filter((session) => {
       if (session.studentId) {
@@ -292,7 +293,6 @@ export function Calendar({ students, classes, enrollments = [], onResolveClassFo
         students={students}
         classes={classes}
         enrollments={enrollments}
-        onResolveClassForStudent={onResolveClassForStudent}
         onSave={handleSaveSession}
         onUpdate={handleUpdateSession}
         onDelete={handleDeleteSession}

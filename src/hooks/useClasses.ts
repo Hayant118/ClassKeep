@@ -11,6 +11,7 @@ function fromDb(row: Record<string, unknown>): Class {
     name: row.name as string,
     type: row.type as 'one-on-one' | 'group',
     maxCapacity: (row.max_capacity as number) ?? 1,
+    defaultRate: (row.default_rate as number | null) ?? null,
     color: (row.color as string | undefined) ?? undefined,
     textbook: (row.textbook as string) ?? '',
     currentUnit: (row.current_unit as string) ?? '',
@@ -23,6 +24,7 @@ function toDb(cls: Partial<Class>): Record<string, unknown> {
   if (cls.name !== undefined) map.name = cls.name;
   if (cls.type !== undefined) map.type = cls.type;
   if (cls.maxCapacity !== undefined) map.max_capacity = cls.maxCapacity;
+  if (cls.defaultRate !== undefined) map.default_rate = cls.defaultRate;
   if (cls.color !== undefined) map.color = cls.color;
   if (cls.textbook !== undefined) map.textbook = cls.textbook;
   if (cls.currentUnit !== undefined) map.current_unit = cls.currentUnit;
@@ -61,7 +63,6 @@ export function useClasses() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('Not authenticated');
 
-    // Auto-assign a color if one wasn't provided.
     const color = normalizeColor(cls.color) ?? assignColor(classes.map((c) => c.color));
 
     const payload = {
@@ -99,8 +100,6 @@ export function useClasses() {
   };
 
   const deleteClass = async (id: string) => {
-    // Cascade: remove payments tied to this class's enrollments, then enrollments,
-    // then sessions, then the class itself.
     const { data: classEnrollments } = await supabase
       .from('ck_enrollments')
       .select('id')
