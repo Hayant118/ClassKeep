@@ -64,6 +64,7 @@ export interface Session {
   createdAt: string;
 }
 
+// src/types.ts — update CalendarPreferences
 export interface CalendarPreferences {
   id: string;
   userId: string;
@@ -72,9 +73,9 @@ export interface CalendarPreferences {
   colorCancelled: string;
   colorDraft: string;
   colorConflict: string;
-  calendarStartTime: string;
-  calendarEndTime: string;
-  calendarSlotMinutes: number;
+  calendarStartTime: string;   // was timeScale.startTime
+  calendarEndTime: string;     // was timeScale.endTime
+  calendarSlotMinutes: number; // was timeScale.slotMinutes
   updatedAt: string;
 }
 
@@ -149,6 +150,7 @@ export interface Review {
   createdAt: string;
 }
 
+// Helper type for sessions with overlap flag
 export interface SessionWithOverlap extends Session {
   hasOverlap: boolean;
 }

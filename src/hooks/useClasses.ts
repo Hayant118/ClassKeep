@@ -63,6 +63,7 @@ export function useClasses() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('Not authenticated');
 
+    // Auto-assign a color if one wasn't provided.
     const color = normalizeColor(cls.color) ?? assignColor(classes.map((c) => c.color));
 
     const payload = {
@@ -100,6 +101,8 @@ export function useClasses() {
   };
 
   const deleteClass = async (id: string) => {
+    // Cascade: remove payments tied to this class's enrollments, then enrollments,
+    // then sessions, then the class itself.
     const { data: classEnrollments } = await supabase
       .from('ck_enrollments')
       .select('id')

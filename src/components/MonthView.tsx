@@ -178,6 +178,8 @@ export function MonthView({
     return day.getTime() >= normalizedMonthStart.getTime() && day.getTime() < monthEnd.getTime();
   };
 
+  const todayKey = formatDateKeyInTz(new Date().toISOString(), timezone);
+
   const handleDayClick = (day: Date) => {
     setSelectedDay(day);
   };
@@ -248,7 +250,11 @@ export function MonthView({
                 onClick={() => handleDayClick(day)}
                 className={`min-h-[60px] sm:min-h-[100px] p-1 sm:p-2 text-left border-b border-r border-slate-100 transition-colors hover:bg-slate-50 focus:outline-none ${
                   active ? 'bg-indigo-50' : ''
-                } ${isCurrentMonth(day) ? '' : 'bg-slate-50/50 text-slate-400'}`}
+                } ${isCurrentMonth(day) ? '' : 'bg-slate-50/50 text-slate-400'} ${
+                  isCurrentMonth(day) && dateKey === todayKey
+                    ? 'bg-indigo-50/60 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700'
+                    : ''
+                }`}
                 style={{ gridColumn: ((day.getDay() + 6) % 7) + 1 }}
               >
                 <div className={`font-medium ${isCurrentMonth(day) ? 'text-slate-700' : 'text-slate-400'} text-xs sm:text-sm`}>

@@ -15,13 +15,6 @@ function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function addDaysToDateKey(dateKey: string, days: number): string {
-  const [y, m, d] = dateKey.split('-').map(Number);
-  const dt = new Date(y, m - 1, d + days);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
-}
-
 interface SessionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -34,7 +27,6 @@ interface SessionModalProps {
   enrollments?: Enrollment[];
   guests?: Guest[];
   isDraft?: boolean;
-  onResolveClassForStudent?: (studentId: string) => Promise<string>;
   onSave: (session: Omit<Session, 'id' | 'userId' | 'createdAt'>) => void;
   onUpdate: (id: string, updates: Partial<Session>) => void;
   onDelete: (id: string) => void;
@@ -146,28 +138,6 @@ async function syncPrepaidBalance(
   }
 }
 
-async function findOneOnOneClass(studentId: string): Promise<string | null> {
-  const { data: enrollmentData, error: enrollmentError } = await supabase
-    .from('ck_enrollments')
-    .select('class_id')
-    .eq('student_id', studentId)
-    .eq('status', 'active');
-
-  if (enrollmentError || !enrollmentData || enrollmentData.length === 0) return null;
-
-  const classIds = enrollmentData.map((row) => row.class_id as string).filter(Boolean);
-  if (classIds.length === 0) return null;
-
-  const { data: classData, error: classError } = await supabase
-    .from('ck_classes')
-    .select('id')
-    .in('id', classIds)
-    .eq('type', 'one-on-one');
-
-  if (classError || !classData || classData.length === 0) return null;
-  return classData[0].id as string;
-}
-
 export function SessionModal({
   isOpen,
   onClose,
@@ -180,7 +150,6 @@ export function SessionModal({
   enrollments = [],
   guests = [],
   isDraft = false,
-  onResolveClassForStudent,
   onSave,
   onUpdate,
   onDelete,
@@ -206,13 +175,13 @@ export function SessionModal({
   const [rateValue, setRateValue] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<Session['status']>('scheduled');
-  const [repeatWeekly, setRepeatWeekly] = useState(false);
-  const [repeatWeeks, setRepeatWeeks] = useState(4);
 
   const defaultTimezone = initialTimezone || 'Asia/Shanghai';
-  const selectedClass = classes.find((c) => c.id === classId);
+  // Student-first model: classes are GROUPS only. 1-on-1 sessions use studentId directly.
+  const groupClasses = classes.filter((c) => c.type === 'group');
+  const selectedClass = groupClasses.find((c) => c.id === classId);
 
-  // Show student names for selected class
+  // Show student names for selected group class
   const classStudentNames = selectedClass
     ? enrollments
         .filter((e) => e.classId === selectedClass.id)
@@ -239,8 +208,6 @@ export function SessionModal({
       setRateValue(session.rateValue?.toString() || '');
       setNotes(session.notes);
       setStatus(session.status);
-      setRepeatWeekly(false);
-      setRepeatWeeks(4);
     } else {
       setClassId('');
       setStudentId('');
@@ -255,42 +222,19 @@ export function SessionModal({
       setRateValue('');
       setNotes('');
       setStatus('scheduled');
-      setRepeatWeekly(false);
-      setRepeatWeeks(4);
     }
   }, [isOpen, session, initialDate, initialTime, classes, students]);
 
-  const handleStudentChange = async (value: string) => {
+  const handleStudentChange = (value: string) => {
     if (!value) {
       setStudentId('');
       return;
     }
-
-    // Guest and student/class selections are mutually exclusive.
+    // Student, group class, and guest selections are mutually exclusive.
     setGuestName('');
     setGuestRate(null);
-
-    try {
-      const resolvedClassId = await findOneOnOneClass(value);
-      if (resolvedClassId) {
-        setClassId(resolvedClassId);
-        setStudentId('');
-        return;
-      }
-
-      if (onResolveClassForStudent) {
-        const createdClassId = await onResolveClassForStudent(value);
-        setClassId(createdClassId);
-        setStudentId('');
-        return;
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to resolve 1-on-1 class');
-    }
-
-    // Fallback to legacy student-only session if no 1-on-1 class exists.
-    setStudentId(value);
     setClassId('');
+    setStudentId(value);
   };
 
   const handleGuestChange = (value: string) => {
@@ -317,12 +261,12 @@ export function SessionModal({
     const selectionCount = (classId ? 1 : 0) + (studentId ? 1 : 0) + (guestName ? 1 : 0);
 
     if (selectionCount === 0) {
-      toast.error('Please select a class, student, or guest');
+      toast.error('Please select a student, group class, or guest');
       return;
     }
 
     if (selectionCount > 1) {
-      toast.error('Please select only one of class, student, or guest');
+      toast.error('Please select only one of student, group class, or guest');
       return;
     }
 
@@ -375,24 +319,6 @@ export function SessionModal({
         await onUpdate(session.id, payload);
       } else {
         await onSave(payload);
-
-        if (repeatWeekly && repeatWeeks > 1) {
-          // Copies are plain scheduled sessions: same time, duration,
-          // student/class and rate settings, 7 days apart per week.
-          for (let i = 1; i < repeatWeeks; i += 1) {
-            await onSave({
-              ...payload,
-              plannedDate: addDaysToDateKey(date, i * 7),
-              status: 'scheduled',
-              notes: '',
-              actualDate: null,
-              actualTime: null,
-              totalCharge: null,
-              movedFromDate: null,
-              movedFromTime: null,
-            });
-          }
-        }
       }
 
       if (!isDraft) {
@@ -439,6 +365,23 @@ export function SessionModal({
             Timezone: {defaultTimezone}
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Student</label>
+            <select
+              value={studentId}
+              onChange={(e) => handleStudentChange(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">{students.length > 0 ? 'Select a student (1-on-1)' : 'No students'}</option>
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500 mt-1">
+              Pick a student for 1-on-1 lessons — their default rate applies.
+            </p>
+          </div>
+
           {isDraft && guests.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Guest (draft only)</label>
@@ -447,7 +390,7 @@ export function SessionModal({
                 onChange={(e) => handleGuestChange(e.target.value)}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="">{guests.length > 0 ? 'Select a guest' : 'No guests'}</option>
+                <option value="">Select a guest</option>
                 {guests.map((g) => (
                   <option key={g.name} value={g.name}>Guest: {g.name} (${g.hourlyRate}/hr)</option>
                 ))}
@@ -456,21 +399,7 @@ export function SessionModal({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Student (1-on-1)</label>
-            <select
-              value={studentId}
-              onChange={(e) => handleStudentChange(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">{students.length > 0 ? 'Select a student' : 'No students'}</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Class</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Group class</label>
             <select
               value={classId}
               onChange={(e) => {
@@ -483,12 +412,10 @@ export function SessionModal({
               }}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <option value="">{classes.length > 0 ? 'Select a class' : 'No classes'}</option>
-              {classes
-                .filter((cls) => cls.id)
-                .map((cls) => (
-                  <option key={cls.id} value={cls.id}>{cls.name}</option>
-                ))}
+              <option value="">{groupClasses.length > 0 ? 'Select a group class' : 'No group classes'}</option>
+              {groupClasses.map((cls) => (
+                <option key={cls.id} value={cls.id}>{cls.name}</option>
+              ))}
             </select>
           </div>
 
@@ -508,38 +435,6 @@ export function SessionModal({
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
             </div>
           </div>
-
-          {!isEditing && (
-            <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={repeatWeekly}
-                  onChange={(e) => setRepeatWeekly(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                Repeat weekly
-              </label>
-              {repeatWeekly && (
-                <div className="flex items-center gap-2 pl-6">
-                  <label className="text-sm text-slate-600">Weeks</label>
-                  <input
-                    type="number"
-                    min={2}
-                    max={12}
-                    value={repeatWeeks}
-                    onChange={(e) =>
-                      setRepeatWeeks(Math.min(12, Math.max(2, parseInt(e.target.value, 10) || 2)))
-                    }
-                    className="w-20 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <span className="text-xs text-slate-500">
-                    creates {repeatWeeks} sessions, 7 days apart
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>

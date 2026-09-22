@@ -74,6 +74,8 @@ export function WeekView({
   );
   const totalRows = timeSlots.length;
 
+  const todayKey = formatDateKeyInTz(new Date().toISOString(), timezone);
+
   const sessionsWithOverlap = useMemo<SessionWithOverlap[]>(() => {
     const overlapIds = findOverlappingSessions(sessions);
     return sessions.map((session) => ({
@@ -142,6 +144,7 @@ export function WeekView({
   const renderDayColumn = (day: Date, dayIndex: number) => {
     const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
     const daySessions = sessionsByDay.get(dateKey) ?? [];
+    const isToday = dateKey === todayKey;
 
     const handleColumnClick = (e: React.MouseEvent<HTMLButtonElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -161,6 +164,9 @@ export function WeekView({
           gridTemplateRows: `repeat(${totalRows}, ${ROW_HEIGHT_PX}px)`,
         }}
       >
+        {isToday && (
+          <div className="absolute inset-0 bg-indigo-50/60 dark:bg-indigo-900/20 pointer-events-none" />
+        )}
         {timeSlots.map((time, idx) => (
           <div
             key={time}
@@ -231,17 +237,24 @@ export function WeekView({
           }}
         >
           <div className="border-b border-r border-slate-200 bg-slate-50" />
-          {weekDays.map((day, idx) => (
-            <div
-              key={idx}
-              className="px-2 py-3 text-center border-b border-l border-slate-200 bg-slate-50 text-sm font-medium text-slate-700"
-            >
-              <div>{formatDisplayWeekdayInTz(day.toISOString(), timezone)}</div>
-              <div className="text-xs text-slate-500">
-                {formatDisplayDateInTz(day.toISOString(), timezone)}
+          {weekDays.map((day, idx) => {
+            const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
+            return (
+              <div
+                key={idx}
+                className={`px-2 py-3 text-center border-b border-l border-slate-200 text-sm font-medium text-slate-700 ${
+                  dateKey === todayKey
+                    ? 'bg-indigo-50/60 dark:bg-indigo-900/20'
+                    : 'bg-slate-50'
+                }`}
+              >
+                <div>{formatDisplayWeekdayInTz(day.toISOString(), timezone)}</div>
+                <div className="text-xs text-slate-500">
+                  {formatDisplayDateInTz(day.toISOString(), timezone)}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {timeSlots.map((time, idx) => (
             <div
