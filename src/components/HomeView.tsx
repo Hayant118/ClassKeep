@@ -14,7 +14,6 @@ interface HomeViewProps {
   students: Student[];
   classes: Class[];
   enrollments: Enrollment[];
-  onResolveClassForStudent?: (studentId: string) => Promise<string>;
 }
 
 function formatLocalDateKey(date: Date): string {
@@ -143,7 +142,7 @@ function useGroupedStudents(students: Student[]) {
   }, [students]);
 }
 
-export function HomeView({ students, classes, enrollments, onResolveClassForStudent }: HomeViewProps) {
+export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const navigate = useNavigate();
   const { sessions, loading: sessionsLoading, updateSession, fetchSessions } = useSessions();
   const { proposals, loading: proposalsLoading } = useProposals();
@@ -625,7 +624,6 @@ export function HomeView({ students, classes, enrollments, onResolveClassForStud
         students={students}
         classes={classes}
         enrollments={enrollments}
-        onResolveClassForStudent={onResolveClassForStudent}
         onSave={() => {}}
         onUpdate={handleUpdateSession}
         onDelete={() => {}}

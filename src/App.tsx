@@ -410,7 +410,6 @@ function AppContent() {
                 students={students}
                 classes={classes}
                 enrollments={enrollments}
-                onResolveClassForStudent={resolveClassForStudent}
               />
             }
           />
