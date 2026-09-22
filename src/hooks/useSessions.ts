@@ -245,7 +245,6 @@ export function useSessions() {
   const addSession = async (session: Omit<Session, 'id' | 'userId' | 'createdAt'>) => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error('Not authenticated');
-    if (!session.classId) throw new Error('Please select a class');
 
     const payload = {
       ...toDb(session),

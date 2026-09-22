@@ -1,0 +1,5 @@
+[33mac2e9b1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m feat: billing per-student drill-down with calendar + itemized money
+[33m645cccd[m feat: student-first scheduling model (Phases 1+2)
+[33m8668f05[m Home: session list follows selected day, status buttons work on past days
+[33m65d61f6[m Billing: per-student drill-down with calendar and money summary
+[33mdcc149f[m Proposals: delete from list; Billing: name orphan rows, stop truncation
