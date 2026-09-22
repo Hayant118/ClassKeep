@@ -32,6 +32,10 @@ function StatusIcon({ status }: { status: Session['status'] }) {
 }
 
 function getSessionStudent(session: Session, enrollments: Enrollment[], students: Student[]): Student | undefined {
+  if (session.studentId) {
+    const direct = students.find(s => s.id === session.studentId);
+    if (direct) return direct;
+  }
   const classEnrollments = enrollments.filter(e => e.classId === session.classId && e.status === 'active');
   const primaryStudentId = classEnrollments[0]?.studentId;
   return students.find(s => s.id === primaryStudentId);
