@@ -56,7 +56,7 @@ function getWeekStart(date: Date): Date {
     return getWeekStart(new Date());
   }
   d.setHours(0, 0, 0, 0);
-  const day = d.getDay(); // 0 = Sunday, 1 = Monday
+  const day = d.getDay();
   d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
   return d;
 }
@@ -156,14 +156,16 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
   const [selectedDayKey, setSelectedDayKey] = useState<string>(today);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set());
+  const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set());
   const [hasInitializedFilter, setHasInitializedFilter] = useState(false);
 
   useEffect(() => {
     if (!hasInitializedFilter && students.length > 0) {
       setSelectedStudentIds(new Set(students.map((s) => s.id)));
+      setSelectedClassIds(new Set(classes.map((c) => c.id)));
       setHasInitializedFilter(true);
     }
-  }, [students, hasInitializedFilter]);
+  }, [students, classes, hasInitializedFilter]);
 
   const studentColors = useStudentEffectiveColors(students);
   const groupedStudents = useGroupedStudents(students);
@@ -178,15 +180,20 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     return map;
   }, [enrollments]);
 
+  // Filter: student chip on, class chip on, or enrolled student chip on
   const filteredSessions = useMemo(() => {
     return sessions.filter((session) => {
       if (session.studentId) {
         return selectedStudentIds.has(session.studentId);
       }
-      const classStudentIds = session.classId ? classToStudents.get(session.classId) || [] : [];
-      return classStudentIds.some((sid) => selectedStudentIds.has(sid));
+      if (session.classId) {
+        if (selectedClassIds.has(session.classId)) return true;
+        const classStudentIds = classToStudents.get(session.classId) || [];
+        return classStudentIds.some((sid) => selectedStudentIds.has(sid));
+      }
+      return false;
     });
-  }, [sessions, classToStudents, selectedStudentIds]);
+  }, [sessions, classToStudents, selectedStudentIds, selectedClassIds]);
 
   const weekDays = useMemo(() => getWeekDays(currentWeekStart), [currentWeekStart]);
 
@@ -271,8 +278,23 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     });
   };
 
-  const selectAllStudents = () => setSelectedStudentIds(new Set(students.map((s) => s.id)));
-  const clearAllStudents = () => setSelectedStudentIds(new Set());
+  const toggleClass = (id: string) => {
+    setSelectedClassIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedStudentIds(new Set(students.map((s) => s.id)));
+    setSelectedClassIds(new Set(classes.map((c) => c.id)));
+  };
+  const clearAll = () => {
+    setSelectedStudentIds(new Set());
+    setSelectedClassIds(new Set());
+  };
 
   const handleDayClick = (key: string) => {
     setSelectedDayKey(key);
@@ -313,6 +335,10 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
       if (color) return color;
     }
     if (session.classId) {
+      // Use the class's own color first
+      const cls = classes.find((c) => c.id === session.classId);
+      if (cls?.color) return cls.color;
+      // Fall back to first enrolled student's color
       const classStudentIds = classToStudents.get(session.classId) || [];
       for (const sid of classStudentIds) {
         const color = studentColors.get(sid);
@@ -330,6 +356,8 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     return `${startStr} - ${endStr}`;
   }, [weekDays]);
+
+  const groupClasses = classes.filter((c) => c.type === 'group');
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -559,21 +587,21 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
         )}
       </div>
 
-      {/* Student filter chips */}
+      {/* Student + class filter chips */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">Filter by student</h3>
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">Filter by student / class</h3>
           <div className="flex gap-2 shrink-0">
             <button
               type="button"
-              onClick={selectAllStudents}
+              onClick={selectAll}
               className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
             >
               Select all
             </button>
             <button
               type="button"
-              onClick={clearAllStudents}
+              onClick={clearAll}
               className="text-xs font-medium text-slate-600 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               Hide all
@@ -614,6 +642,36 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
               </div>
             </div>
           ))}
+          {groupClasses.length > 0 && (
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-gray-500 px-1">
+                Group classes
+              </span>
+              <div className="flex gap-2">
+                {groupClasses.map((cls) => {
+                  const isSelected = selectedClassIds.has(cls.id);
+                  return (
+                    <button
+                      key={cls.id}
+                      type="button"
+                      onClick={() => toggleClass(cls.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors whitespace-nowrap ${
+                        isSelected
+                          ? 'bg-indigo-50 border-indigo-300 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700 dark:text-indigo-300'
+                          : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-500 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: cls.color || '#6366f1' }}
+                      />
+                      <span className={isSelected ? '' : 'line-through'}>{cls.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

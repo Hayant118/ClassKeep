@@ -26,15 +26,17 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
   const [view, setView] = useState<CalendarView>('week');
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set(students.map((s) => s.id)));
+  const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set(classes.map((c) => c.id)));
   const [hasInitializedFilter, setHasInitializedFilter] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (!hasInitializedFilter && students.length > 0) {
       setSelectedStudentIds(new Set(students.map((s) => s.id)));
+      setSelectedClassIds(new Set(classes.map((c) => c.id)));
       setHasInitializedFilter(true);
     }
-  }, [students, hasInitializedFilter]);
+  }, [students, classes, hasInitializedFilter]);
   const [editingSession, setEditingSession] = useState<Session | undefined>();
   const [createInitialDate, setCreateInitialDate] = useState('');
   const [createInitialTime, setCreateInitialTime] = useState('08:00');
@@ -51,24 +53,29 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     return map;
   }, [enrollments]);
 
-  // Filter sessions by selected students (via direct student link or class enrollments)
+  // Filter sessions: show if the student's chip is on, OR the class's chip is on,
+  // OR any student enrolled in the session's class has their chip on.
   const filteredSessions = useMemo(() => {
     return sessions.filter((session) => {
+      // Direct student session: show if that student is selected
       if (session.studentId) {
         return selectedStudentIds.has(session.studentId);
       }
-      const classStudentIds = session.classId ? classToStudents.get(session.classId) || [] : [];
-      return classStudentIds.some((sid) => selectedStudentIds.has(sid));
+      // Group class session: show if the class itself is selected
+      if (session.classId) {
+        if (selectedClassIds.has(session.classId)) return true;
+        // Or if any enrolled student is selected
+        const classStudentIds = classToStudents.get(session.classId) || [];
+        return classStudentIds.some((sid) => selectedStudentIds.has(sid));
+      }
+      return false;
     });
-  }, [sessions, classToStudents, selectedStudentIds]);
+  }, [sessions, classToStudents, selectedStudentIds, selectedClassIds]);
 
-  // Compute the display color for each student filter chip. Use the assigned
-  // student.color when available; otherwise fall back to the auto-assigned
-  // palette color so chips match the colors shown in the settings color list.
+  // Compute the display color for each student filter chip.
   const studentChipColors = useMemo(() => {
     const assigned = new Map<string, string>();
     const existing: string[] = [];
-
     for (const student of students) {
       const color = normalizeColor(student.color);
       if (color) {
@@ -76,26 +83,21 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
         existing.push(color);
       }
     }
-
     for (const student of students) {
       if (assigned.has(student.id)) continue;
       const color = assignColor(existing);
       assigned.set(student.id, color);
       existing.push(color);
     }
-
     return assigned;
   }, [students]);
 
-  // Fetch sessions for a broad window around the current view so timezone
-  // offsets and month/week boundaries don't hide sessions.
+  // Fetch sessions for a broad window around the current view
   useEffect(() => {
     const start = new Date(currentDate);
     start.setDate(start.getDate() - 35);
-
     const end = new Date(currentDate);
     end.setDate(end.getDate() + 35);
-
     fetchSessions({
       startDate: start.toISOString().split('T')[0],
       endDate: end.toISOString().split('T')[0],
@@ -111,8 +113,23 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     });
   };
 
-  const selectAllStudents = () => setSelectedStudentIds(new Set(students.map((s) => s.id)));
-  const clearAllStudents = () => setSelectedStudentIds(new Set());
+  const toggleClass = (id: string) => {
+    setSelectedClassIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedStudentIds(new Set(students.map((s) => s.id)));
+    setSelectedClassIds(new Set(classes.map((c) => c.id)));
+  };
+  const clearAll = () => {
+    setSelectedStudentIds(new Set());
+    setSelectedClassIds(new Set());
+  };
 
   const goToToday = () => setCurrentDate(new Date());
 
@@ -198,6 +215,8 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
   if (loading || prefsLoading) return <div className="p-8 text-center text-slate-500">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
 
+  const groupClasses = classes.filter((c) => c.type === 'group');
+
   return (
     <div className="space-y-4 overflow-x-hidden">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -218,10 +237,10 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
 
       <div className="bg-white rounded-xl border border-slate-200 p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700">Filter by student</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Filter by student / class</h3>
           <div className="flex gap-2">
-            <button type="button" onClick={selectAllStudents} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50">Select all</button>
-            <button type="button" onClick={clearAllStudents} className="text-xs font-medium text-slate-600 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100">Hide all</button>
+            <button type="button" onClick={selectAll} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50">Select all</button>
+            <button type="button" onClick={clearAll} className="text-xs font-medium text-slate-600 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100">Hide all</button>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -232,6 +251,15 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
                 style={{ backgroundColor: studentChipColors.get(student.id) }}
               />
               <span className={selectedStudentIds.has(student.id) ? '' : 'line-through'}>{student.name}</span>
+            </button>
+          ))}
+          {groupClasses.map((cls) => (
+            <button key={cls.id} type="button" onClick={() => toggleClass(cls.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${selectedClassIds.has(cls.id) ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+              <span
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: cls.color || '#6366f1' }}
+              />
+              <span className={selectedClassIds.has(cls.id) ? '' : 'line-through'}>{cls.name}</span>
             </button>
           ))}
         </div>
