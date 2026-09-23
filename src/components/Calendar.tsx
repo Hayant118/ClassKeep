@@ -1,5 +1,6 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { Check, Settings } from 'lucide-react';
 import type { Session, Student, Class, Enrollment } from '../types';
 import { usePreferences } from '../hooks/usePreferences';
 import { assignColor, normalizeColor } from '../utils/colors';
@@ -20,10 +21,18 @@ interface CalendarProps {
 }
 
 export function Calendar({ students, classes, enrollments = [] }: CalendarProps) {
-  const { preferences, loading: prefsLoading } = usePreferences();
+  const { preferences, loading: prefsLoading, setPreferences } = usePreferences();
   const { sessions, loading, error, fetchSessions, addSession, updateSession, deleteSession } = useSessions();
 
   const [view, setView] = useState<CalendarView>('week');
+  const didInitView = useRef(false);
+  useEffect(() => {
+    if (!prefsLoading && !didInitView.current) {
+      didInitView.current = true;
+      setView(preferences.defaultCalendarView ?? 'week');
+    }
+  }, [prefsLoading, preferences.defaultCalendarView]);
+  const [isDefaultViewMenuOpen, setIsDefaultViewMenuOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set(students.map((s) => s.id)));
   const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set(classes.map((c) => c.id)));
@@ -231,6 +240,43 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
             {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
               <button key={v} type="button" onClick={() => setView(v)} className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${view === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{v}</button>
             ))}
+          </div>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsDefaultViewMenuOpen((open) => !open)}
+              className={`p-2 rounded-lg border text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors ${isDefaultViewMenuOpen ? 'border-indigo-300 bg-indigo-50 text-indigo-600' : 'border-slate-300 bg-white'}`}
+              aria-label="Default calendar view"
+              aria-expanded={isDefaultViewMenuOpen}
+              title="Set default calendar view"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+            {isDefaultViewMenuOpen && (
+              <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-20 p-1">
+                <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Default view
+                </div>
+                {(['day', 'week', 'month'] as CalendarView[]).map((v) => {
+                  const isDefault = (preferences.defaultCalendarView ?? 'week') === v;
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => {
+                        setPreferences({ defaultCalendarView: v });
+                        setIsDefaultViewMenuOpen(false);
+                      }}
+                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm capitalize hover:bg-slate-50"
+                      aria-pressed={isDefault}
+                    >
+                      <span className={isDefault ? 'font-medium text-indigo-600' : 'text-slate-700'}>{v}</span>
+                      {isDefault && <Check className="w-4 h-4 text-indigo-600" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

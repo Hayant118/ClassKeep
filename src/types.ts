@@ -76,6 +76,7 @@ export interface CalendarPreferences {
   calendarStartTime: string;   // was timeScale.startTime
   calendarEndTime: string;     // was timeScale.endTime
   calendarSlotMinutes: number; // was timeScale.slotMinutes
+  defaultCalendarView?: 'day' | 'week' | 'month';
   updatedAt: string;
 }
 
