@@ -1,3 +1,4 @@
+// SessionCard.tsx
 import type { Student } from '../types';
 import { isSessionAutoCompleted } from '../hooks/useSessions';
 import { Check, ArrowRightLeft, X, Circle, Star } from 'lucide-react';
@@ -25,18 +26,20 @@ function StatusIcon({ status }: { status: SessionWithOverlap['status'] }) {
 interface SessionCardProps {
   session: SessionWithOverlap;
   student: Student | undefined;
+  fallbackName?: string;
   timezone: string;
   students: Student[];
   onEdit?: (session: SessionWithOverlap) => void;
   onDelete?: (id: string) => void;
 }
 
-export function SessionCard({ session, student, timezone, students, onEdit, onDelete }: SessionCardProps) {
+export function SessionCard({ session, student, fallbackName, timezone, students, onEdit, onDelete }: SessionCardProps) {
   const color = getSessionColor(session, students);
   const isOverride = session.rateMode === 'override';
   const isAutoCompleted = isSessionAutoCompleted(session.id);
   const startTime = session.plannedTime;
   const endTime = addMinutes(startTime, session.durationMinutes);
+  const displayName = student?.name ?? fallbackName ?? 'Unknown';
 
   return (
     <div
@@ -49,7 +52,7 @@ export function SessionCard({ session, student, timezone, students, onEdit, onDe
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-slate-900 flex items-center gap-1">
             <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-            <span className="truncate">{student?.name ?? 'Unknown'}</span>
+            <span className="truncate">{displayName}</span>
             <StatusIcon status={session.status} />
             {isOverride && <span title="Rate override">⚡</span>}
           </div>

@@ -1,3 +1,4 @@
+// MonthView.tsx
 import { useMemo, useState } from 'react';
 import type { Session, Student, Class, Enrollment } from '../types';
 import {
@@ -41,11 +42,18 @@ function getSessionStudent(session: Session, enrollments: Enrollment[], students
 
 function getMonthDotColor(
   session: Session,
+  classes: Class[],
   enrollments: Enrollment[],
   students: Student[]
 ): string {
   const student = getSessionStudent(session, enrollments, students);
-  return student?.color ?? '#9ca3af';
+  if (student?.color) return student.color;
+  // Group session with no enrollment: use the class's own color
+  if (session.classId) {
+    const cls = classes.find(c => c.id === session.classId);
+    if (cls?.color) return cls.color;
+  }
+  return '#9ca3af';
 }
 
 interface DetailContentProps {
@@ -57,6 +65,7 @@ interface DetailContentProps {
   onSessionClick?: (session: Session) => void;
   onDeleteSession?: (id: string) => void;
   students: Student[];
+  classes: Class[];
   enrollments: Enrollment[];
 }
 
@@ -69,6 +78,7 @@ function DetailContent({
   onSessionClick,
   onDeleteSession,
   students,
+  classes,
   enrollments,
 }: DetailContentProps) {
   const dateKey = formatDateKeyInTz(selectedDay.toISOString(), timezone);
@@ -115,6 +125,7 @@ function DetailContent({
               key={session.id}
               session={session}
               student={getSessionStudent(session, enrollments, students)}
+              fallbackName={session.classId ? classes.find(c => c.id === session.classId)?.name : undefined}
               timezone={timezone}
               students={students}
               onEdit={onSessionClick}
@@ -134,6 +145,7 @@ export function MonthView({
   monthStart,
   timezone,
   students,
+  classes,
   enrollments,
   sessions,
   onMonthChange,
@@ -261,17 +273,17 @@ export function MonthView({
                   {formatDisplayDateInTz(day.toISOString(), timezone).replace(/[^0-9]/g, '')}
                 </div>
                 <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-1">
-                  {dotSessions.slice(0, 4).map((session) => (
+                  {dotSessions.slice(0, 6).map((session) => (
                     <span
                       key={session.id}
                       className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
                         isSessionAutoCompleted(session.id) ? 'ring-1 ring-amber-400' : ''
                       }`}
-                      style={{ backgroundColor: getMonthDotColor(session, enrollments, students) }}
+                      style={{ backgroundColor: getMonthDotColor(session, classes, enrollments, students) }}
                     />
                   ))}
-                  {daySessions.length > 4 && (
-                    <span className="text-[9px] sm:text-[10px] text-slate-500 leading-none">+{daySessions.length - 4}</span>
+                  {daySessions.length > 6 && (
+                    <span className="text-[9px] sm:text-[10px] text-slate-500 leading-none">+{daySessions.length - 6}</span>
                   )}
                 </div>
               </button>
@@ -298,6 +310,7 @@ export function MonthView({
               onSessionClick={onSessionClick}
               onDeleteSession={onDeleteSession}
               students={students}
+              classes={classes}
               enrollments={enrollments}
             />
           </div>
@@ -315,6 +328,7 @@ export function MonthView({
             onSessionClick={onSessionClick}
             onDeleteSession={onDeleteSession}
             students={students}
+            classes={classes}
             enrollments={enrollments}
           />
         </div>
