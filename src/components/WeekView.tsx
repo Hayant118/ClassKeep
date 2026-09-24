@@ -10,6 +10,7 @@ import {
 import { addMinutes, getTimeSlots, getSessionPosition, getTimeFromClickY } from '../utils/date';
 import { findOverlappingSessions, getSessionColor, type SessionWithOverlap } from '../utils/calendar';
 import { isSessionAutoCompleted } from '../hooks/useSessions';
+import { SessionSymbol } from '../utils/sessionSymbols';
 
 const ROW_HEIGHT_PX = 40;
 
@@ -132,8 +133,11 @@ export function WeekView({
         }}
         title={`${displayName} • ${timeStr} - ${endTime}`}
       >
-        <div className="font-semibold truncate">
-          {displayName}
+        <div className="font-semibold truncate flex items-center gap-0.5">
+          <span className="inline-flex w-3 h-3 shrink-0 [&_svg]:w-full [&_svg]:h-full">
+            <SessionSymbol session={session} />
+          </span>
+          <span className="truncate">{displayName}</span>
           <StatusIcon status={session.status} />
           {isOverride && <span className="ml-1">⚡</span>}
         </div>
@@ -211,10 +215,7 @@ export function WeekView({
         }`}
         style={{ borderColor: color, backgroundColor: `${color}15` }}
       >
-        <span
-          className="w-3 h-3 rounded-full shrink-0"
-          style={{ backgroundColor: color }}
-        />
+        <SessionSymbol session={session} />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-slate-900 truncate">
             {displayName}

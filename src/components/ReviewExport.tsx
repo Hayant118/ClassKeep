@@ -13,7 +13,7 @@ interface ReviewExportProps {
   locale?: 'en' | 'zh';
 }
 
-type SymbolType = 'completed' | 'cancelled' | 'moved-time' | 'moved-day' | 'additional';
+type SymbolType = 'completed' | 'cancelled' | 'moved-time' | 'moved-day' | 'moved-source' | 'additional';
 
 const LABELS = {
   en: {
@@ -69,7 +69,7 @@ const SYMBOLS: Record<
   }
 > = {
   cancelled: {
-    score: 4,
+    score: 5,
     color: '#ef4444',
     labelEn: 'Cancelled / No-show',
     labelZh: '取消 / 缺课',
@@ -81,7 +81,7 @@ const SYMBOLS: Record<
     ),
   },
   'moved-day': {
-    score: 3,
+    score: 4,
     color: '#a855f7',
     labelEn: 'Moved to another day',
     labelZh: '改日期',
@@ -93,7 +93,7 @@ const SYMBOLS: Record<
     ),
   },
   'moved-time': {
-    score: 3,
+    score: 4,
     color: '#f97316',
     labelEn: 'Moved to another time',
     labelZh: '改时间',
@@ -102,6 +102,18 @@ const SYMBOLS: Record<
         <circle cx="8" cy="8" r="6" />
         <line x1="8" y1="8" x2="8" y2="5" />
         <line x1="8" y1="8" x2="11" y2="8" />
+      </svg>
+    ),
+  },
+  'moved-source': {
+    score: 3,
+    color: '#94a3b8',
+    labelEn: 'Moved from this day',
+    labelZh: '从此日改期',
+    render: () => (
+      <svg width="16" height="16" viewBox="0 0 16 16" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
+        <circle cx="8" cy="8" r="5" strokeDasharray="2 2" />
+        <path d="M10 6l2 2-2 2" />
       </svg>
     ),
   },
@@ -132,8 +144,10 @@ const SYMBOLS: Record<
 
 function classifySession(session: Session): SymbolType | null {
   if (session.status === 'cancelled' || session.status === 'no-show') return 'cancelled';
-  if (session.actualDate && session.actualDate !== session.plannedDate) return 'moved-day';
-  if (session.actualTime && session.actualTime !== session.plannedTime) return 'moved-time';
+  // Moved: the app sets status='moved' with movedFromDate/movedFromTime
+  // plannedDate/plannedTime become the NEW date/time
+  if (session.movedFromDate && session.movedFromDate !== session.plannedDate) return 'moved-day';
+  if (session.movedFromTime && session.movedFromTime !== session.plannedTime) return 'moved-time';
   if (session.isAdditional) return 'additional';
   if (session.status === 'completed') return 'completed';
   return null;
@@ -173,9 +187,6 @@ function formatCurrency(amount: number, locale: 'en' | 'zh'): string {
   }).format(amount);
 }
 
-// Same rate logic as proposals: guest sessions bill guestRate hourly;
-// flat is a fixed per-session charge; override bills rateValue hourly;
-// auto bills the enrollment customRate (or the student's defaultRate) hourly.
 function computeSessionCharge(
   session: Session,
   student: Student | undefined,
@@ -204,17 +215,28 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
   const title = `${new Date(year, month - 1, 1).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'long' })} ${t.titleSuffix}`;
   const headerName = student?.name ?? getHeaderName(sessions, classes, locale);
 
-  // Monday-first grid: column index of the 1st (0 = Monday).
   const firstDay = (new Date(year, month - 1, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month, 0).getDate();
 
+  // Bucket by plannedDate (destination) AND movedFromDate (source)
   const sessionsByDay = new Map<number, Session[]>();
+  const sourceDays = new Map<number, Session[]>(); // movedFromDate -> sessions
+
   for (const session of sessions) {
     const day = parseInt(session.plannedDate.slice(8, 10), 10);
     if (day >= 1 && day <= daysInMonth) {
       const list = sessionsByDay.get(day) ?? [];
       list.push(session);
       sessionsByDay.set(day, list);
+    }
+    // Also index by movedFromDate so the source day shows the hollow symbol
+    if (session.movedFromDate) {
+      const srcDay = parseInt(session.movedFromDate.slice(8, 10), 10);
+      if (srcDay >= 1 && srcDay <= daysInMonth) {
+        const list = sourceDays.get(srcDay) ?? [];
+        list.push(session);
+        sourceDays.set(srcDay, list);
+      }
     }
   }
 
@@ -240,7 +262,7 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
     }, 0) * 100
   ) / 100;
 
-  const legendItems: SymbolType[] = ['completed', 'moved-time', 'moved-day', 'cancelled', 'additional'];
+  const legendItems: SymbolType[] = ['completed', 'moved-time', 'moved-day', 'moved-source', 'cancelled', 'additional'];
 
   return (
     <div
@@ -272,7 +294,10 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
               const daySessions = sessionsByDay.get(day) ?? [];
+              const srcSessions = sourceDays.get(day) ?? [];
               const symbol = getDaySymbol(daySessions);
+              const hasSource = srcSessions.length > 0;
+
               return (
                 <div
                   key={day}
@@ -280,11 +305,10 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
                   style={{ borderColor: '#f1f5f9' }}
                 >
                   <span className="text-xs" style={{ color: '#475569' }}>{day}</span>
-                  {symbol && (
-                    <div className="mt-0.5">
-                      {SYMBOLS[symbol].render()}
-                    </div>
-                  )}
+                 <div className="mt-0.5 flex items-center gap-0.5">
+  {symbol && SYMBOLS[symbol].render()}
+  {hasSource && SYMBOLS['moved-source'].render()}
+</div>
                 </div>
               );
             })}
@@ -428,7 +452,7 @@ export const MOCK_REVIEW_SESSIONS: Session[] = [
     id: 'rs-5',
     userId: 'mock-user',
     classId: 'class-art',
-    plannedDate: '2026-08-12',
+    plannedDate: '2026-08-13',
     plannedTime: '09:00',
     actualDate: '2026-08-13',
     actualTime: '09:00',

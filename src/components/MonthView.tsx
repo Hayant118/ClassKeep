@@ -12,7 +12,7 @@ import {
 import { findOverlappingSessions, type SessionWithOverlap } from '../utils/calendar';
 import { SessionCard } from './SessionCard';
 import { X } from './icons';
-import { isSessionAutoCompleted } from '../hooks/useSessions';
+import { SessionSymbol } from '../utils/sessionSymbols';
 
 interface MonthViewProps {
   monthStart: Date;
@@ -38,22 +38,6 @@ function getSessionStudent(session: Session, enrollments: Enrollment[], students
   const classEnrollments = enrollments.filter(e => e.classId === session.classId && e.status === 'active');
   const primaryStudentId = classEnrollments[0]?.studentId;
   return students.find(s => s.id === primaryStudentId);
-}
-
-function getMonthDotColor(
-  session: Session,
-  classes: Class[],
-  enrollments: Enrollment[],
-  students: Student[]
-): string {
-  const student = getSessionStudent(session, enrollments, students);
-  if (student?.color) return student.color;
-  // Group session with no enrollment: use the class's own color
-  if (session.classId) {
-    const cls = classes.find(c => c.id === session.classId);
-    if (cls?.color) return cls.color;
-  }
-  return '#9ca3af';
 }
 
 interface DetailContentProps {
@@ -175,12 +159,15 @@ export function MonthView({
   }, [sessions]);
 
   const sessionsByDay = useMemo(() => {
-    const map = new Map<string, SessionWithOverlap[]>();
+    const map = new Map<string, { session: SessionWithOverlap; isSource: boolean }[]>();
     calendarDays.forEach((day) => map.set(formatDateKeyInTz(day.toISOString(), timezone), []));
     sessionsWithOverlap.forEach((session) => {
-      const dateKey = session.plannedDate;
-      const list = map.get(dateKey);
-      if (list) list.push(session);
+      const list = map.get(session.plannedDate);
+      if (list) list.push({ session, isSource: false });
+      if (session.movedFromDate) {
+        const sourceList = map.get(session.movedFromDate);
+        if (sourceList) sourceList.push({ session, isSource: true });
+      }
     });
     return map;
   }, [sessionsWithOverlap, calendarDays, timezone]);
@@ -205,7 +192,9 @@ export function MonthView({
 
   const selectedDayKey = selectedDay ? formatDateKeyInTz(selectedDay.toISOString(), timezone) : null;
   const selectedDaySessions = selectedDayKey
-    ? (sessionsByDay.get(selectedDayKey) ?? []).sort((a, b) => a.plannedTime.localeCompare(b.plannedTime))
+    ? (sessionsByDay.get(selectedDayKey) ?? [])
+        .map((entry) => entry.session)
+        .sort((a, b) => a.plannedTime.localeCompare(b.plannedTime))
     : [];
 
   return (
@@ -244,16 +233,8 @@ export function MonthView({
         <div className="grid grid-cols-7 auto-rows-fr">
           {calendarDays.map((day) => {
             const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
-            const daySessions = sessionsByDay.get(dateKey) ?? [];
+            const dayEntries = sessionsByDay.get(dateKey) ?? [];
             const active = selectedDayKey === dateKey;
-            const seenDotStudentIds = new Set<string>();
-            const dotSessions = daySessions.filter((session) => {
-              const student = getSessionStudent(session, enrollments, students);
-              if (!student) return true;
-              if (seenDotStudentIds.has(student.id)) return false;
-              seenDotStudentIds.add(student.id);
-              return true;
-            });
 
             return (
               <button
@@ -273,17 +254,16 @@ export function MonthView({
                   {formatDisplayDateInTz(day.toISOString(), timezone).replace(/[^0-9]/g, '')}
                 </div>
                 <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-1">
-                  {dotSessions.slice(0, 6).map((session) => (
+                  {dayEntries.slice(0, 6).map((entry) => (
                     <span
-                      key={session.id}
-                      className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
-                        isSessionAutoCompleted(session.id) ? 'ring-1 ring-amber-400' : ''
-                      }`}
-                      style={{ backgroundColor: getMonthDotColor(session, classes, enrollments, students) }}
-                    />
+                      key={`${entry.session.id}-${entry.isSource ? 'src' : 'dst'}`}
+                      className="inline-flex w-3.5 h-3.5 sm:w-4 sm:h-4 [&_svg]:w-full [&_svg]:h-full"
+                    >
+                      <SessionSymbol session={entry.session} isSource={entry.isSource} />
+                    </span>
                   ))}
-                  {daySessions.length > 6 && (
-                    <span className="text-[9px] sm:text-[10px] text-slate-500 leading-none">+{daySessions.length - 6}</span>
+                  {dayEntries.length > 6 && (
+                    <span className="text-[9px] sm:text-[10px] text-slate-500 leading-none">+{dayEntries.length - 6}</span>
                   )}
                 </div>
               </button>
