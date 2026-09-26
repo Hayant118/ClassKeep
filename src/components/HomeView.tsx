@@ -9,6 +9,7 @@ import { useReminders } from '../hooks/useReminders';
 import { SessionModal } from './SessionModal';
 import type { Reminder, Student, Class, Enrollment, Session } from '../types';
 import { CURATED_PALETTE, DEFAULT_COLOR, normalizeColor } from '../utils/colors';
+import { SessionSymbol } from '../utils/sessionSymbols';
 
 interface HomeViewProps {
   students: Student[];
@@ -198,13 +199,17 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const weekDays = useMemo(() => getWeekDays(currentWeekStart), [currentWeekStart]);
 
   const weekSessionsByDay = useMemo(() => {
-    const map = new Map<string, Session[]>();
+    const map = new Map<string, { session: Session; isSource: boolean }[]>();
     for (const day of weekDays) {
       map.set(dateKey(day), []);
     }
     for (const session of filteredSessions) {
       const list = map.get(session.plannedDate);
-      if (list) list.push(session);
+      if (list) list.push({ session, isSource: false });
+      if (session.movedFromDate) {
+        const sourceList = map.get(session.movedFromDate);
+        if (sourceList) sourceList.push({ session, isSource: true });
+      }
     }
     return map;
   }, [filteredSessions, weekDays]);
@@ -327,25 +332,6 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update session');
     }
-  };
-
-  const getSessionDotColor = (session: Session): string => {
-    if (session.studentId) {
-      const color = studentColors.get(session.studentId);
-      if (color) return color;
-    }
-    if (session.classId) {
-      // Use the class's own color first
-      const cls = classes.find((c) => c.id === session.classId);
-      if (cls?.color) return cls.color;
-      // Fall back to first enrolled student's color
-      const classStudentIds = classToStudents.get(session.classId) || [];
-      for (const sid of classStudentIds) {
-        const color = studentColors.get(sid);
-        if (color) return color;
-      }
-    }
-    return DEFAULT_COLOR;
   };
 
   const weekRangeLabel = useMemo(() => {
@@ -493,13 +479,14 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                   {day.getDate()}
                 </span>
                 <div className="flex flex-wrap justify-center gap-1 px-0.5 overflow-hidden">
-                  {daySessions.map((session) => (
+                  {daySessions.map((entry) => (
                     <span
-                      key={session.id}
-                      className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: getSessionDotColor(session) }}
-                      title={getSessionDisplayName(classes, students, session)}
-                    />
+                      key={`${entry.session.id}-${entry.isSource ? 'src' : 'dst'}`}
+                      className="inline-flex w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 [&_svg]:w-full [&_svg]:h-full"
+                      title={getSessionDisplayName(classes, students, entry.session)}
+                    >
+                      <SessionSymbol session={entry.session} isSource={entry.isSource} />
+                    </span>
                   ))}
                 </div>
               </button>
