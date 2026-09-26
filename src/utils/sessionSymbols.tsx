@@ -45,9 +45,17 @@ export function SessionSymbol({ session, isSource }: { session: Session; isSourc
       </svg>
     );
   }
+  if (session.status === 'completed') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="6" fill="#22c55e" />
+      </svg>
+    );
+  }
+  // Scheduled, holiday, moved without date change, etc. — hollow outline
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="6" fill="#22c55e" />
+    <svg width="16" height="16" viewBox="0 0 16 16" stroke="#3b82f6" strokeWidth="2" fill="none">
+      <circle cx="8" cy="8" r="6" />
     </svg>
   );
 }
