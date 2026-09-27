@@ -8,6 +8,8 @@ export interface Student {
   timezone: string;
   color?: string;
   familyGroup?: string;
+  /** Hidden from the 1-on-1 Students list; shown in Group Rosters only. */
+  isGroupOnly?: boolean;
   notes: string;
   createdAt: string;
 }

@@ -105,6 +105,7 @@ function getStudentIncomeInPeriod(
   sessions: Session[],
   enrollments: Enrollment[],
   students: Student[],
+  classes: Class[],
   period: BillingPeriod
 ) {
   const classIds = getStudentClassIds(studentId, enrollments);
@@ -115,7 +116,7 @@ function getStudentIncomeInPeriod(
         sessionBelongsToStudent(s, studentId, classIds) &&
         isDateInPeriod(s.actualDate || s.plannedDate, period)
     )
-    .reduce((sum, s) => sum + resolveSessionCharge(s, students, enrollments), 0);
+    .reduce((sum, s) => sum + resolveSessionCharge(s, students, enrollments, classes), 0);
 }
 
 function getStudentSessionCount(
@@ -210,7 +211,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
     const period = timeRange === 'monthly' ? periods.month : timeRange === 'quarterly' ? periods.quarter : periods.year;
     return students
       .map((student) => {
-        const income = getStudentIncomeInPeriod(student.id, sessions, enrollments, students, period);
+        const income = getStudentIncomeInPeriod(student.id, sessions, enrollments, students, classes, period);
         return {
           name: student.name,
           value: income,
@@ -218,7 +219,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
         };
       })
       .filter((d) => d.value > 0);
-  }, [timeRange, sessions, students, enrollments]);
+  }, [timeRange, sessions, students, enrollments, classes]);
 
   const selectedStudent = useMemo(
     () => studentMetrics.find((m) => m.studentId === selectedStudentId) || null,
@@ -229,27 +230,30 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
     const { month } = getPeriods();
     const monthSessions = sessions.filter((s) => isDateInPeriod(s.plannedDate, month));
 
-    // Bucket each session by its owner: direct studentId, or every student
-    // enrolled in the session's class. Orphaned studentIds (student deleted)
-    // get their own bucket so they still show up, labeled.
+    // Bucket each session by its owner: direct studentId for 1-on-1 sessions.
+    // Group class sessions bill collectively at the class rate, so they are
+    // never attributed to individual students: classes WITH enrollments are
+    // skipped here (they appear in the Classes tab), classes WITHOUT
+    // enrollments land in a single "Group classes" bucket.
+    const GROUP_BUCKET_ID = '__group__';
     const buckets = new Map<string, { student: Student | null; sessions: Session[] }>();
     for (const session of monthSessions) {
-      const ownerIds: string[] = [];
-      if (session.studentId) {
-        ownerIds.push(session.studentId);
-      } else if (session.classId) {
-        for (const e of enrollments) {
-          if (e.classId === session.classId) ownerIds.push(e.studentId);
-        }
-      }
-      for (const id of ownerIds) {
-        const bucket = buckets.get(id) ?? {
-          student: students.find((st) => st.id === id) ?? null,
-          sessions: [],
-        };
+      if (session.classId) {
+        const hasEnrollments = enrollments.some((e) => e.classId === session.classId);
+        if (hasEnrollments) continue;
+        const bucket = buckets.get(GROUP_BUCKET_ID) ?? { student: null, sessions: [] };
         bucket.sessions.push(session);
-        buckets.set(id, bucket);
+        buckets.set(GROUP_BUCKET_ID, bucket);
+        continue;
       }
+      if (!session.studentId) continue;
+      const id = session.studentId;
+      const bucket = buckets.get(id) ?? {
+        student: students.find((st) => st.id === id) ?? null,
+        sessions: [],
+      };
+      bucket.sessions.push(session);
+      buckets.set(id, bucket);
     }
 
     return Array.from(buckets.entries())
@@ -257,7 +261,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
         const scheduled = bucket.sessions.filter((s) => s.status !== 'cancelled');
         const completedCount = bucket.sessions.filter((s) => s.status === 'completed').length;
         const projectedFee = scheduled.reduce(
-          (sum, s) => sum + resolveSessionCharge(s, students, enrollments),
+          (sum, s) => sum + resolveSessionCharge(s, students, enrollments, classes),
           0
         );
         const student = bucket.student;
@@ -280,13 +284,13 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       })
       .filter((row) => row.scheduledCount > 0)
       .sort((a, b) => {
-        // Former students last; the rest alphabetical by name.
+        // Former students and the Group classes bucket last; the rest alphabetical.
         if (!a.student && !b.student) return 0;
         if (!a.student) return 1;
         if (!b.student) return -1;
         return a.student.name.localeCompare(b.student.name);
       });
-  }, [sessions, students, enrollments]);
+  }, [sessions, students, enrollments, classes]);
 
   // Drill-in view for a "This Month by Student" row. Month-navigable.
   const breakdownDetail = useMemo(() => {
@@ -314,7 +318,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
         return a.plannedTime.localeCompare(b.plannedTime);
       });
 
-    const charge = (s: Session) => resolveSessionCharge(s, students, enrollments);
+    const charge = (s: Session) => resolveSessionCharge(s, students, enrollments, classes);
     const projected = monthSessions
       .filter((s) => s.status !== 'cancelled')
       .reduce((sum, s) => sum + charge(s), 0);
@@ -348,7 +352,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       received,
       hasEnrollments: studentEnrollmentIds.length > 0,
     };
-  }, [breakdownStudentId, detailMonthOffset, sessions, students, enrollments, payments]);
+  }, [breakdownStudentId, detailMonthOffset, sessions, students, enrollments, classes, payments]);
 
   const isLoading = sessionsLoading || enrollmentsLoading || paymentsLoading;
 
@@ -480,7 +484,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-gray-700">
               {breakdownDetail.monthSessions.map((s) => {
-                const charge = resolveSessionCharge(s, students, enrollments);
+                const charge = resolveSessionCharge(s, students, enrollments, classes);
                 const dateLabel = new Date(`${s.plannedDate}T00:00:00`).toLocaleDateString('en-US', {
                   weekday: 'short',
                   month: 'short',
@@ -592,16 +596,10 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
             <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">This Month by Student</h3>
           </div>
           <ul className="divide-y divide-slate-100 dark:divide-gray-700">
-            {monthlyBreakdown.map((row) => (
-              <li key={row.studentId}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBreakdownStudentId(row.studentId);
-                    setDetailMonthOffset(0);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-colors"
-                >
+            {monthlyBreakdown.map((row) => {
+              const isGroupBucket = row.studentId === '__group__';
+              const rowContent = (
+                <>
                   <span
                     className="w-2.5 h-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: row.student?.color || '#94a3b8' }}
@@ -609,7 +607,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                   {/* Two-line layout: full name never truncated */}
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm font-medium text-slate-900 dark:text-white break-words">
-                      {row.student?.name || 'Former student (deleted)'}
+                      {isGroupBucket ? 'Group classes' : row.student?.name || 'Former student (deleted)'}
                     </span>
                     <span className="block text-xs text-slate-500 dark:text-gray-400 mt-0.5">
                       {row.scheduledCount} scheduled · {row.completedCount} completed
@@ -623,10 +621,30 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                   <span className="text-sm font-semibold text-slate-900 dark:text-white whitespace-nowrap">
                     {formatCurrency(row.projectedFee)}
                   </span>
-                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                </button>
-              </li>
-            ))}
+                  {!isGroupBucket && <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+                </>
+              );
+              return (
+                <li key={row.studentId}>
+                  {isGroupBucket ? (
+                    <div className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                      {rowContent}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBreakdownStudentId(row.studentId);
+                        setDetailMonthOffset(0);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-colors"
+                    >
+                      {rowContent}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -770,9 +788,9 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
               {(() => {
                 const periods = getPeriods();
-                const thisMonth = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, periods.month);
-                const thisQuarter = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, periods.quarter);
-                const thisYear = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, periods.year);
+                const thisMonth = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, classes, periods.month);
+                const thisQuarter = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, classes, periods.quarter);
+                const thisYear = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, classes, periods.year);
                 const completedCount = getStudentSessionCount(selectedStudent.studentId, 'completed', sessions, enrollments);
                 const cancelledCount = getStudentSessionCount(selectedStudent.studentId, 'cancelled', sessions, enrollments);
                 const studentEnrollments = enrollments.filter((e) => e.studentId === selectedStudent.studentId);
@@ -847,7 +865,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {studentMetrics.map((metric) => {
                 const periods = getPeriods();
-                const thisMonthIncome = getStudentIncomeInPeriod(metric.studentId, sessions, enrollments, students, periods.month);
+                const thisMonthIncome = getStudentIncomeInPeriod(metric.studentId, sessions, enrollments, students, classes, periods.month);
                 const hasPrepaid = enrollments.some(
                   (e) => e.studentId === metric.studentId && e.paymentType === 'prepaid'
                 );

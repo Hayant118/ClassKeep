@@ -48,7 +48,7 @@ export interface UseBillingResult {
   yearlyIncome: YearlyIncome[];
 }
 
-function buildSixMonthTrend(sessions: Session[], students: Student[], enrollments: Enrollment[]): { month: string; income: number }[] {
+function buildSixMonthTrend(sessions: Session[], students: Student[], enrollments: Enrollment[], classes: Class[]): { month: string; income: number }[] {
   const now = new Date();
   const trend: { month: string; income: number }[] = [];
 
@@ -62,7 +62,7 @@ function buildSixMonthTrend(sessions: Session[], students: Student[], enrollment
         const sessionMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         return sessionMonth === monthKey;
       })
-      .reduce((sum, session) => sum + resolveSessionCharge(session, students, enrollments), 0);
+      .reduce((sum, session) => sum + resolveSessionCharge(session, students, enrollments, classes), 0);
     trend.push({ month: monthKey, income });
   }
 
@@ -78,7 +78,7 @@ export function useBilling(
 ): UseBillingResult {
   return useMemo(() => {
     const completedSessions = sessions.filter((s) => s.status === 'completed');
-    const charge = (session: Session) => resolveSessionCharge(session, students, enrollments);
+    const charge = (session: Session) => resolveSessionCharge(session, students, enrollments, classes);
     const totalIncome = completedSessions.reduce(
       (sum, session) => sum + charge(session),
       0
@@ -173,7 +173,7 @@ export function useBilling(
         sessionCount,
         hours,
         averageRate,
-        trend: buildSixMonthTrend(studentSessions, students, enrollments),
+        trend: buildSixMonthTrend(studentSessions, students, enrollments, classes),
       };
     });
 
@@ -194,9 +194,9 @@ export function useBilling(
       summary,
       studentMetrics,
       classMetrics,
-      monthlyIncome: calculateMonthlyIncome(completedSessions, students, enrollments),
-      quarterlyIncome: calculateQuarterlyIncome(completedSessions, students, enrollments),
-      yearlyIncome: calculateYearlyIncome(completedSessions, students, enrollments),
+      monthlyIncome: calculateMonthlyIncome(completedSessions, students, enrollments, classes),
+      quarterlyIncome: calculateQuarterlyIncome(completedSessions, students, enrollments, classes),
+      yearlyIncome: calculateYearlyIncome(completedSessions, students, enrollments, classes),
     };
   }, [sessions, students, classes, enrollments]);
 }

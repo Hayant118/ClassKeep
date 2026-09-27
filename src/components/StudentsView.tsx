@@ -58,9 +58,7 @@ export function StudentsView() {
 
   // Per-class inline add-student state
   const [enrollPickByClass, setEnrollPickByClass] = useState<Record<string, string>>({});
-  const [enrollFeeByClass, setEnrollFeeByClass] = useState<Record<string, string>>({});
   const [quickNameByClass, setQuickNameByClass] = useState<Record<string, string>>({});
-  const [quickFeeByClass, setQuickFeeByClass] = useState<Record<string, string>>({});
 
   const resetStudentForm = () => {
     setName('');
@@ -205,22 +203,18 @@ export function StudentsView() {
       return;
     }
 
-    const feeInput = enrollFeeByClass[cls.id] ?? '';
-    const fee = parseFee(feeInput) ?? cls.defaultRate ?? null;
-
     try {
       await addEnrollment({
         studentId,
         classId: cls.id,
         joinedAt: new Date().toISOString().split('T')[0],
         leftAt: null,
-        customRate: fee,
+        customRate: null,
         paymentType: 'monthly_advance',
         prepaidBalance: 0,
         status: 'active',
       });
       setEnrollPickByClass((prev) => ({ ...prev, [cls.id]: '' }));
-      setEnrollFeeByClass((prev) => ({ ...prev, [cls.id]: '' }));
       toast.success('Student added to class');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to add student');
@@ -234,16 +228,14 @@ export function StudentsView() {
       return;
     }
 
-    const feeInput = quickFeeByClass[cls.id] ?? '';
-    const fee = parseFee(feeInput) ?? cls.defaultRate ?? null;
-
     try {
       const newStudent = await addStudent({
         name: quickName,
         contact: '',
-        defaultRate: fee ?? 0,
+        defaultRate: 0,
         timezone: DEFAULT_TIMEZONE,
         notes: '',
+        isGroupOnly: true,
       } as Omit<Student, 'id' | 'userId' | 'createdAt'>);
 
       await addEnrollment({
@@ -251,14 +243,13 @@ export function StudentsView() {
         classId: cls.id,
         joinedAt: new Date().toISOString().split('T')[0],
         leftAt: null,
-        customRate: fee,
+        customRate: null,
         paymentType: 'monthly_advance',
         prepaidBalance: 0,
         status: 'active',
       });
 
       setQuickNameByClass((prev) => ({ ...prev, [cls.id]: '' }));
-      setQuickFeeByClass((prev) => ({ ...prev, [cls.id]: '' }));
       toast.success(`${quickName} created and added to ${cls.name}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create student');
@@ -280,9 +271,24 @@ export function StudentsView() {
     return enrollments.filter(e => e.studentId === studentId);
   };
 
+  const handlePromoteToOneOnOne = async (student: Student) => {
+    try {
+      await updateStudent(student.id, { isGroupOnly: false });
+      toast.success('Added to 1-on-1 students');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update student');
+    }
+  };
+
+  // 1-on-1 Students tab hides group-only students (they live in Group Rosters).
+  const oneOnOneStudents = useMemo(
+    () => students.filter((s) => !s.isGroupOnly),
+    [students]
+  );
+
   const groupedStudents = useMemo(() => {
     const groups = new Map<string, Student[]>();
-    for (const student of students) {
+    for (const student of oneOnOneStudents) {
       const group = student.familyGroup?.trim() || 'Ungrouped';
       if (!groups.has(group)) groups.set(group, []);
       groups.get(group)!.push(student);
@@ -295,7 +301,7 @@ export function StudentsView() {
       if (b === 'Ungrouped') return -1;
       return a.localeCompare(b);
     });
-  }, [students]);
+  }, [oneOnOneStudents]);
 
   const familyGroupOptions = useMemo(() => {
     const groups = new Set<string>();
@@ -520,7 +526,7 @@ export function StudentsView() {
             value={classFee}
             onChange={(e) => setClassFee(e.target.value)}
             placeholder="Fee/hr (optional)"
-            title="Default per-student hourly fee — prefills when adding students"
+            title="Collective hourly fee for the whole class — group sessions bill at this rate"
             className="w-full sm:w-36 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button
@@ -571,7 +577,7 @@ export function StudentsView() {
                         value={editClassFee}
                         onChange={(e) => setEditClassFee(e.target.value)}
                         placeholder="Fee/hr"
-                        title="Default per-student hourly fee for new additions"
+                        title="Collective hourly fee for the whole class"
                         className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                       <div className="flex gap-2">
@@ -596,7 +602,7 @@ export function StudentsView() {
                         <div className="font-medium text-slate-800 truncate">{cls.name}</div>
                         <div className="text-xs text-slate-500">
                           Group · {classStudents.length}/{cls.maxCapacity} students
-                          {cls.defaultRate != null && ` · ${cls.defaultRate.toFixed(2)}/hr default fee`}
+                          {cls.defaultRate != null && ` · ${cls.defaultRate.toFixed(2)}/hr class rate`}
                         </div>
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
@@ -642,6 +648,16 @@ export function StudentsView() {
                             {en?.customRate != null && (
                               <span className="text-indigo-400">· {en.customRate.toFixed(2)}/hr</span>
                             )}
+                            {s.isGroupOnly && (
+                              <button
+                                onClick={() => handlePromoteToOneOnOne(s)}
+                                className="text-indigo-400 hover:text-indigo-700 font-medium"
+                                title="Show this student in the 1-on-1 Students list too"
+                                aria-label={`Add ${s.name} to 1-on-1 students`}
+                              >
+                                → 1-on-1
+                              </button>
+                            )}
                             <button
                               onClick={() => handleRemoveEnrollment(cls.id, s.id)}
                               className="text-indigo-400 hover:text-indigo-600"
@@ -670,18 +686,6 @@ export function StudentsView() {
                           <option key={s.id} value={s.id}>{s.name}</option>
                         ))}
                       </select>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={enrollFeeByClass[cls.id] ?? ''}
-                        onChange={(e) =>
-                          setEnrollFeeByClass((prev) => ({ ...prev, [cls.id]: e.target.value }))
-                        }
-                        placeholder={cls.defaultRate != null ? `${cls.defaultRate.toFixed(2)}/hr` : 'Fee/hr (optional)'}
-                        title="Per-student hourly fee for this class — billing uses enrollment.customRate"
-                        className="w-full sm:w-36 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
                       <button
                         type="button"
                         onClick={() => handleEnrollExisting(cls)}
@@ -709,18 +713,6 @@ export function StudentsView() {
                       placeholder="New student name — create & add"
                       className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={quickFeeByClass[cls.id] ?? ''}
-                      onChange={(e) =>
-                        setQuickFeeByClass((prev) => ({ ...prev, [cls.id]: e.target.value }))
-                      }
-                      placeholder={cls.defaultRate != null ? `${cls.defaultRate.toFixed(2)}/hr` : 'Fee/hr (optional)'}
-                      title="Also set as the student's 1-on-1 default rate"
-                      className="w-full sm:w-36 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
                     <button
                       type="button"
                       onClick={() => handleQuickAddStudent(cls)}
@@ -739,10 +731,10 @@ export function StudentsView() {
       {/* Students List */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-800">Students ({students.length})</h2>
+          <h2 className="text-lg font-semibold text-slate-800">Students ({oneOnOneStudents.length})</h2>
         </div>
 
-        {students.length === 0 ? (
+        {oneOnOneStudents.length === 0 ? (
           <div className="px-6 py-10 text-center text-slate-500">
             No students yet. Add one above.
           </div>

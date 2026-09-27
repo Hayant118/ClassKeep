@@ -1,6 +1,6 @@
 // src/utils/billing.ts
 import { format, parseISO } from 'date-fns';
-import type { Enrollment, Session, Student } from '../types';
+import type { Class, Enrollment, Session, Student } from '../types';
 
 export interface BillingPeriod {
   startDate: Date;
@@ -99,14 +99,15 @@ export function parseSessionDate(session: Session): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-// Same rate logic as proposal billing: guest sessions bill guestRate
-// hourly; 'flat' is a fixed per-session charge; 'override' bills rateValue
-// hourly; 'auto' bills the active enrollment's customRate, falling back to
+// Rate logic: guest sessions bill guestRate hourly; 'flat' is a fixed
+// per-session charge; 'override' bills rateValue hourly; 'auto' bills a
+// group class collectively at class.defaultRate, or a 1-on-1 session at
 // the student's defaultRate, hourly.
 export function resolveSessionCharge(
   session: Session,
   students: Student[],
-  enrollments: Enrollment[]
+  enrollments: Enrollment[],
+  classes: Class[]
 ): number {
   const hours = session.durationMinutes / 60;
   if (session.guestName) {
@@ -115,26 +116,25 @@ export function resolveSessionCharge(
   if (session.rateMode === 'flat' && session.rateValue != null) {
     return session.rateValue;
   }
-  let student: Student | undefined;
-  if (session.studentId) {
-    student = students.find((s) => s.id === session.studentId);
-  }
-  let enrollment: Enrollment | undefined;
-  if (session.classId) {
-    enrollment = enrollments.find(
-      (e) =>
-        e.classId === session.classId &&
-        e.status === 'active' &&
-        (!student || e.studentId === student.id)
-    );
-    if (!student && enrollment) {
-      student = students.find((s) => s.id === enrollment!.studentId);
-    }
-  }
   if (session.rateMode === 'override' && session.rateValue != null) {
     return session.rateValue * hours;
   }
+  // Group classes bill as a unit at the class rate — never per student and
+  // never via enrollment.customRate.
+  if (session.classId) {
+    const cls = classes.find((c) => c.id === session.classId);
+    if (cls && cls.defaultRate != null) {
+      return cls.defaultRate * hours;
+    }
+    return session.totalCharge ?? 0;
+  }
+  const student = session.studentId
+    ? students.find((s) => s.id === session.studentId)
+    : undefined;
   if (student) {
+    const enrollment = enrollments.find(
+      (e) => e.studentId === student.id && e.status === 'active' && e.customRate != null
+    );
     const hourly = enrollment?.customRate ?? student.defaultRate ?? 0;
     const computed = hourly * hours;
     if (computed === 0 && session.totalCharge != null) {
@@ -145,14 +145,14 @@ export function resolveSessionCharge(
   return session.totalCharge ?? 0;
 }
 
-export function calculateMonthlyIncome(sessions: Session[], students: Student[], enrollments: Enrollment[]): MonthlyIncome[] {
+export function calculateMonthlyIncome(sessions: Session[], students: Student[], enrollments: Enrollment[], classes: Class[]): MonthlyIncome[] {
   const map = new Map<string, { income: number; sessionCount: number }>();
 
   for (const session of sessions) {
     if (session.status !== 'completed') continue;
     const key = getMonthKey(session);
     if (!key) continue;
-    const charge = resolveSessionCharge(session, students, enrollments);
+    const charge = resolveSessionCharge(session, students, enrollments, classes);
     const current = map.get(key) ?? { income: 0, sessionCount: 0 };
     current.income += charge;
     current.sessionCount += 1;
@@ -164,14 +164,14 @@ export function calculateMonthlyIncome(sessions: Session[], students: Student[],
     .sort((a, b) => a.month.localeCompare(b.month));
 }
 
-export function calculateQuarterlyIncome(sessions: Session[], students: Student[], enrollments: Enrollment[]): QuarterlyIncome[] {
+export function calculateQuarterlyIncome(sessions: Session[], students: Student[], enrollments: Enrollment[], classes: Class[]): QuarterlyIncome[] {
   const map = new Map<string, { income: number; sessionCount: number }>();
 
   for (const session of sessions) {
     if (session.status !== 'completed') continue;
     const key = getQuarterKey(session);
     if (!key) continue;
-    const charge = resolveSessionCharge(session, students, enrollments);
+    const charge = resolveSessionCharge(session, students, enrollments, classes);
     const current = map.get(key) ?? { income: 0, sessionCount: 0 };
     current.income += charge;
     current.sessionCount += 1;
@@ -183,14 +183,14 @@ export function calculateQuarterlyIncome(sessions: Session[], students: Student[
     .sort((a, b) => a.quarter.localeCompare(b.quarter));
 }
 
-export function calculateYearlyIncome(sessions: Session[], students: Student[], enrollments: Enrollment[]): YearlyIncome[] {
+export function calculateYearlyIncome(sessions: Session[], students: Student[], enrollments: Enrollment[], classes: Class[]): YearlyIncome[] {
   const map = new Map<string, { income: number; sessionCount: number }>();
 
   for (const session of sessions) {
     if (session.status !== 'completed') continue;
     const key = getYearKey(session);
     if (!key) continue;
-    const charge = resolveSessionCharge(session, students, enrollments);
+    const charge = resolveSessionCharge(session, students, enrollments, classes);
     const current = map.get(key) ?? { income: 0, sessionCount: 0 };
     current.income += charge;
     current.sessionCount += 1;
