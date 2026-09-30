@@ -10,7 +10,7 @@ const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
   preClassMinutes: 30,
   lowBalanceEnabled: true,
   lowBalanceThreshold: 400,
-  unreviewedEnabled: true,
+  unreviewedEnabled: false,
   dailyDigestEnabled: true,
   dailyDigestTime: '08:00',
   browserNotificationsEnabled: false,

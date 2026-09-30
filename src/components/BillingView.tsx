@@ -43,6 +43,7 @@ interface BillingViewProps {
 type TabKey = 'overview' | 'students' | 'classes';
 type TimeRange = 'monthly' | 'quarterly' | 'yearly';
 type ChartType = 'line' | 'bar' | 'area';
+type IncomeView = 'all' | 'individual' | 'group';
 
 const CHART_COLORS = ['#6366f1', '#ec4899', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16'];
 
@@ -182,19 +183,34 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
   const [chartType, setChartType] = useState<ChartType>('line');
+  const [incomeView, setIncomeView] = useState<IncomeView>('all');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [breakdownStudentId, setBreakdownStudentId] = useState<string | null>(null);
-  // Drill-down month navigation (defaults to current month).
   const [detailMonthOffset, setDetailMonthOffset] = useState(0);
 
   useEffect(() => {
     fetchPayments();
   }, [fetchPayments]);
 
-  const sessions = sessionsProp ?? fetchedSessions;
+  const allSessions = sessionsProp ?? fetchedSessions;
+  
+  // Filter sessions by income view
+  const sessions = useMemo(() => {
+    if (incomeView === 'individual') return allSessions.filter(s => !s.classId);
+    if (incomeView === 'group') return allSessions.filter(s => !!s.classId);
+    return allSessions;
+  }, [allSessions, incomeView]);
 
   const { summary, studentMetrics, classMetrics, monthlyIncome, quarterlyIncome, yearlyIncome } =
     useBilling(sessions, students, classes, enrollments, payments);
+
+  // Filter out group-only students from metrics
+  const filteredStudentMetrics = useMemo(() => {
+    return studentMetrics.filter(m => {
+      const student = students.find(s => s.id === m.studentId);
+      return !student?.isGroupOnly;
+    });
+  }, [studentMetrics, students]);
 
   const trendData = useMemo(() => {
     if (timeRange === 'monthly') {
@@ -209,32 +225,27 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
   const pieData = useMemo(() => {
     const periods = getPeriods();
     const period = timeRange === 'monthly' ? periods.month : timeRange === 'quarterly' ? periods.quarter : periods.year;
-    return students
-      .map((student) => {
-        const income = getStudentIncomeInPeriod(student.id, sessions, enrollments, students, classes, period);
+    return filteredStudentMetrics
+      .map((metric) => {
+        const income = getStudentIncomeInPeriod(metric.studentId, sessions, enrollments, students, classes, period);
         return {
-          name: student.name,
+          name: metric.studentName,
           value: income,
-          color: student.color,
+          color: metric.color,
         };
       })
       .filter((d) => d.value > 0);
-  }, [timeRange, sessions, students, enrollments, classes]);
+  }, [timeRange, sessions, filteredStudentMetrics, enrollments, students, classes]);
 
   const selectedStudent = useMemo(
-    () => studentMetrics.find((m) => m.studentId === selectedStudentId) || null,
-    [studentMetrics, selectedStudentId]
+    () => filteredStudentMetrics.find((m) => m.studentId === selectedStudentId) || null,
+    [filteredStudentMetrics, selectedStudentId]
   );
 
   const monthlyBreakdown = useMemo(() => {
     const { month } = getPeriods();
     const monthSessions = sessions.filter((s) => isDateInPeriod(s.plannedDate, month));
 
-    // Bucket each session by its owner: direct studentId for 1-on-1 sessions.
-    // Group class sessions bill collectively at the class rate, so they are
-    // never attributed to individual students: classes WITH enrollments are
-    // skipped here (they appear in the Classes tab), classes WITHOUT
-    // enrollments land in a single "Group classes" bucket.
     const GROUP_BUCKET_ID = '__group__';
     const buckets = new Map<string, { student: Student | null; sessions: Session[] }>();
     for (const session of monthSessions) {
@@ -284,7 +295,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       })
       .filter((row) => row.scheduledCount > 0)
       .sort((a, b) => {
-        // Former students and the Group classes bucket last; the rest alphabetical.
         if (!a.student && !b.student) return 0;
         if (!a.student) return 1;
         if (!b.student) return -1;
@@ -292,7 +302,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       });
   }, [sessions, students, enrollments, classes]);
 
-  // Drill-in view for a "This Month by Student" row. Month-navigable.
   const breakdownDetail = useMemo(() => {
     if (!breakdownStudentId) return null;
 
@@ -329,7 +338,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       .filter((s) => s.status === 'cancelled')
       .reduce((sum, s) => sum + charge(s), 0);
 
-    // Payments received this month via this student's enrollments.
     const studentEnrollmentIds = enrollments
       .filter((e) => e.studentId === breakdownStudentId)
       .map((e) => e.id);
@@ -372,7 +380,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
     );
   }
 
-  // Drill-in: per-student detail from "This Month by Student".
   if (breakdownDetail) {
     const { student } = breakdownDetail;
     return (
@@ -398,7 +405,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           </h3>
         </div>
 
-        {/* Money summary */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <div>
@@ -433,7 +439,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           )}
         </div>
 
-        {/* Month navigation */}
         <div className="flex items-center justify-between">
           <button
             type="button"
@@ -458,7 +463,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           </button>
         </div>
 
-        {/* Their calendar */}
         <MonthView
           monthStart={breakdownDetail.monthStart}
           timezone={student?.timezone || DEFAULT_TIMEZONE}
@@ -470,7 +474,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           inlineDetail
         />
 
-        {/* Itemized session list */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-gray-700">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">
@@ -551,10 +554,23 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Billing</h2>
         <p className="text-sm text-slate-500 dark:text-gray-400">Income tracking and analytics</p>
+      </div>
+
+      {/* Income View Toggle */}
+      <div className="flex items-center gap-1 bg-slate-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
+        {(['all', 'individual', 'group'] as IncomeView[]).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setIncomeView(v)}
+            className={toggleButtonClass(incomeView === v)}
+          >
+            {v === 'all' ? 'All' : v === 'individual' ? '1-on-1' : 'Group'}
+          </button>
+        ))}
       </div>
 
       {/* Summary Cards */}
@@ -604,7 +620,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     className="w-2.5 h-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: row.student?.color || '#94a3b8' }}
                   />
-                  {/* Two-line layout: full name never truncated */}
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm font-medium text-slate-900 dark:text-white break-words">
                       {isGroupBucket ? 'Group classes' : row.student?.name || 'Former student (deleted)'}
@@ -665,7 +680,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Controls */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1 bg-slate-100 dark:bg-gray-800 p-1 rounded-lg">
               {(['monthly', 'quarterly', 'yearly'] as TimeRange[]).map((r) => (
@@ -856,14 +870,14 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                 );
               })()}
             </div>
-          ) : studentMetrics.length === 0 ? (
+          ) : filteredStudentMetrics.length === 0 ? (
             <div className="p-10 text-center bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700">
               <Users className="w-10 h-10 text-slate-300 dark:text-gray-600 mx-auto mb-3" />
               <p className="text-slate-500 dark:text-gray-400">No students yet.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {studentMetrics.map((metric) => {
+              {filteredStudentMetrics.map((metric) => {
                 const periods = getPeriods();
                 const thisMonthIncome = getStudentIncomeInPeriod(metric.studentId, sessions, enrollments, students, classes, periods.month);
                 const hasPrepaid = enrollments.some(
