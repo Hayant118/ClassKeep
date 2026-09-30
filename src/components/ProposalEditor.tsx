@@ -339,9 +339,12 @@ export function ProposalEditor() {
     }) as Record<string, unknown>;
   };
 
-  const handleSaveDraft = async (payload: Omit<Session, 'id' | 'userId' | 'createdAt'>) => {
+  const handleSaveDraft = async (
+    payload: Omit<Session, 'id' | 'userId' | 'createdAt'> | Array<Omit<Session, 'id' | 'userId' | 'createdAt'>>
+  ) => {
     if (!proposal) return;
-    const next = [...proposal.draftSessions, buildDraftItem(payload)];
+    const items = (Array.isArray(payload) ? payload : [payload]).map((p) => buildDraftItem(p));
+    const next = [...proposal.draftSessions, ...items];
     await updateDraftSessions(proposal.id, next);
     setIsModalOpen(false);
   };
@@ -1230,6 +1233,7 @@ export function ProposalEditor() {
             onMonthChange={handleMonthChange}
             onSessionClick={openEditDraftModal}
             onAddSession={(dateKey) => openNewDraftModal(dateKey, preferences.calendarStartTime.slice(0, 5))}
+            onDeleteSession={handleDeleteDraft}
             inlineDetail
           />
         )}

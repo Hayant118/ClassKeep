@@ -38,6 +38,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
   const [locale, setLocale] = useState<'en' | 'zh'>('zh');
   const [exporting, setExporting] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedFamilyGroup, setSelectedFamilyGroup] = useState<string | null>(null);
 
   useEffect(() => {
     const start = new Date(year, month - 1, 1);
@@ -62,7 +63,37 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
     ? students.find((s) => s.id === selectedStudentId) ?? null
     : null;
 
+  const familyGroups = useMemo(() => {
+    const groups = new Map<string, Student[]>();
+    for (const student of students) {
+      const name = student.familyGroup?.trim();
+      if (!name) continue;
+      if (!groups.has(name)) groups.set(name, []);
+      groups.get(name)!.push(student);
+    }
+    for (const members of groups.values()) {
+      members.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [students]);
+
+  const selectedFamilyMembers = selectedFamilyGroup
+    ? familyGroups.find(([name]) => name === selectedFamilyGroup)?.[1] ?? []
+    : [];
+
   const studentSessions = useMemo(() => {
+    if (selectedFamilyGroup) {
+      const groupIds = new Set(selectedFamilyMembers.map((s) => s.id));
+      return filteredSessions.filter((s) => {
+        if (s.studentId) return groupIds.has(s.studentId);
+        if (s.classId) {
+          return enrollments.some(
+            (e) => e.classId === s.classId && groupIds.has(e.studentId)
+          );
+        }
+        return false;
+      });
+    }
     if (!selectedStudentId) return filteredSessions;
     return filteredSessions.filter((s) => {
       if (s.studentId) return s.studentId === selectedStudentId;
@@ -73,7 +104,26 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
       }
       return false;
     });
-  }, [filteredSessions, selectedStudentId, enrollments]);
+  }, [filteredSessions, selectedStudentId, selectedFamilyGroup, selectedFamilyMembers, enrollments]);
+
+  const familyMonthCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const [name, members] of familyGroups) {
+      const ids = new Set(members.map((s) => s.id));
+      let count = 0;
+      for (const session of filteredSessions) {
+        if (session.studentId) {
+          if (ids.has(session.studentId)) count += 1;
+        } else if (session.classId) {
+          if (enrollments.some((e) => e.classId === session.classId && ids.has(e.studentId))) {
+            count += 1;
+          }
+        }
+      }
+      counts.set(name, count);
+    }
+    return counts;
+  }, [filteredSessions, familyGroups, enrollments]);
 
   const studentMonthCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -119,6 +169,8 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
             students={students}
             enrollments={enrollments}
             student={selectedStudent ?? undefined}
+            familyGroup={selectedFamilyGroup ?? undefined}
+            familyGroupStudents={selectedFamilyGroup ? selectedFamilyMembers : undefined}
             locale={locale}
           />
         );
@@ -210,7 +262,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
 
       {loading ? (
         <div className="p-8 text-center text-sm" style={{ color: '#64748b' }}>Loading sessions...</div>
-      ) : !selectedStudent ? (
+      ) : !selectedStudent && !selectedFamilyGroup ? (
         <div
           className="rounded-xl border overflow-hidden"
           style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}
@@ -220,29 +272,66 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
               {locale === 'zh' ? '暂无学生。' : 'No students yet.'}
             </div>
           ) : (
-            sortedStudents.map((student) => {
-              const count = studentMonthCounts.get(student.id) ?? 0;
-              return (
-                <button
-                  key={student.id}
-                  type="button"
-                  onClick={() => setSelectedStudentId(student.id)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 border-b last:border-b-0"
-                  style={{ borderColor: '#e2e8f0' }}
-                >
-                  <span
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: student.color || '#6366f1' }}
-                  />
-                  <span className="flex-1 text-sm font-medium truncate" style={{ color: '#0f172a' }}>
-                    {student.name}
-                  </span>
-                  <span className="text-xs" style={{ color: '#64748b' }}>
-                    {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
-                  </span>
-                </button>
-              );
-            })
+            <>
+              {familyGroups.map(([name, members]) => {
+                const count = familyMonthCounts.get(name) ?? 0;
+                return (
+                  <button
+                    key={`family-${name}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedFamilyGroup(name);
+                      setSelectedStudentId(null);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 border-b"
+                    style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: members[0]?.color || '#0ea5e9' }}
+                    />
+                    <span className="flex-1 text-sm font-medium truncate" style={{ color: '#0f172a' }}>
+                      {name}
+                      <span className="ml-2 text-xs font-normal" style={{ color: '#64748b' }}>
+                        {locale === 'zh' ? '家庭' : 'Family'}
+                      </span>
+                    </span>
+                    <span className="text-xs" style={{ color: '#64748b' }}>
+                      {members.length} {locale === 'zh' ? '名学生' : 'students'} ·{' '}
+                      {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
+                    </span>
+                  </button>
+                );
+              })}
+              {sortedStudents.map((student, index) => {
+                const count = studentMonthCounts.get(student.id) ?? 0;
+                return (
+                  <button
+                    key={student.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedStudentId(student.id);
+                      setSelectedFamilyGroup(null);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 ${
+                      familyGroups.length > 0 || index < sortedStudents.length - 1 ? 'border-b' : ''
+                    }`}
+                    style={{ borderColor: '#e2e8f0' }}
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: student.color || '#6366f1' }}
+                    />
+                    <span className="flex-1 text-sm font-medium truncate" style={{ color: '#0f172a' }}>
+                      {student.name}
+                    </span>
+                    <span className="text-xs" style={{ color: '#64748b' }}>
+                      {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
+                    </span>
+                  </button>
+                );
+              })}
+            </>
           )}
         </div>
       ) : studentSessions.length === 0 ? (
@@ -256,7 +345,10 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
         <div className="space-y-4">
           <button
             type="button"
-            onClick={() => setSelectedStudentId(null)}
+            onClick={() => {
+              setSelectedStudentId(null);
+              setSelectedFamilyGroup(null);
+            }}
             className="text-sm font-medium px-3 py-1.5 rounded-lg transition-colors hover:bg-slate-100"
             style={{ color: '#4f46e5' }}
           >
@@ -271,6 +363,8 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
               students={students}
               enrollments={enrollments}
               student={selectedStudent ?? undefined}
+              familyGroup={selectedFamilyGroup ?? undefined}
+              familyGroupStudents={selectedFamilyGroup ? selectedFamilyMembers : undefined}
               locale={locale}
             />
           </div>

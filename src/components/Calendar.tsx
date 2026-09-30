@@ -179,10 +179,16 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     setEditingSession(undefined);
   };
 
-  const handleSaveSession = async (session: Omit<Session, 'id' | 'userId' | 'createdAt'>) => {
+  const handleSaveSession = async (
+    session: Omit<Session, 'id' | 'userId' | 'createdAt'> | Array<Omit<Session, 'id' | 'userId' | 'createdAt'>>
+  ) => {
     try {
-      await addSession(session);
-      toast.success('Session saved');
+      // Non-draft modal only ever saves one session; array is defensive.
+      const items = Array.isArray(session) ? session : [session];
+      for (const item of items) {
+        await addSession(item);
+      }
+      toast.success(items.length > 1 ? `${items.length} sessions saved` : 'Session saved');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save session');
     }

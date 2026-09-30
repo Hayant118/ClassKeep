@@ -10,6 +10,8 @@ interface ReviewExportProps {
   students: Student[];
   enrollments?: Enrollment[];
   student?: Student;
+  familyGroup?: string;
+  familyGroupStudents?: Student[];
   locale?: 'en' | 'zh';
 }
 
@@ -210,10 +212,25 @@ function computeSessionCharge(
   return hourly * hours;
 }
 
-export function ReviewExport({ month, year, sessions, classes, students: _students, enrollments = [], student, locale = 'en' }: ReviewExportProps) {
+export function ReviewExport({ month, year, sessions, classes, students: _students, enrollments = [], student, familyGroup, familyGroupStudents, locale = 'en' }: ReviewExportProps) {
   const t = LABELS[locale];
   const title = `${new Date(year, month - 1, 1).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'long' })} ${t.titleSuffix}`;
-  const headerName = student?.name ?? getHeaderName(sessions, classes, locale);
+  const headerName = student?.name ?? familyGroup ?? getHeaderName(sessions, classes, locale);
+
+  // Family mode: attribute each session to a group student for color-coding
+  // (1-on-1 sessions by studentId, class sessions by enrollment).
+  const resolveOwner = (session: Session): Student | undefined => {
+    if (!familyGroupStudents?.length) return undefined;
+    if (session.studentId) {
+      return familyGroupStudents.find((s) => s.id === session.studentId);
+    }
+    if (session.classId) {
+      return familyGroupStudents.find((s) =>
+        enrollments.some((e) => e.classId === session.classId && e.studentId === s.id)
+      );
+    }
+    return undefined;
+  };
 
   const firstDay = (new Date(year, month - 1, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -257,6 +274,10 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
       if (s.status !== 'completed' && !s.isAdditional) return sum;
       if (student) {
         return sum + computeSessionCharge(s, student, enrollments);
+      }
+      const owner = resolveOwner(s);
+      if (owner) {
+        return sum + computeSessionCharge(s, owner, enrollments);
       }
       return sum + (s.totalCharge ?? 0);
     }, 0) * 100
@@ -305,10 +326,29 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
                   style={{ borderColor: '#f1f5f9' }}
                 >
                   <span className="text-xs" style={{ color: '#475569' }}>{day}</span>
-                 <div className="mt-0.5 flex items-center gap-0.5">
-  {symbol && SYMBOLS[symbol].render()}
-  {hasSource && SYMBOLS['moved-source'].render()}
-</div>
+                  <div className="mt-0.5 flex items-center gap-0.5 flex-wrap justify-center">
+                    {familyGroup
+                      ? daySessions.map((s) => {
+                          const type = classifySession(s);
+                          if (!type) return null;
+                          const color = resolveOwner(s)?.color;
+                          return (
+                            <span
+                              key={s.id}
+                              className="inline-flex items-center justify-center rounded-full"
+                              style={
+                                color
+                                  ? { boxShadow: `0 0 0 2px ${color}`, borderRadius: '9999px' }
+                                  : undefined
+                              }
+                            >
+                              {SYMBOLS[type].render()}
+                            </span>
+                          );
+                        })
+                      : symbol && SYMBOLS[symbol].render()}
+                    {hasSource && SYMBOLS['moved-source'].render()}
+                  </div>
                 </div>
               );
             })}
@@ -364,6 +404,19 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
               </div>
             ))}
           </div>
+          {familyGroupStudents && familyGroupStudents.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {familyGroupStudents.map((s) => (
+                <div key={s.id} className="flex items-center gap-1 rounded-full px-2 py-1" style={{ backgroundColor: '#f8fafc' }}>
+                  <span
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ backgroundColor: s.color || '#6366f1' }}
+                  />
+                  <span className="text-xs" style={{ color: '#64748b' }}>{s.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

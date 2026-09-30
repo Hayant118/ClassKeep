@@ -27,10 +27,12 @@ interface SessionModalProps {
   enrollments?: Enrollment[];
   guests?: Guest[];
   isDraft?: boolean;
-  onSave: (session: Omit<Session, 'id' | 'userId' | 'createdAt'>) => void;
+  onSave: (session: SessionPayload | SessionPayload[]) => void;
   onUpdate: (id: string, updates: Partial<Session>) => void;
   onDelete: (id: string) => void;
 }
+
+type SessionPayload = Omit<Session, 'id' | 'userId' | 'createdAt'>;
 
 const DURATION_OPTIONS = [30, 60, 90, 120, 150];
 
@@ -160,6 +162,7 @@ export function SessionModal({
 
   const [classId, setClassId] = useState('');
   const [studentId, setStudentId] = useState('');
+  const [studentIds, setStudentIds] = useState<string[]>([]);
   const [guestName, setGuestName] = useState('');
   const [guestRate, setGuestRate] = useState<number | null>(null);
   const [date, setDate] = useState(
@@ -196,6 +199,7 @@ export function SessionModal({
     if (session) {
       setClassId(session.classId ?? '');
       setStudentId(session.studentId ?? '');
+      setStudentIds(session.studentId ? [session.studentId] : []);
       setGuestName(session.guestName ?? '');
       setGuestRate(session.guestRate ?? null);
       setDate(session.plannedDate);
@@ -211,6 +215,7 @@ export function SessionModal({
     } else {
       setClassId('');
       setStudentId('');
+      setStudentIds([]);
       setGuestName('');
       setGuestRate(null);
       setDate(isValidDateString(initialDate || '') ? initialDate || todayKey() : todayKey());
@@ -225,9 +230,37 @@ export function SessionModal({
     }
   }, [isOpen, session, initialDate, initialTime, classes, students]);
 
+  // Multi-student selection is only available for new draft sessions with
+  // rateMode 'auto' (each student is billed at their own default rate).
+  const multiStudentMode = isDraft && !isEditing && rateMode === 'auto';
+
+  const handleStudentToggle = (id: string) => {
+    const next = studentIds.includes(id)
+      ? studentIds.filter((s) => s !== id)
+      : [...studentIds, id];
+    setStudentIds(next);
+    if (next.length > 0) {
+      // Student, group class, and guest selections are mutually exclusive.
+      setClassId('');
+      setGuestName('');
+      setGuestRate(null);
+    }
+  };
+
+  const handleRateModeChange = (value: Session['rateMode']) => {
+    setRateMode(value);
+    if (value !== 'auto') {
+      // Multi-select only applies to auto rates; collapse to one student.
+      if (studentIds.length > 0) setStudentId(studentIds[0]);
+    } else if (studentIds.length === 0 && studentId) {
+      setStudentIds([studentId]);
+    }
+  };
+
   const handleStudentChange = (value: string) => {
     if (!value) {
       setStudentId('');
+      setStudentIds([]);
       return;
     }
     // Student, group class, and guest selections are mutually exclusive.
@@ -235,6 +268,7 @@ export function SessionModal({
     setGuestRate(null);
     setClassId('');
     setStudentId(value);
+    setStudentIds([value]);
   };
 
   const handleGuestChange = (value: string) => {
@@ -251,6 +285,7 @@ export function SessionModal({
     setGuestRate(guest.hourlyRate);
     setClassId('');
     setStudentId('');
+    setStudentIds([]);
     setRateMode('override');
     setRateValue(guest.hourlyRate.toString());
   };
@@ -258,7 +293,8 @@ export function SessionModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const selectionCount = (classId ? 1 : 0) + (studentId ? 1 : 0) + (guestName ? 1 : 0);
+    const studentCount = multiStudentMode ? studentIds.length : studentId ? 1 : 0;
+    const selectionCount = (classId ? 1 : 0) + studentCount + (guestName ? 1 : 0);
 
     if (selectionCount === 0) {
       toast.error('Please select a student, group class, or guest');
@@ -295,7 +331,7 @@ export function SessionModal({
       enrollments,
     });
 
-    const payload = {
+    const payload: SessionPayload = {
       classId: classId || undefined,
       studentId: studentId || undefined,
       guestName: guestName || undefined,
@@ -314,11 +350,27 @@ export function SessionModal({
       notes: notes.trim(),
     };
 
+    // Fan out: one draft per selected student, each billed at their own
+    // default rate (auto mode only).
+    const payloads: SessionPayload[] =
+      multiStudentMode && studentIds.length > 0
+        ? studentIds.map((id) => ({
+            ...payload,
+            classId: undefined,
+            studentId: id,
+            guestName: undefined,
+            guestRate: undefined,
+            rateMode: 'auto',
+            rateValue: null,
+            totalCharge: null,
+          }))
+        : [payload];
+
     try {
       if (session) {
         await onUpdate(session.id, payload);
       } else {
-        await onSave(payload);
+        await onSave(payloads);
       }
 
       if (!isDraft) {
@@ -367,19 +419,48 @@ export function SessionModal({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Student</label>
-            <select
-              value={studentId}
-              onChange={(e) => handleStudentChange(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">{students.length > 0 ? 'Select a student (1-on-1)' : 'No students'}</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500 mt-1">
-              Pick a student for 1-on-1 lessons — their default rate applies.
-            </p>
+            {multiStudentMode ? (
+              <>
+                <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-300 divide-y divide-slate-100">
+                  {students.map((s) => (
+                    <label
+                      key={s.id}
+                      className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={studentIds.includes(s.id)}
+                        onChange={() => handleStudentToggle(s.id)}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="flex-1 text-slate-700">{s.name}</span>
+                      <span className="text-xs text-slate-400">
+                        {s.defaultRate > 0 ? `${s.defaultRate}/hr` : 'no rate'}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Select one or more students — one draft per student is created, each billed at their own default rate.
+                </p>
+              </>
+            ) : (
+              <>
+                <select
+                  value={studentId}
+                  onChange={(e) => handleStudentChange(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">{students.length > 0 ? 'Select a student (1-on-1)' : 'No students'}</option>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Pick a student for 1-on-1 lessons — their default rate applies.
+                </p>
+              </>
+            )}
           </div>
 
           {isDraft && guests.length > 0 && (
@@ -406,6 +487,7 @@ export function SessionModal({
                 setClassId(e.target.value);
                 if (e.target.value) {
                   setStudentId('');
+                  setStudentIds([]);
                   setGuestName('');
                   setGuestRate(null);
                 }
@@ -463,7 +545,7 @@ export function SessionModal({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Rate Mode</label>
-            <select value={rateMode} onChange={(e) => setRateMode(e.target.value as Session['rateMode'])} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <select value={rateMode} onChange={(e) => handleRateModeChange(e.target.value as Session['rateMode'])} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
               <option value="auto">Auto (student default)</option>
               <option value="override">Override</option>
               <option value="flat">Flat</option>

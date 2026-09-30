@@ -227,11 +227,17 @@ export function StudentDetailView() {
     }
   };
 
-  const handleSessionSave = async (session: Omit<Session, 'id' | 'userId' | 'createdAt'>) => {
+  const handleSessionSave = async (
+    session: Omit<Session, 'id' | 'userId' | 'createdAt'> | Array<Omit<Session, 'id' | 'userId' | 'createdAt'>>
+  ) => {
     try {
-      await addSession(session);
+      // Non-draft modal only ever saves one session; array is defensive.
+      const items = Array.isArray(session) ? session : [session];
+      for (const item of items) {
+        await addSession(item);
+      }
       await fetchEnrollments();
-      toast.success('Session created');
+      toast.success(items.length > 1 ? `${items.length} sessions created` : 'Session created');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create session');
     }
