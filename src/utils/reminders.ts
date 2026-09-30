@@ -12,9 +12,6 @@ async function createReminder(reminder: Omit<Reminder, 'id' | 'created_at'>) {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return;
 
-  // One active reminder per type per reference: re-check against the DB at
-  // insert time so stale snapshots or overlapping check runs can't create
-  // duplicates.
   let existingQuery = supabase
     .from('ck_reminders')
     .select('id', { count: 'exact', head: true })
@@ -27,7 +24,6 @@ async function createReminder(reminder: Omit<Reminder, 'id' | 'created_at'>) {
 
   const { count, error: checkError } = await existingQuery;
   if (checkError) {
-    // eslint-disable-next-line no-console
     console.error('[ClassKeep] Failed to check for existing reminder:', checkError);
     return;
   }
@@ -43,7 +39,6 @@ async function createReminder(reminder: Omit<Reminder, 'id' | 'created_at'>) {
   });
 
   if (error) {
-    // eslint-disable-next-line no-console
     console.error('[ClassKeep] Failed to create reminder:', error);
   }
 }
@@ -153,43 +148,7 @@ export async function checkLowBalanceReminders(
   }
 }
 
-export async function checkUnreviewedReminders(
-  sessions: Session[],
-  classes: Class[],
-  students: Student[],
-  existingReminders: Reminder[]
-) {
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return;
-
-  const completedSessions = sessions.filter((s) => s.status === 'completed');
-  if (completedSessions.length === 0) return;
-
-  const sessionIds = completedSessions.map((s) => s.id);
-  const { data: reviews } = await supabase
-    .from('ck_reviews')
-    .select('session_id')
-    .eq('user_id', userData.user.id)
-    .in('session_id', sessionIds);
-
-  const reviewedIds = new Set((reviews || []).map((r) => r.session_id as string));
-
-  for (const session of completedSessions) {
-    if (reviewedIds.has(session.id)) continue;
-    if (reminderExists(existingReminders, 'unreviewed', session.id)) continue;
-
-    const className = getSessionDisplayName(classes, students, session);
-    const date = session.actualDate || session.plannedDate;
-
-    await createReminder({
-      user_id: userData.user.id,
-      type: 'unreviewed',
-      reference_id: session.id,
-      title: `Unreviewed: ${className} on ${date}`,
-      body: 'Session completed but not reviewed',
-    });
-  }
-}
+// checkUnreviewedReminders REMOVED — was creating infinite reminder spam
 
 export async function generateDailyDigest(
   sessions: Session[],

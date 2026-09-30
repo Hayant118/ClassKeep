@@ -15,7 +15,6 @@ import type { Reminder } from './types';
 import {
   checkPreClassReminders,
   checkLowBalanceReminders,
-  checkUnreviewedReminders,
   generateDailyDigest,
 } from './utils/reminders';
 import { Auth } from './components/Auth';
@@ -313,9 +312,7 @@ function AppContent() {
         );
       }
 
-      if (settings.unreviewedEnabled) {
-        await checkUnreviewedReminders(sessions, classes, students, existing);
-      }
+  
 
       if (settings.dailyDigestEnabled) {
         await generateDailyDigest(sessions, classes, students, existing, settings.dailyDigestTime);

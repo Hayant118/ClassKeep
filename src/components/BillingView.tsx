@@ -158,6 +158,18 @@ function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ n
   return null;
 }
 
+function BarTooltip({ active, payload }: { active?: boolean; payload?: Array<{ value: number; payload: { name: string } }> }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{payload[0].payload.name}</p>
+        <p className="text-xs text-slate-500 dark:text-gray-400">{formatCurrency(payload[0].value)}</p>
+      </div>
+    );
+  }
+  return null;
+}
+
 function StudentTooltip({ active, payload }: { active?: boolean; payload?: Array<{ value: number; payload: { month: string } }> }) {
   if (active && payload && payload.length) {
     return (
@@ -223,6 +235,23 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
   }, [timeRange, monthlyIncome, quarterlyIncome, yearlyIncome]);
 
   const pieData = useMemo(() => {
+    if (incomeView === 'group') {
+      const periods = getPeriods();
+      const period = timeRange === 'monthly' ? periods.month : timeRange === 'quarterly' ? periods.quarter : periods.year;
+      return classMetrics
+        .map((cls) => {
+          const income = sessions
+            .filter(
+              (s) =>
+                s.status === 'completed' &&
+                s.classId === cls.classId &&
+                isDateInPeriod(s.actualDate || s.plannedDate, period)
+            )
+            .reduce((sum, s) => sum + resolveSessionCharge(s, students, enrollments, classes), 0);
+          return { name: cls.className, value: income, color: cls.color };
+        })
+        .filter((d) => d.value > 0);
+    }
     const periods = getPeriods();
     const period = timeRange === 'monthly' ? periods.month : timeRange === 'quarterly' ? periods.quarter : periods.year;
     return filteredStudentMetrics
@@ -235,7 +264,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
         };
       })
       .filter((d) => d.value > 0);
-  }, [timeRange, sessions, filteredStudentMetrics, enrollments, students, classes]);
+  }, [incomeView, classMetrics, timeRange, sessions, filteredStudentMetrics, enrollments, students, classes]);
 
   const selectedStudent = useMemo(
     () => filteredStudentMetrics.find((m) => m.studentId === selectedStudentId) || null,
@@ -759,29 +788,45 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
           {pieData.length === 0 ? (
             <div className="p-8 text-center text-slate-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700">
-              No student income data for the selected period.
+              {incomeView === 'group'
+                ? 'No class income data for the selected period.'
+                : 'No student income data for the selected period.'}
             </div>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-4">Income by Student</h3>
-              <ResponsiveContainer width="100%" height={320}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={2}
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color || CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<PieTooltip />} />
-                  <Legend verticalAlign="bottom" height={36} />
-                </PieChart>
-              </ResponsiveContainer>
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-4">
+                {incomeView === 'group' ? 'Income by Class' : 'Income by Student'}
+              </h3>
+              {pieData.length > 6 ? (
+                <ResponsiveContainer width="100%" height={Math.max(200, pieData.length * 40)}>
+                  <BarChart data={pieData} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                    <XAxis type="number" tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(99, 102, 241, 0.08)' }} />
+                    <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={2}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color || CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<PieTooltip />} />
+                    <Legend verticalAlign="bottom" height={36} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
           )}
         </div>
