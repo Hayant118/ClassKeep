@@ -81,6 +81,16 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     });
   }, [sessions, classToStudents, selectedStudentIds, selectedClassIds]);
 
+  // Students shown as filter chips: those with at least one 1-on-1 session
+  // (studentId set, classId null), or whose isGroupOnly flag is false/undefined.
+  // Group-only students are represented by the class chips instead.
+  const filterableStudents = useMemo(() => {
+    return students.filter((student) => {
+      if (student.isGroupOnly !== true) return true;
+      return sessions.some((s) => s.studentId === student.id && !s.classId);
+    });
+  }, [students, sessions]);
+
   // Compute the display color for each student filter chip.
   const studentChipColors = useMemo(() => {
     const assigned = new Map<string, string>();
@@ -296,7 +306,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {students.map((student) => (
+          {filterableStudents.map((student) => (
             <button key={student.id} type="button" onClick={() => toggleStudent(student.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${selectedStudentIds.has(student.id) ? 'bg-slate-100 border-slate-300 text-slate-800' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
               <span
                 className="w-2.5 h-2.5 rounded-full"

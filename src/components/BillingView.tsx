@@ -17,14 +17,14 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { DollarSign, TrendingUp, Calendar, CreditCard, Users, ChevronRight } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, CreditCard, Users, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { useSessions } from '../hooks/useSessions';
 import { useEnrollments } from '../hooks/useEnrollments';
 import { usePayments } from '../hooks/usePayments';
 import { useBilling } from '../hooks/useBilling';
 import { MonthView } from './MonthView';
 import type { Session, Class, Student, Enrollment } from '../types';
-import type { BillingPeriod } from '../utils/billing';
+import type { BillingPeriod, StudentBillingMetrics } from '../utils/billing';
 import { DEFAULT_TIMEZONE } from '../utils/timezone';
 import {
   formatCurrency,
@@ -199,6 +199,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [breakdownStudentId, setBreakdownStudentId] = useState<string | null>(null);
   const [detailMonthOffset, setDetailMonthOffset] = useState(0);
+  const [selectedMonthOffset, setSelectedMonthOffset] = useState(0);
 
   useEffect(() => {
     fetchPayments();
@@ -213,6 +214,41 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
     return allSessions;
   }, [allSessions, incomeView]);
 
+  // Selected month for the billing page (offset from the current month).
+  const selectedPeriod = useMemo<BillingPeriod>(() => {
+    const base = new Date();
+    const d = new Date(base.getFullYear(), base.getMonth() + selectedMonthOffset, 1);
+    return {
+      startDate: new Date(d.getFullYear(), d.getMonth(), 1),
+      endDate: new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999),
+    };
+  }, [selectedMonthOffset]);
+
+  const selectedMonthKey = useMemo(() => {
+    const d = selectedPeriod.startDate;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, [selectedPeriod]);
+
+  const selectedMonthLabel = monthLabel(selectedMonthKey);
+
+  // Completed income for the selected month (replaces summary.totalIncomeThisMonth).
+  const selectedMonthIncome = useMemo(() => {
+    return sessions
+      .filter(
+        (s) =>
+          s.status === 'completed' &&
+          isDateInPeriod(s.actualDate || s.plannedDate, selectedPeriod)
+      )
+      .reduce((sum, s) => sum + resolveSessionCharge(s, students, enrollments, classes), 0);
+  }, [sessions, students, enrollments, classes, selectedPeriod]);
+
+  // Projected income for the selected month (replaces summary.projectedIncomeThisMonth).
+  const selectedMonthProjected = useMemo(() => {
+    return sessions
+      .filter((s) => s.status !== 'cancelled' && isDateInPeriod(s.plannedDate, selectedPeriod))
+      .reduce((sum, s) => sum + resolveSessionCharge(s, students, enrollments, classes), 0);
+  }, [sessions, students, enrollments, classes, selectedPeriod]);
+
   const { summary, studentMetrics, classMetrics, monthlyIncome, quarterlyIncome, yearlyIncome } =
     useBilling(sessions, students, classes, enrollments, payments);
 
@@ -224,20 +260,55 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
     });
   }, [studentMetrics, students]);
 
+  // Group metrics by familyGroup (non-empty string); the rest stay as solo cards
+  const { familyGroups, soloMetrics } = useMemo(() => {
+    const groups = new Map<string, StudentBillingMetrics[]>();
+    const solo: StudentBillingMetrics[] = [];
+    for (const metric of filteredStudentMetrics) {
+      const student = students.find((s) => s.id === metric.studentId);
+      const familyGroup = student?.familyGroup?.trim();
+      if (familyGroup) {
+        const arr = groups.get(familyGroup) ?? [];
+        arr.push(metric);
+        groups.set(familyGroup, arr);
+      } else {
+        solo.push(metric);
+      }
+    }
+    return {
+      familyGroups: Array.from(groups.entries())
+        .map(([name, members]) => ({ name, members }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+      soloMetrics: solo,
+    };
+  }, [filteredStudentMetrics, students]);
+
+  const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(() => new Set());
+
+  const toggleFamily = (name: string) => {
+    setExpandedFamilies((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
   const trendData = useMemo(() => {
     if (timeRange === 'monthly') {
-      return monthlyIncome.slice(-12).map((item) => ({ label: item.month, income: item.income }));
+      const past = monthlyIncome.filter((item) => item.month <= selectedMonthKey);
+      const window = past.length > 0 ? past.slice(-12) : monthlyIncome.slice(-12);
+      return window.map((item) => ({ label: item.month, income: item.income }));
     }
     if (timeRange === 'quarterly') {
       return quarterlyIncome.slice(-12).map((item) => ({ label: item.quarter, income: item.income }));
     }
     return yearlyIncome.slice(-12).map((item) => ({ label: item.year, income: item.income }));
-  }, [timeRange, monthlyIncome, quarterlyIncome, yearlyIncome]);
+  }, [timeRange, monthlyIncome, quarterlyIncome, yearlyIncome, selectedMonthKey]);
 
   const pieData = useMemo(() => {
+    const period = timeRange === 'monthly' ? selectedPeriod : timeRange === 'quarterly' ? getPeriods().quarter : getPeriods().year;
     if (incomeView === 'group') {
-      const periods = getPeriods();
-      const period = timeRange === 'monthly' ? periods.month : timeRange === 'quarterly' ? periods.quarter : periods.year;
       return classMetrics
         .map((cls) => {
           const income = sessions
@@ -252,8 +323,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
         })
         .filter((d) => d.value > 0);
     }
-    const periods = getPeriods();
-    const period = timeRange === 'monthly' ? periods.month : timeRange === 'quarterly' ? periods.quarter : periods.year;
     return filteredStudentMetrics
       .map((metric) => {
         const income = getStudentIncomeInPeriod(metric.studentId, sessions, enrollments, students, classes, period);
@@ -264,7 +333,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
         };
       })
       .filter((d) => d.value > 0);
-  }, [incomeView, classMetrics, timeRange, sessions, filteredStudentMetrics, enrollments, students, classes]);
+  }, [incomeView, classMetrics, timeRange, selectedPeriod, sessions, filteredStudentMetrics, enrollments, students, classes]);
 
   const selectedStudent = useMemo(
     () => filteredStudentMetrics.find((m) => m.studentId === selectedStudentId) || null,
@@ -272,7 +341,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
   );
 
   const monthlyBreakdown = useMemo(() => {
-    const { month } = getPeriods();
+    const month = selectedPeriod;
     const monthSessions = sessions.filter((s) => isDateInPeriod(s.plannedDate, month));
 
     const GROUP_BUCKET_ID = '__group__';
@@ -329,7 +398,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
         if (!b.student) return -1;
         return a.student.name.localeCompare(b.student.name);
       });
-  }, [sessions, students, enrollments, classes]);
+  }, [sessions, students, enrollments, classes, selectedPeriod]);
 
   const breakdownDetail = useMemo(() => {
     if (!breakdownStudentId) return null;
@@ -583,9 +652,35 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Billing</h2>
-        <p className="text-sm text-slate-500 dark:text-gray-400">Income tracking and analytics</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Billing</h2>
+          <p className="text-sm text-slate-500 dark:text-gray-400">Income tracking and analytics</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedMonthOffset((o) => o - 1)}
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
+          >
+            ← Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedMonthOffset(0)}
+            className="text-sm font-semibold text-slate-800 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400"
+            title="Back to current month"
+          >
+            {selectedMonthLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedMonthOffset((o) => o + 1)}
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
+          >
+            Next →
+          </button>
+        </div>
       </div>
 
       {/* Income View Toggle */}
@@ -606,12 +701,12 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <SummaryCard
           icon={<DollarSign className="w-5 h-5" />}
-          label="This Month"
+          label={selectedMonthLabel}
           value={
             <div className="space-y-0.5">
-              <div>Projected {formatCurrency(summary.projectedIncomeThisMonth)}</div>
+              <div>Projected {formatCurrency(selectedMonthProjected)}</div>
               <div className="text-sm font-semibold text-slate-500 dark:text-gray-400">
-                Actual so far {formatCurrency(summary.totalIncomeThisMonth)}
+                Actual so far {formatCurrency(selectedMonthIncome)}
               </div>
             </div>
           }
@@ -638,7 +733,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       {monthlyBreakdown.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-gray-700">
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">This Month by Student</h3>
+            <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">{selectedMonthLabel} by Student</h3>
           </div>
           <ul className="divide-y divide-slate-100 dark:divide-gray-700">
             {monthlyBreakdown.map((row) => {
@@ -679,7 +774,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                       type="button"
                       onClick={() => {
                         setBreakdownStudentId(row.studentId);
-                        setDetailMonthOffset(0);
+                        setDetailMonthOffset(selectedMonthOffset);
                       }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-colors"
                     >
@@ -847,7 +942,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
               {(() => {
                 const periods = getPeriods();
-                const thisMonth = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, classes, periods.month);
+                const thisMonth = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, classes, selectedPeriod);
                 const thisQuarter = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, classes, periods.quarter);
                 const thisYear = getStudentIncomeInPeriod(selectedStudent.studentId, sessions, enrollments, students, classes, periods.year);
                 const completedCount = getStudentSessionCount(selectedStudent.studentId, 'completed', sessions, enrollments);
@@ -868,7 +963,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     </div>
 
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                      <SummaryCard icon={<DollarSign className="w-5 h-5" />} label="This Month" value={formatCurrency(thisMonth)} />
+                      <SummaryCard icon={<DollarSign className="w-5 h-5" />} label={selectedMonthLabel} value={formatCurrency(thisMonth)} />
                       <SummaryCard icon={<TrendingUp className="w-5 h-5" />} label="This Quarter" value={formatCurrency(thisQuarter)} />
                       <SummaryCard icon={<Calendar className="w-5 h-5" />} label="This Year" value={formatCurrency(thisYear)} />
                       <SummaryCard icon={<CreditCard className="w-5 h-5" />} label="All Time" value={formatCurrency(selectedStudent.income)} />
@@ -922,9 +1017,89 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredStudentMetrics.map((metric) => {
-                const periods = getPeriods();
-                const thisMonthIncome = getStudentIncomeInPeriod(metric.studentId, sessions, enrollments, students, classes, periods.month);
+              {familyGroups.map((family) => {
+                const isExpanded = expandedFamilies.has(family.name);
+                const familyIncome = family.members.reduce((sum, m) => sum + m.income, 0);
+                const familySessions = family.members.reduce((sum, m) => sum + m.sessionCount, 0);
+                const familyMonthIncome = family.members.reduce(
+                  (sum, m) =>
+                    sum +
+                    getStudentIncomeInPeriod(m.studentId, sessions, enrollments, students, classes, selectedPeriod),
+                  0
+                );
+                const anyPrepaid = family.members.some((m) =>
+                  enrollments.some((e) => e.studentId === m.studentId && e.paymentType === 'prepaid')
+                );
+
+                return (
+                  <div
+                    key={family.name}
+                    className="bg-indigo-50/60 dark:bg-indigo-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800 p-4 shadow-sm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleFamily(family.name)}
+                      className="w-full flex items-center gap-3 mb-3 text-left"
+                      aria-expanded={isExpanded}
+                    >
+                      <Users className="w-4 h-4 text-indigo-500 dark:text-indigo-400 shrink-0" />
+                      <span className="font-semibold text-slate-900 dark:text-white break-words">{family.name}</span>
+                      <span className="text-xs bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">
+                        {family.members.length} {family.members.length === 1 ? 'member' : 'members'}
+                      </span>
+                      {anyPrepaid && (
+                        <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                          Prepaid
+                        </span>
+                      )}
+                      <span className="ml-auto text-slate-400 shrink-0">
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </span>
+                    </button>
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">{selectedMonthLabel}</div>
+                        <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(familyMonthIncome)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">Sessions</div>
+                        <div className="font-semibold text-slate-900 dark:text-white">{familySessions}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">Family Total</div>
+                        <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(familyIncome)}</div>
+                      </div>
+                    </div>
+                    {isExpanded && (
+                      <ul className="mt-3 pt-3 border-t border-indigo-200/70 dark:border-indigo-800/70 divide-y divide-indigo-100 dark:divide-indigo-800/50">
+                        {family.members.map((member) => (
+                          <li key={member.studentId} className="flex items-center gap-3 py-2">
+                            <div
+                              className="w-3 h-3 rounded-full shrink-0"
+                              style={{ backgroundColor: member.color || '#6366f1' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStudentId(member.studentId)}
+                              className="text-sm font-medium text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 break-words text-left"
+                            >
+                              {member.studentName}
+                            </button>
+                            <span className="ml-auto text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
+                              {member.sessionCount} sessions
+                            </span>
+                            <span className="text-sm font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                              {formatCurrency(member.income)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+              {soloMetrics.map((metric) => {
+                const thisMonthIncome = getStudentIncomeInPeriod(metric.studentId, sessions, enrollments, students, classes, selectedPeriod);
                 const hasPrepaid = enrollments.some(
                   (e) => e.studentId === metric.studentId && e.paymentType === 'prepaid'
                 );
@@ -950,7 +1125,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     </div>
                     <div className="grid grid-cols-3 gap-3 text-sm">
                       <div>
-                        <div className="text-xs text-slate-500 dark:text-gray-400">This Month</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-400">{selectedMonthLabel}</div>
                         <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(thisMonthIncome)}</div>
                       </div>
                       <div>
