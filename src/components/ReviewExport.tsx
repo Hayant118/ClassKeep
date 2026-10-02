@@ -12,6 +12,7 @@ interface ReviewExportProps {
   student?: Student;
   familyGroup?: string;
   familyGroupStudents?: Student[];
+  classGroup?: Class;
   locale?: 'en' | 'zh';
 }
 
@@ -146,8 +147,6 @@ const SYMBOLS: Record<
 
 function classifySession(session: Session): SymbolType | null {
   if (session.status === 'cancelled' || session.status === 'no-show') return 'cancelled';
-  // Moved: the app sets status='moved' with movedFromDate/movedFromTime
-  // plannedDate/plannedTime become the NEW date/time
   if (session.movedFromDate && session.movedFromDate !== session.plannedDate) return 'moved-day';
   if (session.movedFromTime && session.movedFromTime !== session.plannedTime) return 'moved-time';
   if (session.isAdditional) return 'additional';
@@ -212,13 +211,26 @@ function computeSessionCharge(
   return hourly * hours;
 }
 
-export function ReviewExport({ month, year, sessions, classes, students: _students, enrollments = [], student, familyGroup, familyGroupStudents, locale = 'en' }: ReviewExportProps) {
+export function ReviewExport({ 
+  month, 
+  year, 
+  sessions, 
+  classes, 
+  students: _students, 
+  enrollments = [], 
+  student, 
+  familyGroup, 
+  familyGroupStudents,
+  classGroup,
+  locale = 'en' 
+}: ReviewExportProps) {
   const t = LABELS[locale];
   const title = `${new Date(year, month - 1, 1).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'long' })} ${t.titleSuffix}`;
-  const headerName = student?.name ?? familyGroup ?? getHeaderName(sessions, classes, locale);
+  
+  // Header: student name > family group > class group > fallback
+  const headerName = student?.name ?? familyGroup ?? classGroup?.name ?? getHeaderName(sessions, classes, locale);
 
   // Family mode: attribute each session to a group student for color-coding
-  // (1-on-1 sessions by studentId, class sessions by enrollment).
   const resolveOwner = (session: Session): Student | undefined => {
     if (!familyGroupStudents?.length) return undefined;
     if (session.studentId) {
@@ -235,9 +247,8 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
   const firstDay = (new Date(year, month - 1, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  // Bucket by plannedDate (destination) AND movedFromDate (source)
   const sessionsByDay = new Map<number, Session[]>();
-  const sourceDays = new Map<number, Session[]>(); // movedFromDate -> sessions
+  const sourceDays = new Map<number, Session[]>();
 
   for (const session of sessions) {
     const day = parseInt(session.plannedDate.slice(8, 10), 10);
@@ -246,7 +257,6 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
       list.push(session);
       sessionsByDay.set(day, list);
     }
-    // Also index by movedFromDate so the source day shows the hollow symbol
     if (session.movedFromDate) {
       const srcDay = parseInt(session.movedFromDate.slice(8, 10), 10);
       if (srcDay >= 1 && srcDay <= daysInMonth) {
@@ -269,9 +279,26 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
   const plannedCount = sessions.filter(s => !s.isAdditional).length;
   const actualCount = sessions.filter(s => s.status !== 'cancelled' && s.status !== 'no-show').length;
 
+  // Calculate total charge based on mode
   const totalCharge = Math.round(
     sessions.reduce((sum, s) => {
       if (s.status !== 'completed' && !s.isAdditional) return sum;
+      
+      // Class group mode: use class rate for all sessions
+      if (classGroup) {
+        const hours = s.durationMinutes / 60;
+        if (s.rateMode === 'flat' && s.rateValue != null) {
+          return sum + s.rateValue;
+        }
+        if (s.rateMode === 'override' && s.rateValue != null) {
+          return sum + s.rateValue * hours;
+        }
+        // Auto mode: use class defaultRate
+        const rate = classGroup.defaultRate ?? 0;
+        return sum + rate * hours;
+      }
+      
+      // Family mode: attribute to specific student
       if (student) {
         return sum + computeSessionCharge(s, student, enrollments);
       }
@@ -422,132 +449,3 @@ export function ReviewExport({ month, year, sessions, classes, students: _studen
     </div>
   );
 }
-
-// Mock data for testing
-export const MOCK_REVIEW_SESSIONS: Session[] = [
-  {
-    id: 'rs-1',
-    userId: 'mock-user',
-    classId: 'class-piano',
-    plannedDate: '2026-08-03',
-    plannedTime: '09:00',
-    actualDate: '2026-08-03',
-    actualTime: '09:00',
-    durationMinutes: 60,
-    rateMode: 'auto',
-    rateValue: null,
-    totalCharge: 100,
-    status: 'completed',
-    movedFromDate: null,
-    movedFromTime: null,
-    isAdditional: false,
-    notes: '',
-    createdAt: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'rs-2',
-    userId: 'mock-user',
-    classId: 'class-piano',
-    plannedDate: '2026-08-05',
-    plannedTime: '10:00',
-    actualDate: null,
-    actualTime: null,
-    durationMinutes: 60,
-    rateMode: 'auto',
-    rateValue: null,
-    totalCharge: null,
-    status: 'cancelled',
-    movedFromDate: null,
-    movedFromTime: null,
-    isAdditional: false,
-    notes: 'Teacher sick',
-    createdAt: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'rs-3',
-    userId: 'mock-user',
-    classId: 'class-math',
-    plannedDate: '2026-08-07',
-    plannedTime: '14:00',
-    actualDate: '2026-08-07',
-    actualTime: '14:00',
-    durationMinutes: 90,
-    rateMode: 'auto',
-    rateValue: null,
-    totalCharge: 150,
-    status: 'no-show',
-    movedFromDate: null,
-    movedFromTime: null,
-    isAdditional: false,
-    notes: '',
-    createdAt: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'rs-4',
-    userId: 'mock-user',
-    classId: 'class-piano',
-    plannedDate: '2026-08-10',
-    plannedTime: '09:00',
-    actualDate: '2026-08-10',
-    actualTime: '10:00',
-    durationMinutes: 60,
-    rateMode: 'auto',
-    rateValue: null,
-    totalCharge: 100,
-    status: 'completed',
-    movedFromDate: null,
-    movedFromTime: null,
-    isAdditional: false,
-    notes: 'Moved to 10am',
-    createdAt: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'rs-5',
-    userId: 'mock-user',
-    classId: 'class-art',
-    plannedDate: '2026-08-13',
-    plannedTime: '09:00',
-    actualDate: '2026-08-13',
-    actualTime: '09:00',
-    durationMinutes: 120,
-    rateMode: 'auto',
-    rateValue: null,
-    totalCharge: 200,
-    status: 'moved',
-    movedFromDate: '2026-08-12',
-    movedFromTime: '09:00',
-    isAdditional: false,
-    notes: '',
-    createdAt: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'rs-6',
-    userId: 'mock-user',
-    classId: 'class-math',
-    plannedDate: '2026-08-15',
-    plannedTime: '16:00',
-    actualDate: '2026-08-15',
-    actualTime: '16:00',
-    durationMinutes: 60,
-    rateMode: 'override',
-    rateValue: 120,
-    totalCharge: 120,
-    status: 'completed',
-    movedFromDate: null,
-    movedFromTime: null,
-    isAdditional: true,
-    notes: 'Extra prep session',
-    createdAt: '2026-08-01T00:00:00Z',
-  },
-];
-
-export const MOCK_CLASSES: Class[] = [
-  { id: 'class-piano', userId: 'mock-user', name: 'Piano', type: 'one-on-one', maxCapacity: 1, color: '#22c55e', textbook: '', currentUnit: '', createdAt: '2026-08-01T00:00:00Z' },
-  { id: 'class-math', userId: 'mock-user', name: 'Math', type: 'one-on-one', maxCapacity: 1, color: '#3b82f6', textbook: '', currentUnit: '', createdAt: '2026-08-01T00:00:00Z' },
-  { id: 'class-art', userId: 'mock-user', name: 'Art', type: 'group', maxCapacity: 8, color: '#f97316', textbook: '', currentUnit: '', createdAt: '2026-08-01T00:00:00Z' },
-];
-
-export const MOCK_STUDENTS: Student[] = [
-  { id: 'student-1', userId: 'mock-user', name: 'Alice Chen', contact: '', defaultRate: 100, timezone: 'Asia/Shanghai', color: '#a855f7', notes: '', createdAt: '2026-08-01T00:00:00Z' },
-  { id: 'student-2', userId: 'mock-user', name: 'Bob Li', contact: '', defaultRate: 80, timezone: 'Asia/Shanghai', color: '#ec4899', notes: '', createdAt: '2026-08-01T00:00:00Z' },
-];

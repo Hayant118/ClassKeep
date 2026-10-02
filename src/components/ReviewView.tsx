@@ -39,6 +39,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
   const [exporting, setExporting] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedFamilyGroup, setSelectedFamilyGroup] = useState<string | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
 
   useEffect(() => {
     const start = new Date(year, month - 1, 1);
@@ -63,6 +64,10 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
     ? students.find((s) => s.id === selectedStudentId) ?? null
     : null;
 
+  const selectedClass = selectedClassId
+    ? classes.find((c) => c.id === selectedClassId) ?? null
+    : null;
+
   const familyGroups = useMemo(() => {
     const groups = new Map<string, Student[]>();
     for (const student of students) {
@@ -81,7 +86,15 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
     ? familyGroups.find(([name]) => name === selectedFamilyGroup)?.[1] ?? []
     : [];
 
+  // Group classes for class group selection
+  const classGroups = useMemo(() => {
+    return classes.filter((c) => c.type === 'group');
+  }, [classes]);
+
   const studentSessions = useMemo(() => {
+    if (selectedClassId) {
+      return filteredSessions.filter((s) => s.classId === selectedClassId);
+    }
     if (selectedFamilyGroup) {
       const groupIds = new Set(selectedFamilyMembers.map((s) => s.id));
       return filteredSessions.filter((s) => {
@@ -104,7 +117,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
       }
       return false;
     });
-  }, [filteredSessions, selectedStudentId, selectedFamilyGroup, selectedFamilyMembers, enrollments]);
+  }, [filteredSessions, selectedStudentId, selectedFamilyGroup, selectedFamilyMembers, selectedClassId, enrollments]);
 
   const familyMonthCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -125,6 +138,15 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
     return counts;
   }, [filteredSessions, familyGroups, enrollments]);
 
+  const classMonthCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const cls of classGroups) {
+      const count = filteredSessions.filter((s) => s.classId === cls.id).length;
+      counts.set(cls.id, count);
+    }
+    return counts;
+  }, [filteredSessions, classGroups]);
+
   const studentMonthCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const session of filteredSessions) {
@@ -141,10 +163,27 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
     return counts;
   }, [filteredSessions, enrollments]);
 
-  const sortedStudents = useMemo(
-    () => [...students].sort((a, b) => a.name.localeCompare(b.name)),
-    [students]
-  );
+  // Filter to show only students with 1-on-1 sessions (not group-only)
+  const sortedStudents = useMemo(() => {
+    const oneOnOneStudentIds = new Set(
+      filteredSessions
+        .filter((s) => s.studentId && !s.classId)
+        .map((s) => s.studentId!)
+    );
+    
+    return students
+      .filter((s) => {
+        // Always show students with 1-on-1 sessions
+        if (oneOnOneStudentIds.has(s.id)) return true;
+        // Hide students who only appear in group class sessions
+        const hasGroupEnrollments = enrollments.some((e) => e.studentId === s.id);
+        const hasOneOnOneSessions = filteredSessions.some(
+          (sess) => sess.studentId === s.id && !sess.classId
+        );
+        return !hasGroupEnrollments || hasOneOnOneSessions;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [students, filteredSessions, enrollments]);
 
   const handleExport = async () => {
     if (studentSessions.length === 0) return;
@@ -171,6 +210,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
             student={selectedStudent ?? undefined}
             familyGroup={selectedFamilyGroup ?? undefined}
             familyGroupStudents={selectedFamilyGroup ? selectedFamilyMembers : undefined}
+            classGroup={selectedClass ?? undefined}
             locale={locale}
           />
         );
@@ -262,17 +302,50 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
 
       {loading ? (
         <div className="p-8 text-center text-sm" style={{ color: '#64748b' }}>Loading sessions...</div>
-      ) : !selectedStudent && !selectedFamilyGroup ? (
+      ) : !selectedStudent && !selectedFamilyGroup && !selectedClassId ? (
         <div
           className="rounded-xl border overflow-hidden"
           style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}
         >
-          {sortedStudents.length === 0 ? (
+          {sortedStudents.length === 0 && classGroups.length === 0 && familyGroups.length === 0 ? (
             <div className="p-8 text-center text-sm" style={{ color: '#64748b' }}>
               {locale === 'zh' ? '暂无学生。' : 'No students yet.'}
             </div>
           ) : (
             <>
+              {/* Class Groups */}
+              {classGroups.map((cls) => {
+                const count = classMonthCounts.get(cls.id) ?? 0;
+                return (
+                  <button
+                    key={`class-${cls.id}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedClassId(cls.id);
+                      setSelectedStudentId(null);
+                      setSelectedFamilyGroup(null);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 border-b"
+                    style={{ borderColor: '#e2e8f0', backgroundColor: '#fef3c7' }}
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: cls.color || '#f59e0b' }}
+                    />
+                    <span className="flex-1 text-sm font-medium truncate" style={{ color: '#0f172a' }}>
+                      {cls.name}
+                      <span className="ml-2 text-xs font-normal" style={{ color: '#64748b' }}>
+                        {locale === 'zh' ? '班级' : 'Class'}
+                      </span>
+                    </span>
+                    <span className="text-xs" style={{ color: '#64748b' }}>
+                      {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
+                    </span>
+                  </button>
+                );
+              })}
+              
+              {/* Family Groups */}
               {familyGroups.map(([name, members]) => {
                 const count = familyMonthCounts.get(name) ?? 0;
                 return (
@@ -282,6 +355,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
                     onClick={() => {
                       setSelectedFamilyGroup(name);
                       setSelectedStudentId(null);
+                      setSelectedClassId(null);
                     }}
                     className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 border-b"
                     style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}
@@ -303,6 +377,8 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
                   </button>
                 );
               })}
+              
+              {/* Individual Students (1-on-1 only) */}
               {sortedStudents.map((student, index) => {
                 const count = studentMonthCounts.get(student.id) ?? 0;
                 return (
@@ -312,9 +388,10 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
                     onClick={() => {
                       setSelectedStudentId(student.id);
                       setSelectedFamilyGroup(null);
+                      setSelectedClassId(null);
                     }}
                     className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 ${
-                      familyGroups.length > 0 || index < sortedStudents.length - 1 ? 'border-b' : ''
+                      familyGroups.length > 0 || classGroups.length > 0 || index < sortedStudents.length - 1 ? 'border-b' : ''
                     }`}
                     style={{ borderColor: '#e2e8f0' }}
                   >
@@ -348,6 +425,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
             onClick={() => {
               setSelectedStudentId(null);
               setSelectedFamilyGroup(null);
+              setSelectedClassId(null);
             }}
             className="text-sm font-medium px-3 py-1.5 rounded-lg transition-colors hover:bg-slate-100"
             style={{ color: '#4f46e5' }}
@@ -365,6 +443,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
               student={selectedStudent ?? undefined}
               familyGroup={selectedFamilyGroup ?? undefined}
               familyGroupStudents={selectedFamilyGroup ? selectedFamilyMembers : undefined}
+              classGroup={selectedClass ?? undefined}
               locale={locale}
             />
           </div>
