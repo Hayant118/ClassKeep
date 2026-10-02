@@ -97,7 +97,7 @@ export function DayView({
         onClick={() => onSessionClick?.(session)}
         className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors ${
           isAutoCompleted ? 'ring-2 ring-amber-300' : ''
-        }`}
+        } ${session.hasOverlap ? 'ring-2 ring-red-500' : ''}`}
         style={{ borderColor: color, backgroundColor: `${color}15` }}
       >
         <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />

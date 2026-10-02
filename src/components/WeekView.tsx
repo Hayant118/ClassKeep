@@ -125,7 +125,7 @@ export function WeekView({
         }}
         className={`absolute left-1 right-1 rounded-md px-2 py-1 text-xs text-white shadow-sm overflow-hidden text-left z-10 ${
           isAutoCompleted ? 'ring-2 ring-amber-300' : ''
-        }`}
+        } ${session.hasOverlap ? 'ring-2 ring-red-500' : ''}`}
         style={{
           top: `${top}%`,
           height: `${height}%`,
@@ -212,7 +212,7 @@ export function WeekView({
         onClick={() => onSessionClick?.(session)}
         className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors ${
           isAutoCompleted ? 'ring-2 ring-amber-300' : ''
-        }`}
+        } ${session.hasOverlap ? 'ring-2 ring-red-500' : ''}`}
         style={{ borderColor: color, backgroundColor: `${color}15` }}
       >
         <SessionSymbol session={session} />

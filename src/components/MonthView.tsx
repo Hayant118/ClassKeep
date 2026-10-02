@@ -247,7 +247,7 @@ export function MonthView({
                   isCurrentMonth(day) && dateKey === todayKey
                     ? 'bg-indigo-50/60 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700'
                     : ''
-                }`}
+                } ${dayEntries.some((e) => e.session.hasOverlap) ? 'ring-1 ring-inset ring-red-400' : ''}`}
                 style={{ gridColumn: ((day.getDay() + 6) % 7) + 1 }}
               >
                 <div className={`font-medium ${isCurrentMonth(day) ? 'text-slate-700' : 'text-slate-400'} text-xs sm:text-sm`}>

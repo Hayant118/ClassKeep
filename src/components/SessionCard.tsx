@@ -45,7 +45,7 @@ export function SessionCard({ session, student, fallbackName, timezone, students
     <div
       className={`rounded-lg p-3 text-sm shadow-sm border border-slate-200 ${
         isAutoCompleted ? 'ring-2 ring-amber-300' : ''
-      }`}
+      } ${session.hasOverlap ? 'ring-2 ring-red-500' : ''}`}
       style={{ backgroundColor: `${color}15`, borderColor: color }}
     >
       <div className="flex items-start justify-between gap-2">

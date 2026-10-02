@@ -382,6 +382,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
         initialTimezone={createInitialTimezone}
         students={students}
         classes={classes}
+        sessions={sessions}
         enrollments={enrollments}
         onSave={handleSaveSession}
         onUpdate={handleUpdateSession}

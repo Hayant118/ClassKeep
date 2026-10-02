@@ -789,6 +789,7 @@ export function StudentDetailView() {
         session={selectedSession}
         students={[student]}
         classes={studentEnrollments.map((e) => getClass(e.classId)).filter(Boolean) as Class[]}
+        sessions={sessions}
         enrollments={studentEnrollments}
         onSave={handleSessionSave}
         onUpdate={handleSessionUpdate}

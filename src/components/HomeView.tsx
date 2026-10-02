@@ -668,6 +668,7 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
         session={editingSession}
         students={students}
         classes={classes}
+        sessions={sessions}
         enrollments={enrollments}
         onSave={() => {}}
         onUpdate={handleUpdateSession}

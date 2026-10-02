@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
+import { sessionsOverlap } from '../utils/calendar';
 import type { Session, Student, Class, Enrollment, Guest } from '../types';
 
 function isValidDateString(value: string): boolean {
@@ -15,6 +16,13 @@ function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function addDaysToDateKey(dateKey: string, days: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+
 interface SessionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -24,6 +32,7 @@ interface SessionModalProps {
   initialTimezone?: string;
   students: Student[];
   classes: Class[];
+  sessions?: Session[];
   enrollments?: Enrollment[];
   guests?: Guest[];
   isDraft?: boolean;
@@ -149,6 +158,7 @@ export function SessionModal({
   initialTimezone,
   students,
   classes,
+  sessions,
   enrollments = [],
   guests = [],
   isDraft = false,
@@ -178,6 +188,26 @@ export function SessionModal({
   const [rateValue, setRateValue] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<Session['status']>('scheduled');
+  const [repeatWeekly, setRepeatWeekly] = useState(false);
+  const [repeatWeeks, setRepeatWeeks] = useState(4);
+  const [studentSearch, setStudentSearch] = useState('');
+
+  // Group-only students are hidden from 1-on-1 selection unless they also
+  // have at least one 1-on-1 session on record. Without session data
+  // (e.g. draft proposals) the flag filter is skipped.
+  const selectableStudents = useMemo(() => {
+    const list = students.filter((student) => {
+      if (student.isGroupOnly !== true) return true;
+      if (!sessions) return true;
+      return sessions.some((s) => s.studentId === student.id && !s.classId);
+    });
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [students, sessions]);
+
+  const studentQuery = studentSearch.trim().toLowerCase();
+  const filteredStudents = studentQuery
+    ? selectableStudents.filter((s) => s.name.toLowerCase().includes(studentQuery))
+    : selectableStudents;
 
   const defaultTimezone = initialTimezone || 'Asia/Shanghai';
   // Student-first model: classes are GROUPS only. 1-on-1 sessions use studentId directly.
@@ -212,6 +242,9 @@ export function SessionModal({
       setRateValue(session.rateValue?.toString() || '');
       setNotes(session.notes);
       setStatus(session.status);
+      setRepeatWeekly(false);
+      setRepeatWeeks(4);
+      setStudentSearch('');
     } else {
       setClassId('');
       setStudentId('');
@@ -227,6 +260,9 @@ export function SessionModal({
       setRateValue('');
       setNotes('');
       setStatus('scheduled');
+      setRepeatWeekly(false);
+      setRepeatWeeks(4);
+      setStudentSearch('');
     }
   }, [isOpen, session, initialDate, initialTime, classes, students]);
 
@@ -366,11 +402,57 @@ export function SessionModal({
           }))
         : [payload];
 
+    // Weekly repeat copies are plain scheduled sessions: same time, duration,
+    // student/class and rate settings, 7 days apart per week.
+    const weeklyPayloadGroups: SessionPayload[][] = [];
+    if (!session && repeatWeekly && repeatWeeks > 1) {
+      for (let i = 1; i < repeatWeeks; i += 1) {
+        weeklyPayloadGroups.push(
+          payloads.map((p) => ({
+            ...p,
+            plannedDate: addDaysToDateKey(date, i * 7),
+            status: 'scheduled' as const,
+            notes: '',
+            actualDate: null,
+            actualTime: null,
+            totalCharge: null,
+            movedFromDate: null,
+            movedFromTime: null,
+          }))
+        );
+      }
+    }
+
+    // Conflict check: prompt before saving if any session being created or
+    // moved overlaps an existing session's time range.
+    if (sessions) {
+      const candidates = [...payloads, ...weeklyPayloadGroups.flat()];
+      const conflicts = candidates.flatMap((candidate) => {
+        const temp = { ...candidate, id: session?.id ?? '__new__' } as Session;
+        return sessions.filter((s) => s.id !== session?.id && sessionsOverlap(s, temp));
+      });
+      if (conflicts.length > 0) {
+        const describe = (s: Session) => {
+          const name = s.studentId
+            ? students.find((st) => st.id === s.studentId)?.name
+            : s.classId
+              ? classes.find((c) => c.id === s.classId)?.name
+              : s.guestName;
+          return `This conflicts with ${name ?? 'another session'} at ${s.plannedTime}. Schedule anyway?`;
+        };
+        const lines = [...new Map(conflicts.map((c) => [describe(c), c])).keys()].slice(0, 3);
+        if (!confirm(lines.join('\n'))) return;
+      }
+    }
+
     try {
       if (session) {
         await onUpdate(session.id, payload);
       } else {
         await onSave(payloads);
+        for (const weekPayloads of weeklyPayloadGroups) {
+          await onSave(weekPayloads);
+        }
       }
 
       if (!isDraft) {
@@ -419,10 +501,19 @@ export function SessionModal({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Student</label>
+            {selectableStudents.length > 0 && (
+              <input
+                type="text"
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                placeholder="Search students…"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 mb-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            )}
             {multiStudentMode ? (
               <>
                 <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-300 divide-y divide-slate-100">
-                  {students.map((s) => (
+                  {filteredStudents.map((s) => (
                     <label
                       key={s.id}
                       className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer"
@@ -439,6 +530,9 @@ export function SessionModal({
                       </span>
                     </label>
                   ))}
+                  {filteredStudents.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-slate-400">No students match "{studentSearch}"</p>
+                  )}
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
                   Select one or more students — one draft per student is created, each billed at their own default rate.
@@ -451,8 +545,8 @@ export function SessionModal({
                   onChange={(e) => handleStudentChange(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">{students.length > 0 ? 'Select a student (1-on-1)' : 'No students'}</option>
-                  {students.map((s) => (
+                  <option value="">{selectableStudents.length > 0 ? 'Select a student (1-on-1)' : 'No students'}</option>
+                  {filteredStudents.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
@@ -517,6 +611,38 @@ export function SessionModal({
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
             </div>
           </div>
+
+          {!isEditing && (
+            <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={repeatWeekly}
+                  onChange={(e) => setRepeatWeekly(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                Repeat weekly
+              </label>
+              {repeatWeekly && (
+                <div className="flex items-center gap-2 pl-6">
+                  <label className="text-sm text-slate-600">Weeks</label>
+                  <input
+                    type="number"
+                    min={2}
+                    max={12}
+                    value={repeatWeeks}
+                    onChange={(e) =>
+                      setRepeatWeeks(Math.min(12, Math.max(2, parseInt(e.target.value, 10) || 2)))
+                    }
+                    className="w-20 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-slate-500">
+                    creates {repeatWeeks} sessions, 7 days apart
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>
