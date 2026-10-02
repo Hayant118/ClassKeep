@@ -105,7 +105,9 @@ export function WeekView({
     const cls = classes.find(c => c.id === session.classId);
     const displayName = session.guestName
       ? `Guest: ${session.guestName}`
-      : (student?.name ?? cls?.name ?? 'Unknown');
+      : session.classId
+        ? (cls?.name ?? 'Unknown')
+        : (student?.name ?? 'Unknown');
     const color = getSessionColor(session, students, preferences.colorConflict);
     const isOverride = session.rateMode === 'override';
     const isAutoCompleted = isSessionAutoCompleted(session.id);
@@ -198,7 +200,9 @@ export function WeekView({
     const cls = classes.find((c) => c.id === session.classId);
     const displayName = session.guestName
       ? `Guest: ${session.guestName}`
-      : (student?.name ?? cls?.name ?? 'Unknown');
+      : session.classId
+        ? (cls?.name ?? 'Unknown')
+        : (student?.name ?? 'Unknown');
     const color = getSessionColor(session, students, preferences.colorConflict);
     const isOverride = session.rateMode === 'override';
     const isAutoCompleted = isSessionAutoCompleted(session.id);

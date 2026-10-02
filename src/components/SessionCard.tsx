@@ -39,7 +39,9 @@ export function SessionCard({ session, student, fallbackName, timezone, students
   const isAutoCompleted = isSessionAutoCompleted(session.id);
   const startTime = session.plannedTime;
   const endTime = addMinutes(startTime, session.durationMinutes);
-  const displayName = student?.name ?? fallbackName ?? 'Unknown';
+  const displayName = session.classId
+    ? (fallbackName ?? 'Unknown')
+    : (student?.name ?? 'Unknown');
 
   return (
     <div

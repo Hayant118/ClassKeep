@@ -89,6 +89,11 @@ export function DayView({
     const isAutoCompleted = isSessionAutoCompleted(session.id);
     const startTime = session.plannedTime;
     const endTime = addMinutes(startTime, session.durationMinutes);
+    const displayName = session.guestName
+      ? `Guest: ${session.guestName}`
+      : session.classId
+        ? (cls?.name ?? 'Unknown')
+        : (student?.name ?? 'Unknown');
 
     return (
       <button
@@ -103,7 +108,7 @@ export function DayView({
         <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-slate-900 truncate flex items-center gap-1.5">
-            <span className="truncate">{student?.name ?? cls?.name ?? 'Unknown'}</span>
+            <span className="truncate">{displayName}</span>
             <StatusIcon status={session.status} />
             {isOverride && <span title="Rate override">⚡</span>}
           </div>
