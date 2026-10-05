@@ -29,7 +29,6 @@ const LABELS = {
     completed: 'Completed',
     noShow: 'No-show',
     moved: 'Rescheduled',
-    movedNote: (orig: string, dest: string) => `*${orig} class taught on ${dest}`,
     totalCharge: 'Total charge',
     changeNote: (moved: number, cancelled: number, additional: number) => {
       const parts: string[] = [];
@@ -50,7 +49,6 @@ const LABELS = {
     completed: '已完成',
     noShow: '缺课',
     moved: '改期',
-    movedNote: (orig: string, dest: string) => `*${orig}的课改到${dest}`,
     totalCharge: '总费用',
     changeNote: (moved: number, cancelled: number, additional: number) => {
       const parts: string[] = [];
@@ -87,14 +85,12 @@ const SYMBOLS: Record<
   },
   'completed-moved': {
     score: 4,
-    color: '#22c55e',
+    color: '#f97316',
     labelEn: 'Completed (moved from another day)',
     labelZh: '已完成（改期）',
     render: () => (
-      <svg width="16" height="16" viewBox="0 0 16 16">
-        <circle cx="8" cy="8" r="6" fill="#22c55e" />
-        <circle cx="12" cy="4" r="3.2" fill="#ffffff" />
-        <text x="12" y="6.4" textAnchor="middle" fontSize="5.5" fontWeight="bold" fill="#16a34a">*</text>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="6" fill="#f97316" />
       </svg>
     ),
   },
@@ -177,13 +173,6 @@ function formatCurrency(amount: number, locale: 'en' | 'zh'): string {
     style: 'currency',
     currency,
   }).format(amount);
-}
-
-function formatMovedDate(date: string, locale: 'en' | 'zh'): string {
-  return new Date(`${date}T00:00:00`).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
 }
 
 function computeSessionCharge(
@@ -272,9 +261,6 @@ export function ReviewExport({
     const type = classifySession(s);
     return type === 'completed-moved' || type === 'moved-time';
   }).length;
-  const movedDaySessions = sessions.filter(
-    s => s.movedFromDate && s.movedFromDate !== s.plannedDate
-  );
   const additionalCount = sessions.filter(s => s.isAdditional).length;
 
   const plannedCount = sessions.filter(s => !s.isAdditional).length;
@@ -381,18 +367,6 @@ export function ReviewExport({
               );
             })}
           </div>
-          {movedDaySessions.length > 0 && (
-            <div className="mt-2 space-y-0.5">
-              {movedDaySessions.map((s) => (
-                <div key={s.id} className="text-xs" style={{ color: '#64748b' }}>
-                  {t.movedNote(
-                    formatMovedDate(s.movedFromDate!, locale),
-                    formatMovedDate(s.plannedDate, locale)
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="border-t pt-4 space-y-2" style={{ borderColor: '#e2e8f0' }}>
