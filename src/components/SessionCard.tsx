@@ -37,7 +37,7 @@ export function SessionCard({ session, student, fallbackName, timezone, students
   const color = getSessionColor(session, students);
   const isOverride = session.rateMode === 'override';
   const isAutoCompleted = isSessionAutoCompleted(session.id);
-  const startTime = session.plannedTime;
+  const startTime = session.plannedTime.slice(0, 5);
   const endTime = addMinutes(startTime, session.durationMinutes);
   const displayName = session.classId
     ? (fallbackName ?? 'Unknown')

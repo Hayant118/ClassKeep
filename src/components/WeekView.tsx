@@ -116,7 +116,7 @@ export function WeekView({
     const color = getSessionColor(session, students, preferences.colorConflict);
     const isOverride = session.rateMode === 'override';
     const isAutoCompleted = isSessionAutoCompleted(session.id);
-    const timeStr = session.plannedTime;
+    const timeStr = session.plannedTime.slice(0, 5);
     const endTime = addMinutes(timeStr, session.durationMinutes);
     const { top, height } = getSessionPosition(timeStr, session.durationMinutes, startTimeStr, endTimeStr);
 

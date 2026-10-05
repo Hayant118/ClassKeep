@@ -36,6 +36,25 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     }
   }, [prefsLoading, preferences.defaultCalendarView]);
   const [isDefaultViewMenuOpen, setIsDefaultViewMenuOpen] = useState(false);
+  const defaultViewMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isDefaultViewMenuOpen) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (defaultViewMenuRef.current && !defaultViewMenuRef.current.contains(e.target as Node)) {
+        setIsDefaultViewMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsDefaultViewMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDefaultViewMenuOpen]);
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set(students.map((s) => s.id)));
   const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set(classes.map((c) => c.id)));
@@ -317,7 +336,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
               <button key={v} type="button" onClick={() => setView(v)} className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${view === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{v}</button>
             ))}
           </div>
-          <div className="relative">
+          <div className="relative" ref={defaultViewMenuRef}>
             <button
               type="button"
               onClick={() => setIsDefaultViewMenuOpen((open) => !open)}
@@ -329,7 +348,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
               <Settings className="w-4 h-4" />
             </button>
             {isDefaultViewMenuOpen && (
-              <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-20 p-1">
+              <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-1">
                 <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                   Default view
                 </div>
