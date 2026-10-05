@@ -157,3 +157,15 @@ export interface Review {
 export interface SessionWithOverlap extends Session {
   hasOverlap: boolean;
 }
+
+export interface CalendarEvent {
+  id: string;
+  userId: string;
+  title: string;
+  type: 'holiday' | 'travel' | 'event';
+  color: string | null;
+  notes: string | null;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  createdAt: string;
+}

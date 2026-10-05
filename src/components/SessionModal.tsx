@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { TriangleAlert } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { sessionsOverlap } from '../utils/calendar';
-import type { Session, Student, Class, Enrollment, Guest } from '../types';
+import { findEventForDate, getEventTypeLabel } from '../utils/events';
+import type { Session, Student, Class, Enrollment, Guest, CalendarEvent } from '../types';
 
 function isValidDateString(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -33,6 +35,7 @@ interface SessionModalProps {
   students: Student[];
   classes: Class[];
   sessions?: Session[];
+  events?: CalendarEvent[];
   enrollments?: Enrollment[];
   guests?: Guest[];
   isDraft?: boolean;
@@ -159,6 +162,7 @@ export function SessionModal({
   students,
   classes,
   sessions,
+  events,
   enrollments = [],
   guests = [],
   isDraft = false,
@@ -208,6 +212,11 @@ export function SessionModal({
   const filteredStudents = studentQuery
     ? selectableStudents.filter((s) => s.name.toLowerCase().includes(studentQuery))
     : selectableStudents;
+
+  const dayEvent = useMemo(
+    () => (events && isValidDateString(date) ? findEventForDate(events, date) : undefined),
+    [events, date]
+  );
 
   const defaultTimezone = initialTimezone || 'Asia/Shanghai';
   // Student-first model: classes are GROUPS only. 1-on-1 sessions use studentId directly.
@@ -611,6 +620,15 @@ export function SessionModal({
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
             </div>
           </div>
+
+          {dayEvent && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 text-xs">
+              <TriangleAlert className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                This day is marked as {getEventTypeLabel(dayEvent)}: {dayEvent.title}
+              </span>
+            </div>
+          )}
 
           {!isEditing && (
             <div className="rounded-lg border border-slate-200 p-3 space-y-2">

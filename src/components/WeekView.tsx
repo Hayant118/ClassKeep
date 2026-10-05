@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Check, ArrowRightLeft, X, Circle, Star } from 'lucide-react';
-import type { Session, Student, Class, Enrollment, CalendarPreferences } from '../types';
+import type { Session, Student, Class, Enrollment, CalendarPreferences, CalendarEvent } from '../types';
 import {
   addDaysInTz,
   formatDateKeyInTz,
@@ -11,6 +11,7 @@ import { addMinutes, getTimeSlots, getSessionPosition, getTimeFromClickY } from 
 import { findOverlappingSessions, getSessionColor, type SessionWithOverlap } from '../utils/calendar';
 import { isSessionAutoCompleted } from '../hooks/useSessions';
 import { SessionSymbol } from '../utils/sessionSymbols';
+import { buildEventsByDay, getEventColor, getEventTint, getEventTypeLabel } from '../utils/events';
 
 const ROW_HEIGHT_PX = 40;
 
@@ -49,6 +50,7 @@ interface WeekViewProps {
   classes: Class[];
   enrollments: Enrollment[];
   sessions: Session[];
+  events?: CalendarEvent[];
   preferences: CalendarPreferences;
   onSlotClick: (dateKey: string, time: string) => void;
   onSessionClick?: (session: Session) => void;
@@ -61,6 +63,7 @@ export function WeekView({
   classes,
   enrollments,
   sessions,
+  events = [],
   preferences,
   onSlotClick,
   onSessionClick,
@@ -99,6 +102,8 @@ export function WeekView({
     });
     return map;
   }, [sessionsWithOverlap, weekDays, timezone]);
+
+  const eventsByDay = useMemo(() => buildEventsByDay(events), [events]);
 
   const renderSessionBlock = (session: SessionWithOverlap) => {
     const student = getSessionStudent(session, enrollments, students);
@@ -154,6 +159,7 @@ export function WeekView({
   const renderDayColumn = (day: Date, dayIndex: number) => {
     const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
     const daySessions = sessionsByDay.get(dateKey) ?? [];
+    const dayEvents = eventsByDay.get(dateKey) ?? [];
     const isToday = dateKey === todayKey;
 
     const handleColumnClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -176,6 +182,13 @@ export function WeekView({
       >
         {isToday && (
           <div className="absolute inset-0 bg-indigo-50/60 dark:bg-indigo-900/20 pointer-events-none" />
+        )}
+        {dayEvents.length > 0 && (
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: getEventTint(dayEvents[0]) }}
+            aria-hidden="true"
+          />
         )}
         {timeSlots.map((time, idx) => (
           <div
@@ -248,6 +261,8 @@ export function WeekView({
           <div className="border-b border-r border-slate-200 bg-slate-50" />
           {weekDays.map((day, idx) => {
             const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
+            const dayEvents = eventsByDay.get(dateKey) ?? [];
+            const accent = dayEvents[0] ? getEventColor(dayEvents[0]) : undefined;
             return (
               <div
                 key={idx}
@@ -261,6 +276,15 @@ export function WeekView({
                 <div className="text-xs text-slate-500">
                   {formatDisplayDateInTz(day.toISOString(), timezone)}
                 </div>
+                {dayEvents.length > 0 && accent && (
+                  <div className="mt-1 flex items-center justify-center gap-1 text-[11px] font-normal" title={dayEvents.map((e) => e.title).join(', ')}>
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
+                    <span className="truncate max-w-[80px] text-slate-600">{dayEvents[0].title}</span>
+                    {dayEvents.length > 1 && (
+                      <span className="text-slate-400 shrink-0">+{dayEvents.length - 1}</span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -284,6 +308,7 @@ export function WeekView({
         {weekDays.map((day) => {
           const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
           const daySessions = sessionsByDay.get(dateKey) ?? [];
+          const dayEvents = eventsByDay.get(dateKey) ?? [];
           return (
             <div key={dateKey} className="border border-slate-200 rounded-xl bg-white p-3">
               <div className="text-sm font-semibold text-slate-700 mb-2">
@@ -292,6 +317,24 @@ export function WeekView({
                   {formatDisplayDateInTz(day.toISOString(), timezone)}
                 </span>
               </div>
+              {dayEvents.length > 0 && (
+                <div className="space-y-1 mb-2">
+                  {dayEvents.map((event) => {
+                    const accent = getEventColor(event);
+                    return (
+                      <div
+                        key={event.id}
+                        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs"
+                        style={{ backgroundColor: getEventTint(event) }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
+                        <span className="font-medium text-slate-700 truncate">{event.title}</span>
+                        <span className="text-slate-400 shrink-0 ml-auto">{getEventTypeLabel(event)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               {daySessions.length === 0 ? (
                 <p className="text-xs text-slate-500 py-1">No sessions</p>
               ) : (

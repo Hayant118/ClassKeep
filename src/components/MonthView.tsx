@@ -1,6 +1,6 @@
 // MonthView.tsx
 import { useMemo, useState } from 'react';
-import type { Session, Student, Class, Enrollment } from '../types';
+import type { Session, Student, Class, Enrollment, CalendarEvent } from '../types';
 import {
   addMonthsInTz,
   formatDateKeyInTz,
@@ -10,6 +10,7 @@ import {
   startOfMonthInTz,
 } from '../utils/timezone';
 import { findOverlappingSessions, type SessionWithOverlap } from '../utils/calendar';
+import { buildEventsByDay, getEventColor, getEventTint, getEventTypeLabel } from '../utils/events';
 import { SessionCard } from './SessionCard';
 import { X } from './icons';
 import { SessionSymbol } from '../utils/sessionSymbols';
@@ -21,10 +22,12 @@ interface MonthViewProps {
   classes: Class[];
   enrollments: Enrollment[];
   sessions: Session[];
+  events?: CalendarEvent[];
   onMonthChange: (offset: number) => void;
   onSessionClick?: (session: Session) => void;
   onAddSession?: (dateKey: string) => void;
   onDeleteSession?: (id: string) => void;
+  onEditEvent?: (event: CalendarEvent) => void;
   inlineDetail?: boolean;
 }
 
@@ -44,10 +47,12 @@ interface DetailContentProps {
   selectedDay: Date;
   timezone: string;
   sessions: SessionWithOverlap[];
+  dayEvents?: CalendarEvent[];
   onClose: () => void;
   onAddSession?: (dateKey: string) => void;
   onSessionClick?: (session: Session) => void;
   onDeleteSession?: (id: string) => void;
+  onEditEvent?: (event: CalendarEvent) => void;
   students: Student[];
   classes: Class[];
   enrollments: Enrollment[];
@@ -57,10 +62,12 @@ function DetailContent({
   selectedDay,
   timezone,
   sessions,
+  dayEvents = [],
   onClose,
   onAddSession,
   onSessionClick,
   onDeleteSession,
+  onEditEvent,
   students,
   classes,
   enrollments,
@@ -83,6 +90,49 @@ function DetailContent({
       </div>
 
       <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
+        {dayEvents.length > 0 && (
+          <div className="space-y-2">
+            {dayEvents.map((event) => {
+              const accent = getEventColor(event);
+              return (
+                <div
+                  key={event.id}
+                  className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                  style={{ borderLeftColor: accent, borderLeftWidth: 3 }}
+                >
+                  <span
+                    className="mt-1.5 w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: accent }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-800 truncate">{event.title}</span>
+                      <span
+                        className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                        style={{ color: accent, backgroundColor: `${accent}1a` }}
+                      >
+                        {getEventTypeLabel(event)}
+                      </span>
+                    </div>
+                    {event.notes && (
+                      <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-wrap">{event.notes}</p>
+                    )}
+                  </div>
+                  {onEditEvent && (
+                    <button
+                      type="button"
+                      onClick={() => onEditEvent(event)}
+                      className="text-xs font-medium text-indigo-600 hover:text-indigo-800 shrink-0"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <span className="text-sm text-slate-500">
             {sessions.length} session{sessions.length === 1 ? '' : 's'}
@@ -132,10 +182,12 @@ export function MonthView({
   classes,
   enrollments,
   sessions,
+  events = [],
   onMonthChange,
   onSessionClick,
   onAddSession,
   onDeleteSession,
+  onEditEvent,
   inlineDetail,
 }: MonthViewProps) {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -172,6 +224,8 @@ export function MonthView({
     return map;
   }, [sessionsWithOverlap, calendarDays, timezone]);
 
+  const eventsByDay = useMemo(() => buildEventsByDay(events), [events]);
+
   const monthEnd = addMonthsInTz(normalizedMonthStart, 1, timezone);
   const isCurrentMonth = (day: Date) => {
     return day.getTime() >= normalizedMonthStart.getTime() && day.getTime() < monthEnd.getTime();
@@ -191,6 +245,7 @@ export function MonthView({
   const closeDetail = () => setSelectedDay(null);
 
   const selectedDayKey = selectedDay ? formatDateKeyInTz(selectedDay.toISOString(), timezone) : null;
+  const selectedDayEvents = selectedDayKey ? (eventsByDay.get(selectedDayKey) ?? []) : [];
   const selectedDaySessions = selectedDayKey
     ? (sessionsByDay.get(selectedDayKey) ?? [])
         .map((entry) => entry.session)
@@ -234,6 +289,7 @@ export function MonthView({
           {calendarDays.map((day) => {
             const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
             const dayEntries = sessionsByDay.get(dateKey) ?? [];
+            const dayEvents = eventsByDay.get(dateKey) ?? [];
             const active = selectedDayKey === dateKey;
 
             return (
@@ -248,11 +304,28 @@ export function MonthView({
                     ? 'bg-indigo-50/60 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700'
                     : ''
                 } ${dayEntries.some((e) => e.session.hasOverlap) ? 'ring-1 ring-inset ring-red-400' : ''}`}
-                style={{ gridColumn: ((day.getDay() + 6) % 7) + 1 }}
+                style={{
+                  gridColumn: ((day.getDay() + 6) % 7) + 1,
+                  background: dayEvents[0] ? getEventTint(dayEvents[0]) : undefined,
+                }}
               >
                 <div className={`font-medium ${isCurrentMonth(day) ? 'text-slate-700' : 'text-slate-400'} text-xs sm:text-sm`}>
                   {formatDisplayDateInTz(day.toISOString(), timezone).replace(/[^0-9]/g, '')}
                 </div>
+                {dayEvents.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-0.5 sm:gap-1 mt-1" aria-label={`${dayEvents.length} event${dayEvents.length === 1 ? '' : 's'}`}>
+                    {dayEvents.slice(0, 3).map((event) => (
+                      <span
+                        key={event.id}
+                        className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: getEventColor(event) }}
+                      />
+                    ))}
+                    {dayEvents.length > 3 && (
+                      <span className="text-[8px] sm:text-[9px] text-slate-500 leading-none">+{dayEvents.length - 3}</span>
+                    )}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-1">
                   {dayEntries.slice(0, 6).map((entry) => (
                     <span
@@ -285,10 +358,12 @@ export function MonthView({
               selectedDay={selectedDay}
               timezone={timezone}
               sessions={selectedDaySessions}
+              dayEvents={selectedDayEvents}
               onClose={closeDetail}
               onAddSession={onAddSession}
               onSessionClick={onSessionClick}
               onDeleteSession={onDeleteSession}
+              onEditEvent={onEditEvent}
               students={students}
               classes={classes}
               enrollments={enrollments}
@@ -303,10 +378,12 @@ export function MonthView({
             selectedDay={selectedDay}
             timezone={timezone}
             sessions={selectedDaySessions}
+            dayEvents={selectedDayEvents}
             onClose={closeDetail}
             onAddSession={onAddSession}
             onSessionClick={onSessionClick}
             onDeleteSession={onDeleteSession}
+            onEditEvent={onEditEvent}
             students={students}
             classes={classes}
             enrollments={enrollments}

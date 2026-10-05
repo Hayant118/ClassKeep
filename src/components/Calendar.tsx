@@ -1,14 +1,16 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { Check, Settings } from 'lucide-react';
-import type { Session, Student, Class, Enrollment } from '../types';
+import { Check, Settings, CalendarPlus, Search } from 'lucide-react';
+import type { Session, Student, Class, Enrollment, CalendarEvent } from '../types';
 import { usePreferences } from '../hooks/usePreferences';
 import { assignColor, normalizeColor } from '../utils/colors';
 import { DayView } from './DayView';
 import { WeekView } from './WeekView';
 import { MonthView } from './MonthView';
 import { SessionModal } from './SessionModal';
+import { EventModal } from './EventModal';
 import { useSessions } from '../hooks/useSessions';
+import { useEvents } from '../hooks/useEvents';
 
 type CalendarView = 'day' | 'week' | 'month';
 
@@ -23,6 +25,7 @@ interface CalendarProps {
 export function Calendar({ students, classes, enrollments = [] }: CalendarProps) {
   const { preferences, loading: prefsLoading, setPreferences } = usePreferences();
   const { sessions, loading, error, fetchSessions, addSession, updateSession, deleteSession } = useSessions();
+  const { events, fetchEvents, addEvent, updateEvent, deleteEvent } = useEvents();
 
   const [view, setView] = useState<CalendarView>('week');
   const didInitView = useRef(false);
@@ -37,7 +40,11 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set(students.map((s) => s.id)));
   const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set(classes.map((c) => c.id)));
   const [hasInitializedFilter, setHasInitializedFilter] = useState(false);
+  const [filterTab, setFilterTab] = useState<'students' | 'classes' | 'all'>('all');
+  const [chipQuery, setChipQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
   useEffect(() => {
     if (!hasInitializedFilter && students.length > 0) {
@@ -111,17 +118,17 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     return assigned;
   }, [students]);
 
-  // Fetch sessions for a broad window around the current view
+  // Fetch sessions and events for a broad window around the current view
   useEffect(() => {
     const start = new Date(currentDate);
     start.setDate(start.getDate() - 35);
     const end = new Date(currentDate);
     end.setDate(end.getDate() + 35);
-    fetchSessions({
-      startDate: start.toISOString().split('T')[0],
-      endDate: end.toISOString().split('T')[0],
-    });
-  }, [currentDate, fetchSessions]);
+    const startDate = start.toISOString().split('T')[0];
+    const endDate = end.toISOString().split('T')[0];
+    fetchSessions({ startDate, endDate });
+    fetchEvents({ startDate, endDate });
+  }, [currentDate, fetchSessions, fetchEvents]);
 
   const toggleStudent = (id: string) => {
     setSelectedStudentIds((prev) => {
@@ -223,6 +230,48 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     }
   };
 
+  const openCreateEventModal = () => {
+    setEditingEvent(null);
+    setIsEventModalOpen(true);
+  };
+
+  const openEditEventModal = (event: CalendarEvent) => {
+    setEditingEvent(event);
+    setIsEventModalOpen(true);
+  };
+
+  const closeEventModal = () => {
+    setIsEventModalOpen(false);
+    setEditingEvent(null);
+  };
+
+  const handleSaveEvent = async (event: Omit<CalendarEvent, 'id' | 'userId' | 'createdAt'>) => {
+    try {
+      await addEvent(event);
+      toast.success('Event saved');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save event');
+    }
+  };
+
+  const handleUpdateEvent = async (id: string, updates: Partial<CalendarEvent>) => {
+    try {
+      await updateEvent(id, updates);
+      toast.success('Event updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update event');
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    try {
+      await deleteEvent(id);
+      toast.success('Event deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete event');
+    }
+  };
+
   const title = useMemo(() => {
     if (view === 'week') {
       const start = new Date(currentDate);
@@ -241,6 +290,9 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
   if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
 
   const groupClasses = classes.filter((c) => c.type === 'group');
+  const chipQueryLower = chipQuery.trim().toLowerCase();
+  const visibleFilterStudents = filterableStudents.filter((s) => !chipQueryLower || s.name.toLowerCase().includes(chipQueryLower));
+  const visibleGroupClasses = groupClasses.filter((c) => !chipQueryLower || c.name.toLowerCase().includes(chipQueryLower));
 
   return (
     <div className="space-y-4 overflow-x-hidden">
@@ -252,6 +304,14 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
         </div>
         <h2 className="text-lg font-semibold text-slate-800 order-first lg:order-none">{title}</h2>
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={openCreateEventModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+          >
+            <CalendarPlus className="w-4 h-4" />
+            Add Event
+          </button>
           <div className="flex bg-slate-100 p-1 rounded-lg">
             {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
               <button key={v} type="button" onClick={() => setView(v)} className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${view === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{v}</button>
@@ -298,32 +358,61 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700">Filter by student / class</h3>
-          <div className="flex gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+          <div className="flex bg-slate-100 p-0.5 rounded-lg">
+            {(['students', 'classes', 'all'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setFilterTab(tab)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize transition-colors ${filterTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                aria-pressed={filterTab === tab}
+              >
+                {tab === 'all' ? 'All' : tab}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={chipQuery}
+                onChange={(e) => setChipQuery(e.target.value)}
+                placeholder="Search..."
+                className="pl-7 pr-2 py-1 w-36 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-label="Filter chips by name"
+              />
+            </div>
             <button type="button" onClick={selectAll} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50">Select all</button>
             <button type="button" onClick={clearAll} className="text-xs font-medium text-slate-600 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100">Hide all</button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {filterableStudents.map((student) => (
-            <button key={student.id} type="button" onClick={() => toggleStudent(student.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${selectedStudentIds.has(student.id) ? 'bg-slate-100 border-slate-300 text-slate-800' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+          {(filterTab !== 'classes' ? visibleFilterStudents : []).map((student) => (
+            <button key={student.id} type="button" onClick={() => toggleStudent(student.id)} className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border whitespace-nowrap shrink-0 transition-colors ${selectedStudentIds.has(student.id) ? 'bg-slate-100 border-slate-300 text-slate-800' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
               <span
-                className="w-2.5 h-2.5 rounded-full"
+                className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: studentChipColors.get(student.id) }}
               />
               <span className={selectedStudentIds.has(student.id) ? '' : 'line-through'}>{student.name}</span>
             </button>
           ))}
-          {groupClasses.map((cls) => (
-            <button key={cls.id} type="button" onClick={() => toggleClass(cls.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${selectedClassIds.has(cls.id) ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+          {(filterTab !== 'students' ? visibleGroupClasses : []).map((cls) => (
+            <button key={cls.id} type="button" onClick={() => toggleClass(cls.id)} className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border whitespace-nowrap shrink-0 transition-colors ${selectedClassIds.has(cls.id) ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
               <span
-                className="w-2.5 h-2.5 rounded-full"
+                className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: cls.color || '#6366f1' }}
               />
               <span className={selectedClassIds.has(cls.id) ? '' : 'line-through'}>{cls.name}</span>
             </button>
           ))}
+          {filterTab === 'students' && visibleFilterStudents.length === 0 && (
+            <span className="text-xs text-slate-400 py-1">No students match</span>
+          )}
+          {filterTab === 'classes' && visibleGroupClasses.length === 0 && (
+            <span className="text-xs text-slate-400 py-1">No classes match</span>
+          )}
         </div>
       </div>
 
@@ -349,6 +438,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
           classes={classes}
           enrollments={enrollments}
           sessions={filteredSessions}
+          events={events}
           preferences={preferences}
           onSlotClick={openCreateModal}
           onSessionClick={openEditModal}
@@ -362,6 +452,8 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
           classes={classes}
           enrollments={enrollments}
           sessions={filteredSessions}
+          events={events}
+          onEditEvent={openEditEventModal}
           onMonthChange={(offset) => {
             const d = new Date(currentDate);
             d.setMonth(d.getMonth() + offset);
@@ -383,10 +475,20 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
         students={students}
         classes={classes}
         sessions={sessions}
+        events={events}
         enrollments={enrollments}
         onSave={handleSaveSession}
         onUpdate={handleUpdateSession}
         onDelete={handleDeleteSession}
+      />
+
+      <EventModal
+        isOpen={isEventModalOpen}
+        onClose={closeEventModal}
+        onSave={handleSaveEvent}
+        onUpdate={handleUpdateEvent}
+        onDelete={handleDeleteEvent}
+        editingEvent={editingEvent}
       />
     </div>
   );
