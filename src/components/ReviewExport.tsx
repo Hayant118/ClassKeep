@@ -16,7 +16,7 @@ interface ReviewExportProps {
   locale?: 'en' | 'zh';
 }
 
-type SymbolType = 'completed' | 'cancelled' | 'moved-time' | 'moved-day' | 'moved-source' | 'additional';
+type SymbolType = 'completed' | 'cancelled' | 'moved-time' | 'completed-moved' | 'additional';
 
 const LABELS = {
   en: {
@@ -29,6 +29,7 @@ const LABELS = {
     completed: 'Completed',
     noShow: 'No-show',
     moved: 'Rescheduled',
+    movedNote: (orig: string, dest: string) => `*${orig} class taught on ${dest}`,
     totalCharge: 'Total charge',
     changeNote: (moved: number, cancelled: number, additional: number) => {
       const parts: string[] = [];
@@ -49,6 +50,7 @@ const LABELS = {
     completed: '已完成',
     noShow: '缺课',
     moved: '改期',
+    movedNote: (orig: string, dest: string) => `*${orig}的课改到${dest}`,
     totalCharge: '总费用',
     changeNote: (moved: number, cancelled: number, additional: number) => {
       const parts: string[] = [];
@@ -83,40 +85,29 @@ const SYMBOLS: Record<
       </svg>
     ),
   },
-  'moved-day': {
+  'completed-moved': {
     score: 4,
-    color: '#a855f7',
-    labelEn: 'Moved to another day',
-    labelZh: '改日期',
+    color: '#22c55e',
+    labelEn: 'Completed (moved from another day)',
+    labelZh: '已完成（改期）',
     render: () => (
-      <svg width="16" height="16" viewBox="0 0 16 16" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none">
-        <path d="M12 8H4" />
-        <path d="M7 5l-3 3 3 3" />
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <circle cx="8" cy="8" r="6" fill="#22c55e" />
+        <circle cx="12" cy="4" r="3.2" fill="#ffffff" />
+        <text x="12" y="6.4" textAnchor="middle" fontSize="5.5" fontWeight="bold" fill="#16a34a">*</text>
       </svg>
     ),
   },
   'moved-time': {
     score: 4,
     color: '#f97316',
-    labelEn: 'Moved to another time',
-    labelZh: '改时间',
+    labelEn: 'Moved (class didn’t happen this day)',
+    labelZh: '改期',
     render: () => (
       <svg width="16" height="16" viewBox="0 0 16 16" stroke="#f97316" strokeWidth="2" strokeLinecap="round" fill="none">
         <circle cx="8" cy="8" r="6" />
         <line x1="8" y1="8" x2="8" y2="5" />
         <line x1="8" y1="8" x2="11" y2="8" />
-      </svg>
-    ),
-  },
-  'moved-source': {
-    score: 3,
-    color: '#94a3b8',
-    labelEn: 'Moved from this day',
-    labelZh: '从此日改期',
-    render: () => (
-      <svg width="16" height="16" viewBox="0 0 16 16" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-        <circle cx="8" cy="8" r="5" strokeDasharray="2 2" />
-        <path d="M10 6l2 2-2 2" />
       </svg>
     ),
   },
@@ -147,7 +138,7 @@ const SYMBOLS: Record<
 
 function classifySession(session: Session): SymbolType | null {
   if (session.status === 'cancelled' || session.status === 'no-show') return 'cancelled';
-  if (session.movedFromDate && session.movedFromDate !== session.plannedDate) return 'moved-day';
+  if (session.movedFromDate && session.movedFromDate !== session.plannedDate) return 'completed-moved';
   if (session.movedFromTime && session.movedFromTime !== session.plannedTime) return 'moved-time';
   if (session.isAdditional) return 'additional';
   if (session.status === 'completed') return 'completed';
@@ -186,6 +177,13 @@ function formatCurrency(amount: number, locale: 'en' | 'zh'): string {
     style: 'currency',
     currency,
   }).format(amount);
+}
+
+function formatMovedDate(date: string, locale: 'en' | 'zh'): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 function computeSessionCharge(
@@ -272,8 +270,11 @@ export function ReviewExport({
   const noShowCount = sessions.filter(s => s.status === 'no-show').length;
   const movedCount = sessions.filter(s => {
     const type = classifySession(s);
-    return type === 'moved-day' || type === 'moved-time';
+    return type === 'completed-moved' || type === 'moved-time';
   }).length;
+  const movedDaySessions = sessions.filter(
+    s => s.movedFromDate && s.movedFromDate !== s.plannedDate
+  );
   const additionalCount = sessions.filter(s => s.isAdditional).length;
 
   const plannedCount = sessions.filter(s => !s.isAdditional).length;
@@ -310,7 +311,7 @@ export function ReviewExport({
     }, 0) * 100
   ) / 100;
 
-  const legendItems: SymbolType[] = ['completed', 'moved-time', 'moved-day', 'moved-source', 'cancelled', 'additional'];
+  const legendItems: SymbolType[] = ['completed', 'completed-moved', 'moved-time', 'cancelled', 'additional'];
 
   return (
     <div
@@ -374,12 +375,24 @@ export function ReviewExport({
                           );
                         })
                       : symbol && SYMBOLS[symbol].render()}
-                    {hasSource && SYMBOLS['moved-source'].render()}
+                    {hasSource && SYMBOLS['moved-time'].render()}
                   </div>
                 </div>
               );
             })}
           </div>
+          {movedDaySessions.length > 0 && (
+            <div className="mt-2 space-y-0.5">
+              {movedDaySessions.map((s) => (
+                <div key={s.id} className="text-xs" style={{ color: '#64748b' }}>
+                  {t.movedNote(
+                    formatMovedDate(s.movedFromDate!, locale),
+                    formatMovedDate(s.plannedDate, locale)
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="border-t pt-4 space-y-2" style={{ borderColor: '#e2e8f0' }}>
