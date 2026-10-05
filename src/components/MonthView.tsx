@@ -211,15 +211,11 @@ export function MonthView({
   }, [sessions]);
 
   const sessionsByDay = useMemo(() => {
-    const map = new Map<string, { session: SessionWithOverlap; isSource: boolean }[]>();
+    const map = new Map<string, { session: SessionWithOverlap }[]>();
     calendarDays.forEach((day) => map.set(formatDateKeyInTz(day.toISOString(), timezone), []));
     sessionsWithOverlap.forEach((session) => {
       const list = map.get(session.plannedDate);
-      if (list) list.push({ session, isSource: false });
-      if (session.movedFromDate) {
-        const sourceList = map.get(session.movedFromDate);
-        if (sourceList) sourceList.push({ session, isSource: true });
-      }
+      if (list) list.push({ session });
     });
     return map;
   }, [sessionsWithOverlap, calendarDays, timezone]);
@@ -329,10 +325,10 @@ export function MonthView({
                 <div className="flex flex-wrap gap-0.5 sm:gap-1 mt-1">
                   {dayEntries.slice(0, 6).map((entry) => (
                     <span
-                      key={`${entry.session.id}-${entry.isSource ? 'src' : 'dst'}`}
+                      key={entry.session.id}
                       className="inline-flex w-3.5 h-3.5 sm:w-4 sm:h-4 [&_svg]:w-full [&_svg]:h-full"
                     >
-                      <SessionSymbol session={entry.session} isSource={entry.isSource} />
+                      <SessionSymbol session={entry.session} />
                     </span>
                   ))}
                   {dayEntries.length > 6 && (

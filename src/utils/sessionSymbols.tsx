@@ -3,14 +3,11 @@ import type { Session } from '../types';
 
 // Status symbols mirroring ReviewExport.tsx SYMBOLS.
 // The symbol indicates session status; student/class color is shown by the surrounding UI.
+// Orange = rescheduled, green = normal, red = cancelled.
+// isSource days (where a class was moved FROM) no longer get a marker — render nothing.
 export function SessionSymbol({ session, isSource }: { session: Session; isSource?: boolean }): ReactElement {
   if (isSource) {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-        <circle cx="8" cy="8" r="5" strokeDasharray="2 2" />
-        <path d="M10 6l2 2-2 2" />
-      </svg>
-    );
+    return <></>;
   }
   if (session.status === 'cancelled' || session.status === 'no-show') {
     return (
@@ -22,9 +19,8 @@ export function SessionSymbol({ session, isSource }: { session: Session; isSourc
   }
   if (session.movedFromDate && session.movedFromDate !== session.plannedDate) {
     return (
-      <svg width="16" height="16" viewBox="0 0 16 16" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none">
-        <path d="M12 8H4" />
-        <path d="M7 5l-3 3 3 3" />
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="6" fill="#f97316" />
       </svg>
     );
   }
@@ -52,7 +48,7 @@ export function SessionSymbol({ session, isSource }: { session: Session; isSourc
       </svg>
     );
   }
-  // Scheduled, holiday, moved without date change, etc. — hollow outline
+  // Scheduled, holiday, etc. — hollow outline
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" stroke="#3b82f6" strokeWidth="2" fill="none">
       <circle cx="8" cy="8" r="6" />

@@ -199,17 +199,13 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const weekDays = useMemo(() => getWeekDays(currentWeekStart), [currentWeekStart]);
 
   const weekSessionsByDay = useMemo(() => {
-    const map = new Map<string, { session: Session; isSource: boolean }[]>();
+    const map = new Map<string, { session: Session }[]>();
     for (const day of weekDays) {
       map.set(dateKey(day), []);
     }
     for (const session of filteredSessions) {
       const list = map.get(session.plannedDate);
-      if (list) list.push({ session, isSource: false });
-      if (session.movedFromDate) {
-        const sourceList = map.get(session.movedFromDate);
-        if (sourceList) sourceList.push({ session, isSource: true });
-      }
+      if (list) list.push({ session });
     }
     return map;
   }, [filteredSessions, weekDays]);
@@ -481,11 +477,11 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                 <div className="flex flex-wrap justify-center gap-1 px-0.5 overflow-hidden">
                   {daySessions.map((entry) => (
                     <span
-                      key={`${entry.session.id}-${entry.isSource ? 'src' : 'dst'}`}
+                      key={entry.session.id}
                       className="inline-flex w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 [&_svg]:w-full [&_svg]:h-full"
                       title={getSessionDisplayName(classes, students, entry.session)}
                     >
-                      <SessionSymbol session={entry.session} isSource={entry.isSource} />
+                      <SessionSymbol session={entry.session} />
                     </span>
                   ))}
                 </div>
