@@ -92,12 +92,21 @@ export async function checkPreClassReminders(
 
   const now = new Date();
 
-  const upcoming = sessions.filter((session) => {
-    if (session.status !== 'scheduled') return false;
+  // Deduplicate by session ID up front: duplicate session rows (e.g. the same
+  // group class occurrence stored once per enrolled student) must produce a
+  // single reminder, and createReminder may only be called once per unique ID.
+  const upcomingById = new Map<string, Session>();
+  for (const session of sessions) {
+    if (session.status !== 'scheduled') continue;
+    if (upcomingById.has(session.id)) continue;
     const sessionTime = new Date(`${session.plannedDate}T${session.plannedTime}`);
     const diffMinutes = (sessionTime.getTime() - now.getTime()) / 60_000;
-    return diffMinutes > 0 && diffMinutes <= preClassMinutes;
-  });
+    if (diffMinutes > 0 && diffMinutes <= preClassMinutes) {
+      upcomingById.set(session.id, session);
+    }
+  }
+
+  const upcoming = [...upcomingById.values()];
 
   for (const session of upcoming) {
     if (reminderExists(existingReminders, 'pre_class', session.id)) continue;
