@@ -144,6 +144,25 @@ export function useReminders() {
     await fetchReminders();
   }, [fetchReminders]);
 
+  const clearHistory = useCallback(async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    const { error } = await supabase
+      .from('ck_reminders')
+      .delete()
+      .eq('user_id', userData.user.id)
+      .not('dismissed_at', 'is', null);
+
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[ClassKeep] Failed to clear reminder history:', error);
+    } else {
+      await fetchReminders();
+      await fetchReminderHistory();
+    }
+  }, [fetchReminders, fetchReminderHistory]);
+
   useEffect(() => {
     fetchReminders();
     fetchReminderHistory();
@@ -159,6 +178,7 @@ export function useReminders() {
     createReminder,
     dismissReminder,
     dismissAll,
+    clearHistory,
     getUnreadCount,
   };
 }

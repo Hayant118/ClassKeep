@@ -39,7 +39,7 @@ function formatRelativeTime(dateStr: string): string {
 
 export function RemindersView() {
   const navigate = useNavigate();
-  const { reminders, history, loading, dismissReminder, dismissAll } = useReminders();
+  const { reminders, history, loading, dismissReminder, dismissAll, clearHistory } = useReminders();
   const { sessions } = useSessions();
   const { enrollments } = useEnrollments();
   const [activeTab, setActiveTab] = useState<TabKey>('active');
@@ -81,6 +81,11 @@ export function RemindersView() {
         : 'bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-400 border border-slate-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-700'
     }`;
 
+  const handleClearHistory = async () => {
+    if (!confirm('Delete all reminder history? This cannot be undone.')) return;
+    await clearHistory();
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -101,13 +106,22 @@ export function RemindersView() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <button type="button" onClick={() => setActiveTab('active')} className={tabButtonClass('active')}>
           Active ({reminders.length})
         </button>
         <button type="button" onClick={() => setActiveTab('history')} className={tabButtonClass('history')}>
           History ({history.length})
         </button>
+        {activeTab === 'history' && history.length > 0 && (
+          <button
+            type="button"
+            onClick={handleClearHistory}
+            className="ml-auto text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            Delete history
+          </button>
+        )}
       </div>
 
       {/* List */}
