@@ -192,6 +192,7 @@ export function SessionModal({
   const [rateValue, setRateValue] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<Session['status']>('scheduled');
+  const [isAdditional, setIsAdditional] = useState(false);
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [repeatWeeks, setRepeatWeeks] = useState(4);
   const [studentSearch, setStudentSearch] = useState('');
@@ -251,6 +252,7 @@ export function SessionModal({
       setRateValue(session.rateValue?.toString() || '');
       setNotes(session.notes);
       setStatus(session.status);
+      setIsAdditional(session.isAdditional ?? false);
       setRepeatWeekly(false);
       setRepeatWeeks(4);
       setStudentSearch('');
@@ -269,6 +271,7 @@ export function SessionModal({
       setRateValue('');
       setNotes('');
       setStatus('scheduled');
+      setIsAdditional(false);
       setRepeatWeekly(false);
       setRepeatWeeks(4);
       setStudentSearch('');
@@ -390,6 +393,7 @@ export function SessionModal({
       rateValue: finalRateValue,
       totalCharge: nowCompleted ? charge : (session?.totalCharge ?? null),
       status,
+      isAdditional,
       movedFromDate,
       movedFromTime,
       notes: notes.trim(),
@@ -685,6 +689,21 @@ export function SessionModal({
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isAdditional}
+                onChange={(e) => setIsAdditional(e.target.checked)}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Additional / catch-up class
+            </label>
+            <p className="text-xs text-slate-500 mt-1">
+              Mark classes outside the regular schedule (make-ups, extra sessions)
+            </p>
           </div>
 
           <div>
