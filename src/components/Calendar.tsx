@@ -11,6 +11,15 @@ import { SessionModal } from './SessionModal';
 import { EventModal } from './EventModal';
 import { useSessions } from '../hooks/useSessions';
 import { useEvents } from '../hooks/useEvents';
+import {
+  addDaysInTz,
+  addMonthsInTz,
+  formatLongDateInTz,
+  formatMonthYearInTz,
+  formatWeekRangeInTz,
+  getDisplayTimezone,
+  startOfWeekInTz,
+} from '../utils/timezone';
 
 type CalendarView = 'day' | 'week' | 'month';
 
@@ -23,6 +32,7 @@ interface CalendarProps {
 }
 
 export function Calendar({ students, classes, enrollments = [] }: CalendarProps) {
+  const displayTimezone = getDisplayTimezone();
   const { preferences, loading: prefsLoading, setPreferences } = usePreferences();
   const { sessions, loading, error, fetchSessions, addSession, updateSession, deleteSession } = useSessions();
   const { events, fetchEvents, addEvent, updateEvent, deleteEvent } = useEvents();
@@ -75,7 +85,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
   const [editingSession, setEditingSession] = useState<Session | undefined>();
   const [createInitialDate, setCreateInitialDate] = useState('');
   const [createInitialTime, setCreateInitialTime] = useState('08:00');
-  const [createInitialTimezone, setCreateInitialTimezone] = useState<string>('Asia/Shanghai');
+  const [createInitialTimezone, setCreateInitialTimezone] = useState<string>(() => getDisplayTimezone());
 
   // Build a map of classId -> studentIds for filtering
   const classToStudents = useMemo(() => {
@@ -179,26 +189,22 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
   const goToToday = () => setCurrentDate(new Date());
 
   const movePrevious = () => {
-    const d = new Date(currentDate);
-    if (view === 'day') d.setDate(d.getDate() - 1);
-    else if (view === 'week') d.setDate(d.getDate() - 7);
-    else d.setMonth(d.getMonth() - 1);
-    setCurrentDate(d);
+    if (view === 'day') setCurrentDate(addDaysInTz(currentDate, -1, displayTimezone));
+    else if (view === 'week') setCurrentDate(addDaysInTz(currentDate, -7, displayTimezone));
+    else setCurrentDate(addMonthsInTz(currentDate, -1, displayTimezone));
   };
 
   const moveNext = () => {
-    const d = new Date(currentDate);
-    if (view === 'day') d.setDate(d.getDate() + 1);
-    else if (view === 'week') d.setDate(d.getDate() + 7);
-    else d.setMonth(d.getMonth() + 1);
-    setCurrentDate(d);
+    if (view === 'day') setCurrentDate(addDaysInTz(currentDate, 1, displayTimezone));
+    else if (view === 'week') setCurrentDate(addDaysInTz(currentDate, 7, displayTimezone));
+    else setCurrentDate(addMonthsInTz(currentDate, 1, displayTimezone));
   };
 
   const openCreateModal = (dateKey: string, time: string, timezone?: string) => {
     setEditingSession(undefined);
     setCreateInitialDate(dateKey);
     setCreateInitialTime(time);
-    setCreateInitialTimezone(timezone ?? 'Asia/Shanghai');
+    setCreateInitialTimezone(timezone ?? displayTimezone);
     setIsModalOpen(true);
   };
 
@@ -206,7 +212,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     setEditingSession(session);
     setCreateInitialDate('');
     setCreateInitialTime('');
-    setCreateInitialTimezone('Asia/Shanghai');
+    setCreateInitialTimezone(displayTimezone);
     setIsModalOpen(true);
   };
 
@@ -291,19 +297,20 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     }
   };
 
+  const weekStart = useMemo(
+    () => startOfWeekInTz(currentDate, displayTimezone),
+    [currentDate, displayTimezone]
+  );
+
   const title = useMemo(() => {
     if (view === 'week') {
-      const start = new Date(currentDate);
-      start.setDate(start.getDate() - start.getDay() + 1);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 6);
-      return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+      return formatWeekRangeInTz(weekStart, displayTimezone);
     }
     if (view === 'month') {
-      return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(currentDate);
+      return formatMonthYearInTz(currentDate, displayTimezone);
     }
-    return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(currentDate);
-  }, [view, currentDate]);
+    return formatLongDateInTz(currentDate, displayTimezone);
+  }, [view, currentDate, weekStart, displayTimezone]);
 
   if (loading || prefsLoading) return <div className="p-8 text-center text-slate-500">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
@@ -438,7 +445,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
       {view === 'day' && (
         <DayView
           day={currentDate}
-          timezone="Asia/Shanghai"
+          timezone={displayTimezone}
           students={students}
           classes={classes}
           enrollments={enrollments}
@@ -451,8 +458,8 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
       )}
       {view === 'week' && (
         <WeekView
-          weekStart={currentDate}
-          timezone="Asia/Shanghai"
+          weekStart={weekStart}
+          timezone={displayTimezone}
           students={students}
           classes={classes}
           enrollments={enrollments}
@@ -466,7 +473,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
       {view === 'month' && (
         <MonthView
           monthStart={currentDate}
-          timezone="Asia/Shanghai"
+          timezone={displayTimezone}
           students={students}
           classes={classes}
           enrollments={enrollments}
@@ -474,12 +481,10 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
           events={events}
           onEditEvent={openEditEventModal}
           onMonthChange={(offset) => {
-            const d = new Date(currentDate);
-            d.setMonth(d.getMonth() + offset);
-            setCurrentDate(d);
+            setCurrentDate(addMonthsInTz(currentDate, offset, displayTimezone));
           }}
           onSessionClick={openEditModal}
-          onAddSession={(dateKey) => openCreateModal(dateKey, preferences.calendarStartTime.slice(0, 5), 'Asia/Shanghai')}
+          onAddSession={(dateKey) => openCreateModal(dateKey, preferences.calendarStartTime.slice(0, 5), displayTimezone)}
           onDeleteSession={handleDeleteSession}
         />
       )}

@@ -3,8 +3,49 @@ import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
 export const DEFAULT_TIMEZONE = 'Asia/Shanghai';
 
+const DISPLAY_TIMEZONE_STORAGE_KEY = 'classkeep.displayTimezone';
+
+export function getDisplayTimezone(): string {
+  try {
+    const stored = localStorage.getItem(DISPLAY_TIMEZONE_STORAGE_KEY);
+    if (stored) return stored;
+  } catch {
+    // localStorage unavailable (e.g. SSR); fall through to default.
+  }
+  return DEFAULT_TIMEZONE;
+}
+
 export function getTeacherTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+/**
+ * Returns a Date whose *local* fields match the wall clock in the given
+ * timezone. Useful when downstream code formats dates using the browser's
+ * local getters but should conceptually operate in the display timezone.
+ */
+export function wallClockInTz(date: Date, timezone: string): Date {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date);
+    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+    return new Date(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  } catch (err) {
+    console.warn('[ClassKeep] Failed to compute wall clock in timezone, using local time.', { timezone, err });
+    return date;
+  }
+}
+
+export function getNowInDisplayTz(): Date {
+  return wallClockInTz(new Date(), getDisplayTimezone());
 }
 
 function formatDateKey(date: Date): string {
@@ -153,6 +194,16 @@ export function getCalendarDaysForMonth(
     days.push(fromZonedTime(format(zonedDay, 'yyyy-MM-dd HH:mm:ss'), timezone));
   }
   return days;
+}
+
+export function formatLongDateInTz(utcDate: Date, timezone: string): string {
+  try {
+    const safe = safeDateInput(utcDate, 'formatLongDateInTz');
+    return format(toZonedTime(safe, timezone), 'EEEE, MMMM d');
+  } catch (err) {
+    console.warn('[ClassKeep] Failed to format long date.', { utcDate, timezone, err });
+    return 'Invalid';
+  }
 }
 
 export function formatMonthYearInTz(utcDate: Date, timezone: string): string {

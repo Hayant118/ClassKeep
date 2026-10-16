@@ -1,7 +1,7 @@
 // src/components/HomeView.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, UserX } from 'lucide-react';
+import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, UserX, ArrowRightLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSessions } from '../hooks/useSessions';
 import { useProposals } from '../hooks/useProposals';
@@ -10,6 +10,7 @@ import { SessionModal } from './SessionModal';
 import type { Reminder, Student, Class, Enrollment, Session } from '../types';
 import { CURATED_PALETTE, DEFAULT_COLOR, normalizeColor } from '../utils/colors';
 import { SessionSymbol } from '../utils/sessionSymbols';
+import { getNowInDisplayTz } from '../utils/timezone';
 
 interface HomeViewProps {
   students: Student[];
@@ -25,11 +26,12 @@ function formatLocalDateKey(date: Date): string {
 }
 
 function todayStr(): string {
-  return formatLocalDateKey(new Date());
+  return formatLocalDateKey(getNowInDisplayTz());
 }
 
 function formatToday(dateStr: string): string {
-  const date = new Date(dateStr);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
   return date.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -40,7 +42,7 @@ function formatToday(dateStr: string): string {
 
 function dateKey(date: Date): string {
   if (!(date instanceof Date) || isNaN(date.getTime())) {
-    return formatLocalDateKey(new Date());
+    return formatLocalDateKey(getNowInDisplayTz());
   }
   return formatLocalDateKey(date);
 }
@@ -68,6 +70,34 @@ function getWeekDays(weekStart: Date): Date[] {
     d.setDate(d.getDate() + i);
     return d;
   });
+}
+
+const DISMISSED_POSTCLASS_KEY = 'classkeep-dismissed-postclass';
+const POSTCLASS_GRACE_MINUTES = 15;
+
+function readDismissedPostClassIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DISMISSED_POSTCLASS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeDismissedPostClassIds(ids: Set<string>): void {
+  try {
+    localStorage.setItem(DISMISSED_POSTCLASS_KEY, JSON.stringify(Array.from(ids)));
+  } catch {
+    // Storage unavailable; dismissal just won't persist.
+  }
+}
+
+/** End-of-session as a wall-clock Date on the display timezone's calendar. */
+function getSessionEndWallClock(session: Session): Date {
+  const [y, m, d] = session.plannedDate.split('-').map(Number);
+  const [hh, mm] = session.plannedTime.slice(0, 5).split(':').map(Number);
+  return new Date(y, m - 1, d, hh, mm + session.durationMinutes);
 }
 
 function getSessionDisplayName(classes: Class[], students: Student[], session: Session): string {
@@ -152,9 +182,12 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const [editingSession, setEditingSession] = useState<Session | undefined>();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showAllReminders, setShowAllReminders] = useState(false);
+  const [dismissedPostClassIds, setDismissedPostClassIds] = useState<Set<string>>(() =>
+    readDismissedPostClassIds()
+  );
 
   const today = todayStr();
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(getNowInDisplayTz()));
   const [selectedDayKey, setSelectedDayKey] = useState<string>(today);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(() => new Set());
   const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set());
@@ -215,6 +248,34 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     [sessions, today]
   );
 
+  // Post-class summary: scheduled sessions from today or earlier whose end
+  // (plus grace period) has already passed in the display timezone.
+  const unmarkedPostClassSessions = useMemo(() => {
+    const now = getNowInDisplayTz();
+    return sessions
+      .filter((session) => {
+        if (session.status !== 'scheduled') return false;
+        if (session.plannedDate > today) return false;
+        const graceMs = POSTCLASS_GRACE_MINUTES * 60 * 1000;
+        return now.getTime() > getSessionEndWallClock(session).getTime() + graceMs;
+      })
+      .sort((a, b) =>
+        `${a.plannedDate} ${a.plannedTime}`.localeCompare(`${b.plannedDate} ${b.plannedTime}`)
+      );
+  }, [sessions, today]);
+
+  const visiblePostClassSessions = useMemo(
+    () => unmarkedPostClassSessions.filter((session) => !dismissedPostClassIds.has(session.id)),
+    [unmarkedPostClassSessions, dismissedPostClassIds]
+  );
+
+  const dismissPostClassBanner = () => {
+    const next = new Set(dismissedPostClassIds);
+    for (const session of visiblePostClassSessions) next.add(session.id);
+    setDismissedPostClassIds(next);
+    writeDismissedPostClassIds(next);
+  };
+
   const pendingProposalsCount = useMemo(
     () => proposals.filter((p) => p.status === 'draft').length,
     [proposals]
@@ -254,7 +315,7 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   };
 
   const goToToday = () => {
-    setCurrentWeekStart(getWeekStart(new Date()));
+    setCurrentWeekStart(getWeekStart(getNowInDisplayTz()));
     setSelectedDayKey(today);
   };
   const movePrevious = () => {
@@ -343,6 +404,75 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Post-class summary banner */}
+      {visiblePostClassSessions.length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 dark:bg-amber-900/20 dark:border-amber-700">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <h2 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                {visiblePostClassSessions.length === 1
+                  ? 'You have 1 unmarked class from today'
+                  : `You have ${visiblePostClassSessions.length} unmarked classes from today`}
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={dismissPostClassBanner}
+              className="text-xs font-medium text-amber-700 hover:text-amber-900 px-2 py-1 rounded hover:bg-amber-100 dark:text-amber-300 dark:hover:text-amber-100 dark:hover:bg-amber-900/40 shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+          <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+            Don't forget to mark your classes!
+          </p>
+          <ul className="mt-3 space-y-2">
+            {visiblePostClassSessions.map((session) => (
+              <li
+                key={session.id}
+                className="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-white border border-amber-200 dark:bg-gray-800 dark:border-amber-800"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                    {getSessionDisplayName(classes, students, session)}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-gray-400">
+                    {session.plannedDate} · {session.plannedTime.slice(0, 5)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickStatus(session, 'completed')}
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-medium hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/50"
+                  >
+                    <Check className="w-3 h-3" />
+                    Taught
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickStatus(session, 'cancelled')}
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-red-200 bg-red-50 text-red-700 text-[10px] font-medium hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-900/50"
+                  >
+                    <X className="w-3 h-3" />
+                    Cancelled
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickStatus(session, 'moved')}
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-slate-200 bg-white text-slate-600 text-[10px] font-medium hover:bg-slate-100 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+                  >
+                    <ArrowRightLeft className="w-3 h-3" />
+                    Moved
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Reminder notifications */}
       {reminders.length > 0 && (
         <div className="bg-slate-900 rounded-xl border border-slate-700 p-3 space-y-2">
