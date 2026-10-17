@@ -322,7 +322,7 @@ export function StudentsView() {
   if (studentsLoading || classesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-slate-500">Loading...</div>
+        <div className="text-slate-500 dark:text-gray-400">Loading...</div>
       </div>
     );
   }
@@ -338,15 +338,15 @@ export function StudentsView() {
   return (
     <div className="space-y-8">
       {/* Student Form */}
-      <div ref={formRef} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 scroll-mt-4">
-        <h2 className="text-lg font-semibold text-slate-800 mb-4">
+      <div ref={formRef} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6 scroll-mt-4">
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-4">
           {editingId ? 'Edit Student' : 'Add Student'}
         </h2>
 
         <form onSubmit={handleStudentSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1">Name</label>
               <input
                 ref={nameInputRef}
                 type="text"
@@ -359,7 +359,7 @@ export function StudentsView() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Contact</label>
+              <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1">Contact</label>
               <input
                 type="text"
                 value={contact}
@@ -372,8 +372,8 @@ export function StudentsView() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Default hourly rate <span className="text-xs font-normal text-slate-500">(1-on-1)</span>
+              <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1">
+                Default hourly rate <span className="text-xs font-normal text-slate-500 dark:text-gray-500">(1-on-1)</span>
               </label>
               <input
                 type="number"
@@ -387,7 +387,7 @@ export function StudentsView() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Timezone</label>
+              <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1">Timezone</label>
               <select
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
@@ -404,14 +404,14 @@ export function StudentsView() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Color <span className="text-xs font-normal text-slate-500">(manual override)</span>
+              <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1">
+                Color <span className="text-xs font-normal text-slate-500 dark:text-gray-500">(manual override)</span>
               </label>
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setColor('')}
-                  className={`w-7 h-7 rounded-full border flex items-center justify-center text-[10px] font-medium text-slate-500 ${
+                  className={`w-7 h-7 rounded-full border flex items-center justify-center text-[10px] font-medium text-slate-500 dark:text-gray-500 ${
                     !color ? 'border-slate-900 ring-2 ring-offset-1 ring-slate-400' : 'border-slate-200 bg-white'
                   }`}
                   title="Auto-assign"
@@ -446,13 +446,13 @@ export function StudentsView() {
                   className="flex-1 min-w-[80px] rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-gray-500 mt-1">
                 Leave blank to auto-assign a color.
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Family Group</label>
+              <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1">Family Group</label>
               <input
                 type="text"
                 value={familyGroup}
@@ -466,7 +466,7 @@ export function StudentsView() {
                   <option key={group} value={group} />
                 ))}
               </datalist>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 dark:text-gray-500 mt-1">
                 Siblings in the same group get shades of the same hue.
               </p>
             </div>
@@ -494,9 +494,9 @@ export function StudentsView() {
       </div>
 
       {/* Group Class Management — student-first model: classes are GROUPS only */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h2 className="text-lg font-semibold text-slate-800 mb-1">Group Classes</h2>
-        <p className="text-xs text-slate-500 mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-1">Group Classes</h2>
+        <p className="text-xs text-slate-500 dark:text-gray-500 mb-4">
           1-on-1 lessons need no class — schedule students directly on the calendar.
         </p>
 
@@ -539,7 +539,7 @@ export function StudentsView() {
 
         {/* Group Classes List */}
         {groupClasses.length === 0 ? (
-          <p className="text-slate-500 text-sm">
+          <p className="text-sm text-slate-500 dark:text-gray-400">
             No group classes yet. Create one above, or schedule students directly on the calendar for 1-on-1 lessons.
           </p>
         ) : (
@@ -552,7 +552,7 @@ export function StudentsView() {
               );
               const availableStudents = students.filter((s) => !enrolledIds.has(s.id));
               return (
-                <div key={cls.id} className="border border-slate-200 rounded-lg p-4">
+                <div key={cls.id} className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm p-4">
                   {isEditing ? (
                     <form onSubmit={(e) => handleUpdateClass(e, cls.id)} className="flex flex-col sm:flex-row flex-wrap gap-3">
                       <input
@@ -599,8 +599,8 @@ export function StudentsView() {
                   ) : (
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-medium text-slate-800 truncate">{cls.name}</div>
-                        <div className="text-xs text-slate-500">
+                        <div className="font-medium text-slate-800 dark:text-white truncate">{cls.name}</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">
                           Group · {classStudents.length}/{cls.maxCapacity} students
                           {cls.defaultRate != null && ` · ${cls.defaultRate.toFixed(2)}/hr class rate`}
                         </div>
@@ -673,7 +673,7 @@ export function StudentsView() {
 
                   {/* Add existing student */}
                   {availableStudents.length > 0 && (
-                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <div className="mt-3 flex flex-col sm:flex-row gap-3">
                       <select
                         value={enrollPickByClass[cls.id] ?? ''}
                         onChange={(e) =>
@@ -697,7 +697,7 @@ export function StudentsView() {
                   )}
 
                   {/* Quick-create new student straight into the class */}
-                  <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                  <div className="mt-2 flex flex-col sm:flex-row gap-3">
                     <input
                       type="text"
                       value={quickNameByClass[cls.id] ?? ''}
@@ -729,30 +729,30 @@ export function StudentsView() {
       </div>
 
       {/* Students List */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-800">Students ({oneOnOneStudents.length})</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Students ({oneOnOneStudents.length})</h2>
         </div>
 
         {oneOnOneStudents.length === 0 ? (
-          <div className="px-6 py-10 text-center text-slate-500">
+          <div className="px-6 py-10 text-center text-slate-500 dark:text-gray-400">
             No students yet. Add one above.
           </div>
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="space-y-3">
             {groupedStudents.map(([group, groupStudents]) => {
               const familyColor = groupStudents.find((s) => s.color)?.color || '#94a3b8';
               return (
                 <div key={group}>
-                  <div className="px-6 py-2 bg-slate-50 text-sm font-semibold text-slate-700 border-b border-slate-200 flex items-center gap-2">
+                  <div className="px-6 py-2 bg-slate-50 dark:bg-gray-900/50 text-sm font-semibold text-slate-600 dark:text-gray-400 border-b border-slate-200 dark:border-gray-700 flex items-center gap-3">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: familyColor }} />
                     {group} ({groupStudents.length})
                   </div>
                   <ul
-                    className="border-l-4 ml-4 sm:ml-6"
+                    className="border-l-4 ml-4 sm:ml-6 space-y-3 py-3 pr-3"
                     style={{ borderColor: familyColor }}
                   >
-                    {groupStudents.map((student, idx) => {
+                    {groupStudents.map((student) => {
                       const studentEnrollments = getStudentEnrollments(student.id);
                       const detailParts = [
                         student.contact,
@@ -761,27 +761,25 @@ export function StudentsView() {
                       return (
                         <li
                           key={student.id}
-                          className={`pl-4 pr-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-slate-50 transition-colors ${
-                            idx !== groupStudents.length - 1 ? 'border-b border-slate-200' : ''
-                          }`}
+                          className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors"
                         >
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-3">
                               <span
                                 className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: student.color || '#6366f1' }}
                               />
-                              <p className="font-medium text-slate-900">
+                              <p className="font-medium text-slate-900 dark:text-white">
                                 {student.name}
                               </p>
                             </div>
                             {detailParts.length > 0 && (
-                              <p className="text-sm text-slate-500 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                              <p className="text-sm text-slate-600 dark:text-gray-400 mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
                                 {detailParts.join(' • ')}
                               </p>
                             )}
                             {student.notes.trim() && (
-                              <p className="text-sm text-slate-500 mt-1">{student.notes}</p>
+                              <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">{student.notes}</p>
                             )}
                             {studentEnrollments.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-2">

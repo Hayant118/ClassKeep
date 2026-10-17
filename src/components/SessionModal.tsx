@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { sessionsOverlap } from '../utils/calendar';
 import { findEventForDate, getEventTypeLabel } from '../utils/events';
 import type { Session, Student, Class, Enrollment, Guest, CalendarEvent } from '../types';
+import { Button } from './Button';
 
 function isValidDateString(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -499,7 +500,7 @@ export function SessionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-800">
             {isDraft ? (isEditing ? 'Edit Draft Session' : 'New Draft Session') : isEditing ? 'Edit Session' : 'New Session'}
@@ -728,9 +729,9 @@ export function SessionModal({
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">{isDraft ? 'Save Draft' : isEditing ? 'Save Changes' : 'Save Session'}</button>
-            {isEditing && <button type="button" onClick={handleDelete} className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">Delete</button>}
-            <button type="button" onClick={onClose} className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-sm font-medium px-4 py-2 rounded-lg transition-colors">Cancel</button>
+            <Button type="submit" variant="primary" className="flex-1">{isDraft ? 'Save Draft' : isEditing ? 'Save Changes' : 'Save Session'}</Button>
+            {isEditing && <Button type="button" variant="danger" className="flex-1" onClick={handleDelete}>Delete</Button>}
+            <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
           </div>
         </form>
       </div>

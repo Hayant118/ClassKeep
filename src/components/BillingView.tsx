@@ -80,9 +80,9 @@ function SummaryCard({ icon, label, value, subtext }: SummaryCardProps) {
           {icon}
         </div>
         <div>
-          <div className="text-xs text-slate-500 dark:text-gray-400">{label}</div>
+          <div className="text-xs text-slate-500 dark:text-gray-500">{label}</div>
           <div className="text-lg font-bold text-slate-900 dark:text-white">{value}</div>
-          {subtext && <div className="text-xs text-slate-500 dark:text-gray-400">{subtext}</div>}
+          {subtext && <div className="text-xs text-slate-500 dark:text-gray-500">{subtext}</div>}
         </div>
       </div>
     </div>
@@ -134,7 +134,7 @@ function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: 
   if (active && payload && payload.length) {
     return (
       <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
-        <p className="text-xs text-slate-500 dark:text-gray-400">{label}</p>
+        <p className="text-xs text-slate-500 dark:text-gray-500">{label}</p>
         <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(payload[0].value)}</p>
       </div>
     );
@@ -149,7 +149,7 @@ function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ n
     return (
       <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
         <p className="text-sm font-semibold text-slate-900 dark:text-white">{p.name}</p>
-        <p className="text-xs text-slate-500 dark:text-gray-400">
+        <p className="text-xs text-slate-500 dark:text-gray-500">
           {formatCurrency(p.value)} ({percent}%)
         </p>
       </div>
@@ -163,7 +163,7 @@ function BarTooltip({ active, payload }: { active?: boolean; payload?: Array<{ v
     return (
       <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
         <p className="text-sm font-semibold text-slate-900 dark:text-white">{payload[0].payload.name}</p>
-        <p className="text-xs text-slate-500 dark:text-gray-400">{formatCurrency(payload[0].value)}</p>
+        <p className="text-xs text-slate-500 dark:text-gray-500">{formatCurrency(payload[0].value)}</p>
       </div>
     );
   }
@@ -174,7 +174,7 @@ function StudentTooltip({ active, payload }: { active?: boolean; payload?: Array
   if (active && payload && payload.length) {
     return (
       <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
-        <p className="text-xs text-slate-500 dark:text-gray-400">{payload[0].payload.month}</p>
+        <p className="text-xs text-slate-500 dark:text-gray-500">{payload[0].payload.month}</p>
         <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(payload[0].value)}</p>
       </div>
     );
@@ -498,7 +498,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
             className="w-4 h-4 rounded-full shrink-0"
             style={{ backgroundColor: student?.color || '#94a3b8' }}
           />
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
             {student?.name || 'Former student (deleted)'}
           </h3>
         </div>
@@ -506,32 +506,32 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <div>
-              <div className="text-xs text-slate-500 dark:text-gray-400">Projected</div>
+              <div className="text-xs text-slate-500 dark:text-gray-500">Projected</div>
               <div className="text-lg font-bold text-slate-900 dark:text-white">
                 {formatCurrency(breakdownDetail.projected)}
               </div>
             </div>
             <div>
-              <div className="text-xs text-slate-500 dark:text-gray-400">Earned</div>
+              <div className="text-xs text-slate-500 dark:text-gray-500">Earned</div>
               <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                 {formatCurrency(breakdownDetail.earned)}
               </div>
             </div>
             <div>
-              <div className="text-xs text-slate-500 dark:text-gray-400">Received</div>
+              <div className="text-xs text-slate-500 dark:text-gray-500">Received</div>
               <div className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
                 {formatCurrency(breakdownDetail.received)}
               </div>
             </div>
             <div>
-              <div className="text-xs text-slate-500 dark:text-gray-400">Lost (cancelled)</div>
+              <div className="text-xs text-slate-500 dark:text-gray-500">Lost (cancelled)</div>
               <div className="text-lg font-bold text-red-600 dark:text-red-400">
                 {formatCurrency(breakdownDetail.lost)}
               </div>
             </div>
           </div>
           {breakdownDetail.received === 0 && !breakdownDetail.hasEnrollments && student && (
-            <p className="text-xs text-slate-400 dark:text-gray-500 mt-3 text-center">
+            <p className="text-xs text-slate-500 dark:text-gray-500 mt-3 text-center">
               Payment tracking requires an enrollment — record 1-on-1 payments against a group class enrollment, or wait for the solo-payment update.
             </p>
           )}
@@ -541,7 +541,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           <button
             type="button"
             onClick={() => setDetailMonthOffset((o) => o - 1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
           >
             ← Prev
           </button>
@@ -555,7 +555,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           <button
             type="button"
             onClick={() => setDetailMonthOffset((o) => o + 1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
           >
             Next →
           </button>
@@ -574,7 +574,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-gray-700">
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
               Sessions · {monthLabel(breakdownDetail.monthKey)}
             </h3>
           </div>
@@ -601,7 +601,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                       <div className="text-sm font-medium text-slate-900 dark:text-white">
                         {dateLabel} · {s.plannedTime.slice(0, 5)}
                       </div>
-                      <div className="text-xs text-slate-500 dark:text-gray-400">
+                      <div className="text-xs text-slate-500 dark:text-gray-500">
                         {s.durationMinutes} min · {STATUS_LABELS[s.status] || s.status}
                         {s.classId &&
                           ` · ${classes.find((c) => c.id === s.classId)?.name ?? 'Group class'}`}
@@ -613,7 +613,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                           ? 'text-red-500 dark:text-red-400 line-through'
                           : s.status === 'completed'
                             ? 'text-emerald-600 dark:text-emerald-400'
-                            : 'text-slate-700 dark:text-gray-200'
+                            : 'text-slate-900 dark:text-white'
                       }`}
                     >
                       {formatCurrency(charge)}
@@ -625,7 +625,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           )}
           {breakdownDetail.monthSessions.length > 0 && (
             <div className="px-4 py-3 border-t border-slate-200 dark:border-gray-700 flex items-center justify-between text-sm">
-              <span className="font-medium text-slate-700 dark:text-gray-200">Projected total</span>
+              <span className="font-medium text-slate-900 dark:text-white">Projected total</span>
               <span className="font-bold text-slate-900 dark:text-white">
                 {formatCurrency(breakdownDetail.projected)}
               </span>
@@ -661,7 +661,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           <button
             type="button"
             onClick={() => setSelectedMonthOffset((o) => o - 1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
           >
             ← Prev
           </button>
@@ -676,7 +676,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           <button
             type="button"
             onClick={() => setSelectedMonthOffset((o) => o + 1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
           >
             Next →
           </button>
@@ -705,7 +705,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           value={
             <div className="space-y-0.5">
               <div>Projected {formatCurrency(selectedMonthProjected)}</div>
-              <div className="text-sm font-semibold text-slate-500 dark:text-gray-400">
+              <div className="text-sm font-semibold text-slate-600 dark:text-gray-400">
                 Actual so far {formatCurrency(selectedMonthIncome)}
               </div>
             </div>
@@ -733,7 +733,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       {monthlyBreakdown.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-gray-700">
-            <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">{selectedMonthLabel} by Student</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">{selectedMonthLabel} by Student</h3>
           </div>
           <ul className="divide-y divide-slate-100 dark:divide-gray-700">
             {monthlyBreakdown.map((row) => {
@@ -748,7 +748,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     <span className="block text-sm font-medium text-slate-900 dark:text-white break-words">
                       {isGroupBucket ? 'Group classes' : row.student?.name || 'Former student (deleted)'}
                     </span>
-                    <span className="block text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                    <span className="block text-xs text-slate-500 dark:text-gray-500 mt-0.5">
                       {row.scheduledCount} scheduled · {row.completedCount} completed
                       {row.student && !row.hasRate && (
                         <span className="ml-2 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
@@ -760,7 +760,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                   <span className="text-sm font-semibold text-slate-900 dark:text-white whitespace-nowrap">
                     {formatCurrency(row.projectedFee)}
                   </span>
-                  {!isGroupBucket && <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+                  {!isGroupBucket && <ChevronRight className="w-4 h-4 text-slate-400 dark:text-gray-500 shrink-0" />}
                 </>
               );
               return (
@@ -837,7 +837,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
             </div>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-4">Income Trend</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-4">Income Trend</h3>
               <ResponsiveContainer width="100%" height={250}>
                 {chartType === 'line' ? (
                   <LineChart data={trendData}>
@@ -889,7 +889,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
             </div>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-4">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-4">
                 {incomeView === 'group' ? 'Income by Class' : 'Income by Student'}
               </h3>
               {pieData.length > 6 ? (
@@ -959,7 +959,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                         className="w-4 h-4 rounded-full"
                         style={{ backgroundColor: selectedStudent.color || '#6366f1' }}
                       />
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-white">{selectedStudent.studentName}</h3>
+                      <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-100">{selectedStudent.studentName}</h3>
                     </div>
 
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -971,16 +971,16 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
 
                     <div className="grid grid-cols-3 gap-4">
                       <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm text-center">
-                        <div className="text-xs text-slate-500 dark:text-gray-400">Completed</div>
-                        <div className="text-xl font-bold text-slate-900 dark:text-white">{completedCount}</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">Completed</div>
+                        <div className="text-lg font-bold text-slate-900 dark:text-white">{completedCount}</div>
                       </div>
                       <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm text-center">
-                        <div className="text-xs text-slate-500 dark:text-gray-400">Cancelled</div>
-                        <div className="text-xl font-bold text-slate-900 dark:text-white">{cancelledCount}</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">Cancelled</div>
+                        <div className="text-lg font-bold text-slate-900 dark:text-white">{cancelledCount}</div>
                       </div>
                       <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm text-center">
-                        <div className="text-xs text-slate-500 dark:text-gray-400">Avg Rate</div>
-                        <div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedStudent.averageRate)}</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">Avg Rate</div>
+                        <div className="text-lg font-bold text-slate-900 dark:text-white">{formatCurrency(selectedStudent.averageRate)}</div>
                       </div>
                     </div>
 
@@ -991,7 +991,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     )}
 
                     <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
-                      <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200 mb-4">6-Month Trend</h3>
+                      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-4">6-Month Trend</h3>
                       {selectedStudent.trend.every((t) => t.income === 0) ? (
                         <div className="p-8 text-center text-slate-500 dark:text-gray-400">No recent income data.</div>
                       ) : (
@@ -1052,21 +1052,21 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                           Prepaid
                         </span>
                       )}
-                      <span className="ml-auto text-slate-400 shrink-0">
+                      <span className="ml-auto text-slate-400 dark:text-gray-500 shrink-0">
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </span>
                     </button>
                     <div className="grid grid-cols-3 gap-3 text-sm">
                       <div>
-                        <div className="text-xs text-slate-500 dark:text-gray-400">{selectedMonthLabel}</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">{selectedMonthLabel}</div>
                         <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(familyMonthIncome)}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-slate-500 dark:text-gray-400">Sessions</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">Sessions</div>
                         <div className="font-semibold text-slate-900 dark:text-white">{familySessions}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-slate-500 dark:text-gray-400">Family Total</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">Family Total</div>
                         <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(familyIncome)}</div>
                       </div>
                     </div>
@@ -1085,7 +1085,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                             >
                               {member.studentName}
                             </button>
-                            <span className="ml-auto text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap">
+                            <span className="ml-auto text-xs text-slate-500 dark:text-gray-500 whitespace-nowrap">
                               {member.sessionCount} sessions
                             </span>
                             <span className="text-sm font-semibold text-slate-900 dark:text-white whitespace-nowrap">
@@ -1125,19 +1125,19 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     </div>
                     <div className="grid grid-cols-3 gap-3 text-sm">
                       <div>
-                        <div className="text-xs text-slate-500 dark:text-gray-400">{selectedMonthLabel}</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">{selectedMonthLabel}</div>
                         <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(thisMonthIncome)}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-slate-500 dark:text-gray-400">Sessions</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">Sessions</div>
                         <div className="font-semibold text-slate-900 dark:text-white">{metric.sessionCount}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-slate-500 dark:text-gray-400">Avg Rate</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">Avg Rate</div>
                         <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(metric.averageRate)}</div>
                       </div>
                     </div>
-                    <div className="mt-3 text-xs text-slate-500 dark:text-gray-400">
+                    <div className="mt-3 text-xs text-slate-500 dark:text-gray-500">
                       All-time income: {formatCurrency(metric.income)}
                     </div>
                   </button>
@@ -1174,15 +1174,15 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     </div>
                     <div className="grid grid-cols-3 gap-3 text-sm">
                       <div>
-                        <div className="text-xs text-slate-500 dark:text-gray-400">Total Income</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">Total Income</div>
                         <div className="font-semibold text-slate-900 dark:text-white">{formatCurrencyCompact(metric.income)}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-slate-500 dark:text-gray-400">Sessions</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">Sessions</div>
                         <div className="font-semibold text-slate-900 dark:text-white">{metric.sessionCount}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-slate-500 dark:text-gray-400">Students</div>
+                        <div className="text-xs text-slate-500 dark:text-gray-500">Students</div>
                         <div className="font-semibold text-slate-900 dark:text-white">{studentCount}</div>
                       </div>
                     </div>

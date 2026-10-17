@@ -11,6 +11,7 @@ import type { Reminder, Student, Class, Enrollment, Session } from '../types';
 import { CURATED_PALETTE, DEFAULT_COLOR, normalizeColor } from '../utils/colors';
 import { SessionSymbol } from '../utils/sessionSymbols';
 import { getNowInDisplayTz } from '../utils/timezone';
+import { Button } from './Button';
 
 interface HomeViewProps {
   students: Student[];
@@ -416,13 +417,9 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                   : `You have ${visiblePostClassSessions.length} unmarked classes from today`}
               </h2>
             </div>
-            <button
-              type="button"
-              onClick={dismissPostClassBanner}
-              className="text-xs font-medium text-amber-700 hover:text-amber-900 px-2 py-1 rounded hover:bg-amber-100 dark:text-amber-300 dark:hover:text-amber-100 dark:hover:bg-amber-900/40 shrink-0"
-            >
+            <Button variant="ghost" onClick={dismissPostClassBanner} className="shrink-0">
               Dismiss
-            </button>
+            </Button>
           </div>
           <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
             Don't forget to mark your classes!
@@ -437,7 +434,7 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                   <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
                     {getSessionDisplayName(classes, students, session)}
                   </p>
-                  <p className="text-xs text-slate-500 dark:text-gray-400">
+                  <p className="text-xs text-slate-500 dark:text-gray-500">
                     {session.plannedDate} · {session.plannedTime.slice(0, 5)}
                   </p>
                 </div>
@@ -519,12 +516,12 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold text-indigo-600 tracking-tight">ClassKeep</h1>
-            <p className="text-slate-500 dark:text-gray-400 text-sm mt-1">{formatToday(today)}</p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">ClassKeep</h1>
+            <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">{formatToday(today)}</p>
           </div>
 
           {isLoading ? (
-            <div className="text-slate-400 text-sm">Loading dashboard...</div>
+            <div className="text-sm text-slate-500 dark:text-gray-500">Loading dashboard...</div>
           ) : (
             <div className="flex gap-3">
               <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl px-4 py-3 text-center min-w-[100px]">
@@ -546,31 +543,19 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex flex-col gap-3 mb-3">
           <div className="flex items-center gap-2 flex-nowrap">
-            <button
-              type="button"
-              onClick={movePrevious}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 shrink-0 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
+            <Button variant="secondary" onClick={movePrevious} className="inline-flex items-center gap-1 shrink-0">
               <ChevronLeft className="w-4 h-4 shrink-0" />
               <span className="hidden sm:inline">Prev</span>
-            </button>
-            <button
-              type="button"
-              onClick={goToToday}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 shrink-0 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
+            </Button>
+            <Button variant="secondary" onClick={goToToday} className="shrink-0">
               Today
-            </button>
-            <button
-              type="button"
-              onClick={moveNext}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 shrink-0 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
+            </Button>
+            <Button variant="secondary" onClick={moveNext} className="inline-flex items-center gap-1 shrink-0">
               <span className="hidden sm:inline">Next</span>
               <ChevronRight className="w-4 h-4 shrink-0" />
-            </button>
+            </Button>
           </div>
-          <h2 className="text-sm font-semibold text-slate-700 dark:text-gray-200">{weekRangeLabel}</h2>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-white">{weekRangeLabel}</h2>
         </div>
 
         <div className="grid grid-cols-7 gap-1 sm:gap-2 h-[150px]">
@@ -625,7 +610,7 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex items-center gap-2 mb-4">
           <CalendarIcon className="w-5 h-5 text-indigo-600" />
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-white">{sessionsHeading}</h2>
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">{sessionsHeading}</h2>
         </div>
 
         {selectedDaySessions.length === 0 ? (
@@ -641,7 +626,7 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
               >
                 <div className="flex flex-col items-center justify-center min-w-[52px] py-1 px-2 bg-white dark:bg-gray-800 rounded-md border border-slate-200 dark:border-gray-600">
                   <span className="text-xs text-slate-500 dark:text-gray-400">{session.plannedTime.slice(0, 5)}</span>
-                  <span className="text-xs font-semibold text-slate-700 dark:text-gray-200">{session.durationMinutes}m</span>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-gray-500">{session.durationMinutes}m</span>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
@@ -703,22 +688,14 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
       {/* Student + class filter chips */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-200">Filter by student / class</h3>
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">Filter by student / class</h3>
           <div className="flex gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={selectAll}
-              className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-900/30"
-            >
+            <Button variant="ghost" onClick={selectAll}>
               Select all
-            </button>
-            <button
-              type="button"
-              onClick={clearAll}
-              className="text-xs font-medium text-slate-600 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
+            </Button>
+            <Button variant="ghost" onClick={clearAll}>
               Hide all
-            </button>
+            </Button>
           </div>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">

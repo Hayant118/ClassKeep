@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import type { CalendarEvent } from '../types';
+import { Button } from './Button';
 
 function isValidDateString(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -30,6 +31,16 @@ const TYPE_OPTIONS: { value: CalendarEvent['type']; label: string }[] = [
 ];
 
 const COLOR_PALETTE = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
+
+const COLOR_SWATCH_CLASSES: Record<string, string> = {
+  '#ef4444': 'bg-red-500',
+  '#f97316': 'bg-orange-500',
+  '#f59e0b': 'bg-amber-500',
+  '#10b981': 'bg-emerald-500',
+  '#3b82f6': 'bg-blue-500',
+  '#8b5cf6': 'bg-violet-500',
+  '#ec4899': 'bg-pink-500',
+};
 
 export function EventModal({
   isOpen,
@@ -130,7 +141,7 @@ export function EventModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-800">
             {isEditing ? 'Edit Event' : 'New Event'}
@@ -184,8 +195,7 @@ export function EventModal({
                     key={c}
                     type="button"
                     onClick={() => setColor(c)}
-                    className={`w-7 h-7 rounded-full border-2 transition-transform ${color === c ? 'border-slate-800 scale-110' : 'border-transparent hover:scale-105'}`}
-                    style={{ backgroundColor: c }}
+                    className={`w-7 h-7 rounded-full border-2 transition-transform ${COLOR_SWATCH_CLASSES[c] ?? ''} ${color === c ? 'border-slate-800 scale-110' : 'border-transparent hover:scale-105'}`}
                     aria-label={`Color ${c}`}
                     aria-pressed={color === c}
                   />
@@ -200,9 +210,9 @@ export function EventModal({
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">{isEditing ? 'Save Changes' : 'Add Event'}</button>
-            {isEditing && <button type="button" onClick={handleDelete} className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">Delete</button>}
-            <button type="button" onClick={onClose} className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-sm font-medium px-4 py-2 rounded-lg transition-colors">Cancel</button>
+            <Button type="submit" variant="primary" className="flex-1">{isEditing ? 'Save Changes' : 'Add Event'}</Button>
+            {isEditing && <Button type="button" variant="danger" className="flex-1" onClick={handleDelete}>Delete</Button>}
+            <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
           </div>
         </form>
       </div>

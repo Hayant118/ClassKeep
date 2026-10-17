@@ -20,6 +20,7 @@ import {
   getDisplayTimezone,
   startOfWeekInTz,
 } from '../utils/timezone';
+import { Button } from './Button';
 
 type CalendarView = 'day' | 'week' | 'month';
 
@@ -312,7 +313,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     return formatLongDateInTz(currentDate, displayTimezone);
   }, [view, currentDate, weekStart, displayTimezone]);
 
-  if (loading || prefsLoading) return <div className="p-8 text-center text-slate-500">Loading...</div>;
+  if (loading || prefsLoading) return <div className="p-8 text-center text-slate-500 dark:text-gray-500">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-600">Error: {error}</div>;
 
   const groupClasses = classes.filter((c) => c.type === 'group');
@@ -324,20 +325,16 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     <div className="space-y-4 overflow-x-hidden">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <button type="button" onClick={movePrevious} className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50">← Prev</button>
-          <button type="button" onClick={goToToday} className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50">Today</button>
-          <button type="button" onClick={moveNext} className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50">Next →</button>
+          <Button variant="secondary" onClick={movePrevious}>← Prev</Button>
+          <Button variant="secondary" onClick={goToToday}>Today</Button>
+          <Button variant="secondary" onClick={moveNext}>Next →</Button>
         </div>
-        <h2 className="text-lg font-semibold text-slate-800 order-first lg:order-none">{title}</h2>
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100 order-first lg:order-none">{title}</h2>
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={openCreateEventModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
-          >
+          <Button variant="secondary" onClick={openCreateEventModal} className="flex items-center gap-1.5">
             <CalendarPlus className="w-4 h-4" />
             Add Event
-          </button>
+          </Button>
           <div className="flex bg-slate-100 p-1 rounded-lg">
             {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
               <button key={v} type="button" onClick={() => setView(v)} className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${view === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{v}</button>
@@ -356,7 +353,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
             </button>
             {isDefaultViewMenuOpen && (
               <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-1">
-                <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-gray-500">
                   Default view
                 </div>
                 {(['day', 'week', 'month'] as CalendarView[]).map((v) => {
@@ -372,7 +369,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
                       className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm capitalize hover:bg-slate-50"
                       aria-pressed={isDefault}
                     >
-                      <span className={isDefault ? 'font-medium text-indigo-600' : 'text-slate-700'}>{v}</span>
+                      <span className={isDefault ? 'font-medium text-indigo-600' : 'text-slate-600 dark:text-gray-400'}>{v}</span>
                       {isDefault && <Check className="w-4 h-4 text-indigo-600" />}
                     </button>
                   );
@@ -400,7 +397,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 dark:text-gray-500 pointer-events-none" />
               <input
                 type="text"
                 value={chipQuery}
@@ -434,10 +431,10 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
             </button>
           ))}
           {filterTab === 'students' && visibleFilterStudents.length === 0 && (
-            <span className="text-xs text-slate-400 py-1">No students match</span>
+            <span className="text-xs text-slate-400 dark:text-gray-500 py-1">No students match</span>
           )}
           {filterTab === 'classes' && visibleGroupClasses.length === 0 && (
-            <span className="text-xs text-slate-400 py-1">No classes match</span>
+            <span className="text-xs text-slate-400 dark:text-gray-500 py-1">No classes match</span>
           )}
         </div>
       </div>

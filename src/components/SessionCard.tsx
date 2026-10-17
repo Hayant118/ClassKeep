@@ -45,23 +45,23 @@ export function SessionCard({ session, student, fallbackName, timezone, students
 
   return (
     <div
-      className={`rounded-lg p-3 text-sm shadow-sm border border-slate-200 ${
+      className={`rounded-xl p-4 text-sm shadow-sm bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 ${
         isAutoCompleted ? 'ring-2 ring-amber-300' : ''
       } ${session.hasOverlap ? 'ring-2 ring-red-500' : ''}`}
       style={{ backgroundColor: `${color}15`, borderColor: color }}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-slate-900 flex items-center gap-1">
+          <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-3">
             <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
             <span className="truncate">{displayName}</span>
             <StatusIcon status={session.status} />
             {isOverride && <span title="Rate override">⚡</span>}
           </div>
-          <div className="text-slate-600 mt-0.5">
+          <div className="text-slate-600 dark:text-gray-400 mt-0.5">
             {startTime} - {endTime} ({session.durationMinutes}m)
           </div>
-          <div className="text-slate-500 text-xs mt-0.5">
+          <div className="text-slate-500 dark:text-gray-400 text-xs mt-0.5">
             {session.plannedDate}
             {' • '}
             {timezone}
@@ -71,7 +71,7 @@ export function SessionCard({ session, student, fallbackName, timezone, students
               </span>
             )}
           </div>
-          {session.notes && <div className="text-slate-600 mt-1.5 text-xs">{session.notes}</div>}
+          {session.notes && <div className="text-slate-600 dark:text-gray-400 mt-1.5 text-xs">{session.notes}</div>}
         </div>
 
         <div className="flex gap-1 flex-shrink-0">

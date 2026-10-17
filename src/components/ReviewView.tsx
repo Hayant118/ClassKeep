@@ -245,15 +245,14 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 className="text-lg font-semibold" style={{ color: '#1e293b' }}>
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
           {locale === 'zh' ? '月度回顾' : 'Monthly Review'}
         </h2>
         <div className="flex items-center gap-2">
           <select
             value={month}
             onChange={(e) => setMonth(parseInt(e.target.value, 10))}
-            className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-            style={{ borderColor: '#cbd5e1', color: '#0f172a' }}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
           >
             {monthOptions.map((m) => (
               <option key={m} value={m}>
@@ -264,8 +263,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
           <select
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value, 10))}
-            className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-            style={{ borderColor: '#cbd5e1', color: '#0f172a' }}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>
@@ -276,8 +274,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
           <select
             value={locale}
             onChange={(e) => setLocale(e.target.value as 'en' | 'zh')}
-            className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-            style={{ borderColor: '#cbd5e1', color: '#0f172a' }}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
           >
             <option value="zh">中文</option>
             <option value="en">English</option>
@@ -286,8 +283,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
             type="button"
             onClick={handleExport}
             disabled={exporting || loading || studentSessions.length === 0}
-            className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#4f46e5', color: '#ffffff' }}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {exporting ? 'Exporting...' : locale === 'zh' ? '导出 PNG' : 'Export PNG'}
           </button>
@@ -295,20 +291,19 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
       </div>
 
       {error && (
-        <div className="p-4 rounded-lg text-sm" style={{ backgroundColor: '#fef2f2', color: '#dc2626' }}>
+        <div className="p-4 rounded-lg text-sm bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
           Error loading sessions: {error}
         </div>
       )}
 
       {loading ? (
-        <div className="p-8 text-center text-sm" style={{ color: '#64748b' }}>Loading sessions...</div>
+        <div className="p-8 text-center text-sm text-slate-500 dark:text-gray-500">Loading sessions...</div>
       ) : !selectedStudent && !selectedFamilyGroup && !selectedClassId ? (
         <div
-          className="rounded-xl border overflow-hidden"
-          style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}
+          className="rounded-xl border overflow-hidden bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-700"
         >
           {sortedStudents.length === 0 && classGroups.length === 0 && familyGroups.length === 0 ? (
-            <div className="p-8 text-center text-sm" style={{ color: '#64748b' }}>
+            <div className="p-8 text-center text-sm text-slate-500 dark:text-gray-500">
               {locale === 'zh' ? '暂无学生。' : 'No students yet.'}
             </div>
           ) : (
@@ -325,20 +320,19 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
                       setSelectedStudentId(null);
                       setSelectedFamilyGroup(null);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 border-b"
-                    style={{ borderColor: '#e2e8f0', backgroundColor: '#fef3c7' }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 border-b bg-amber-50 dark:bg-amber-900/20 border-slate-200 dark:border-gray-700"
                   >
                     <span
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                       style={{ backgroundColor: cls.color || '#f59e0b' }}
                     />
-                    <span className="flex-1 text-sm font-medium truncate" style={{ color: '#0f172a' }}>
+                    <span className="flex-1 text-sm font-medium truncate text-slate-900 dark:text-white">
                       {cls.name}
-                      <span className="ml-2 text-xs font-normal" style={{ color: '#64748b' }}>
+                      <span className="ml-2 text-xs font-normal text-slate-500 dark:text-gray-500">
                         {locale === 'zh' ? '班级' : 'Class'}
                       </span>
                     </span>
-                    <span className="text-xs" style={{ color: '#64748b' }}>
+                    <span className="text-xs text-slate-500 dark:text-gray-500">
                       {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
                     </span>
                   </button>
@@ -357,20 +351,19 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
                       setSelectedStudentId(null);
                       setSelectedClassId(null);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 border-b"
-                    style={{ borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 border-b bg-slate-50 dark:bg-gray-900/40 border-slate-200 dark:border-gray-700"
                   >
                     <span
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                       style={{ backgroundColor: members[0]?.color || '#0ea5e9' }}
                     />
-                    <span className="flex-1 text-sm font-medium truncate" style={{ color: '#0f172a' }}>
+                    <span className="flex-1 text-sm font-medium truncate text-slate-900 dark:text-white">
                       {name}
-                      <span className="ml-2 text-xs font-normal" style={{ color: '#64748b' }}>
+                      <span className="ml-2 text-xs font-normal text-slate-500 dark:text-gray-500">
                         {locale === 'zh' ? '家庭' : 'Family'}
                       </span>
                     </span>
-                    <span className="text-xs" style={{ color: '#64748b' }}>
+                    <span className="text-xs text-slate-500 dark:text-gray-500">
                       {members.length} {locale === 'zh' ? '名学生' : 'students'} ·{' '}
                       {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
                     </span>
@@ -391,18 +384,17 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
                       setSelectedClassId(null);
                     }}
                     className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 ${
-                      familyGroups.length > 0 || classGroups.length > 0 || index < sortedStudents.length - 1 ? 'border-b' : ''
+                      familyGroups.length > 0 || classGroups.length > 0 || index < sortedStudents.length - 1 ? 'border-b border-slate-200 dark:border-gray-700' : ''
                     }`}
-                    style={{ borderColor: '#e2e8f0' }}
                   >
                     <span
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                       style={{ backgroundColor: student.color || '#6366f1' }}
                     />
-                    <span className="flex-1 text-sm font-medium truncate" style={{ color: '#0f172a' }}>
+                    <span className="flex-1 text-sm font-medium truncate text-slate-900 dark:text-white">
                       {student.name}
                     </span>
-                    <span className="text-xs" style={{ color: '#64748b' }}>
+                    <span className="text-xs text-slate-500 dark:text-gray-500">
                       {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
                     </span>
                   </button>
@@ -413,8 +405,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
         </div>
       ) : studentSessions.length === 0 ? (
         <div
-          className="p-8 text-center text-sm rounded-xl border"
-          style={{ color: '#64748b', backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}
+          className="p-8 text-center text-sm rounded-xl border text-slate-500 dark:text-gray-500 bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-700"
         >
           {locale === 'zh' ? '该月份没有课程记录。' : 'No sessions found for this month.'}
         </div>
@@ -427,8 +418,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
               setSelectedFamilyGroup(null);
               setSelectedClassId(null);
             }}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg transition-colors hover:bg-slate-100"
-            style={{ color: '#4f46e5' }}
+            className="text-sm font-medium px-3 py-1.5 rounded-lg transition-colors hover:bg-slate-100 text-indigo-600 dark:text-indigo-400"
           >
             ← {locale === 'zh' ? '所有学生' : 'All students'}
           </button>
