@@ -249,14 +249,17 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     [sessions, today]
   );
 
-  // Post-class summary: scheduled sessions from today or earlier whose end
-  // (plus grace period) has already passed in the display timezone.
+  // Post-class summary: scheduled sessions that still need marking.
+  // Past dates always qualify; today's sessions only qualify once the
+  // session's end plus a grace period has passed, so upcoming classes
+  // (e.g. one starting later tonight) never appear in the banner.
   const unmarkedPostClassSessions = useMemo(() => {
     const now = getNowInDisplayTz();
     return sessions
       .filter((session) => {
         if (session.status !== 'scheduled') return false;
         if (session.plannedDate > today) return false;
+        if (session.plannedDate < today) return true;
         const graceMs = POSTCLASS_GRACE_MINUTES * 60 * 1000;
         return now.getTime() > getSessionEndWallClock(session).getTime() + graceMs;
       })
