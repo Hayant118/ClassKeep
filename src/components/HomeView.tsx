@@ -1,7 +1,7 @@
 // src/components/HomeView.tsx
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, UserX, ArrowRightLeft } from 'lucide-react';
+import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, UserX, ArrowRightLeft, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSessions } from '../hooks/useSessions';
 import { useProposals } from '../hooks/useProposals';
@@ -80,7 +80,8 @@ function readDismissedPostClassIds(): Set<string> {
   try {
     const raw = localStorage.getItem(DISMISSED_POSTCLASS_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []);
+    const ids = new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []);
+    return ids;
   } catch {
     return new Set();
   }
@@ -273,6 +274,24 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     [unmarkedPostClassSessions, dismissedPostClassIds]
   );
 
+  // Self-heal: if a banner session is no longer present in the sessions
+  // state at all (e.g. deleted or moved in another tab), refetch to
+  // reconcile. Guarded so a refetch can't trigger an infinite loop.
+  const postClassRevalidatedRef = useRef(false);
+  useEffect(() => {
+    const missing = unmarkedPostClassSessions.filter(
+      (bannerSession) => !sessions.some((s) => s.id === bannerSession.id)
+    );
+    if (missing.length > 0) {
+      if (!postClassRevalidatedRef.current) {
+        postClassRevalidatedRef.current = true;
+        fetchSessions();
+      }
+    } else {
+      postClassRevalidatedRef.current = false;
+    }
+  }, [unmarkedPostClassSessions, sessions, fetchSessions]);
+
   const dismissPostClassBanner = () => {
     const next = new Set(dismissedPostClassIds);
     for (const session of visiblePostClassSessions) next.add(session.id);
@@ -370,6 +389,15 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     try {
       await updateSession(session.id, { status });
       await fetchSessions();
+      // Belt and braces: even if a stale refetch momentarily brings back the
+      // old status, the dismissed list keeps it out of the banner.
+      setDismissedPostClassIds((prev) => {
+        if (prev.has(session.id)) return prev;
+        const next = new Set(prev);
+        next.add(session.id);
+        writeDismissedPostClassIds(next);
+        return next;
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update session');
     }
@@ -420,9 +448,19 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                   : `You have ${visiblePostClassSessions.length} unmarked classes from today`}
               </h2>
             </div>
-            <Button variant="ghost" onClick={dismissPostClassBanner} className="shrink-0">
-              Dismiss
-            </Button>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                onClick={() => fetchSessions()}
+                className="inline-flex items-center gap-1"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh
+              </Button>
+              <Button variant="ghost" onClick={dismissPostClassBanner}>
+                Dismiss
+              </Button>
+            </div>
           </div>
           <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
             Don't forget to mark your classes!
