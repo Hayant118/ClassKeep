@@ -74,11 +74,11 @@ function Header({ unreadCount }: HeaderProps) {
   const closeMenu = () => setIsMenuOpen(false);
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+    <header className="bg-white dark:bg-gray-900 border-b border-slate-200 dark:border-gray-700 sticky top-0 z-30">
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4">
         <div className="flex items-center justify-between gap-4">
           <h1
-            className="text-2xl font-bold text-slate-900 cursor-pointer hover:opacity-80 transition-opacity"
+            className="text-2xl font-bold text-slate-900 dark:text-gray-100 cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => navigate('/')}
             role="button"
             tabIndex={0}
@@ -86,7 +86,7 @@ function Header({ unreadCount }: HeaderProps) {
             ClassKeep
           </h1>
           <div className="flex items-center gap-2 shrink-0">
-            <nav className="hidden sm:flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
+            <nav className="hidden sm:flex items-center gap-2 bg-slate-100 dark:bg-gray-800 p-1 rounded-lg">
               {TABS.map(({ key, label }) => (
                 <button
                   key={key}
@@ -94,8 +94,8 @@ function Header({ unreadCount }: HeaderProps) {
                   onClick={() => handleNav(key)}
                   className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                     activeTab === key
-                      ? 'bg-white text-indigo-600 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
+                      : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'
                   }`}
                 >
                   {label}
@@ -106,7 +106,7 @@ function Header({ unreadCount }: HeaderProps) {
             <button
               type="button"
               onClick={() => navigate('/reminders')}
-              className="relative p-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+              className="relative p-2 rounded-lg text-slate-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Reminders"
             >
               <Bell className="w-5 h-5" />
@@ -120,7 +120,7 @@ function Header({ unreadCount }: HeaderProps) {
             <button
               type="button"
               onClick={handleLogout}
-              className="hidden sm:inline-flex px-4 py-1.5 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              className="hidden sm:inline-flex px-4 py-1.5 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors"
             >
               Logout
             </button>
@@ -128,7 +128,7 @@ function Header({ unreadCount }: HeaderProps) {
             <button
               type="button"
               onClick={() => setIsMenuOpen(true)}
-              className="sm:hidden p-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+              className="sm:hidden p-2 rounded-lg text-slate-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
@@ -144,13 +144,13 @@ function Header({ unreadCount }: HeaderProps) {
             onClick={closeMenu}
             aria-hidden="true"
           />
-          <div className="fixed right-0 top-0 h-full w-64 bg-white shadow-xl z-50 sm:hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <span className="text-lg font-semibold text-slate-800">Menu</span>
+          <div className="fixed right-0 top-0 h-full w-64 bg-white dark:bg-gray-900 shadow-xl z-50 sm:hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-gray-700">
+              <span className="text-lg font-semibold text-slate-800 dark:text-gray-100">Menu</span>
               <button
                 type="button"
                 onClick={closeMenu}
-                className="p-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+                className="p-2 rounded-lg text-slate-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
                 aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
@@ -164,8 +164,8 @@ function Header({ unreadCount }: HeaderProps) {
                   onClick={() => handleNav(key)}
                   className={`text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                     activeTab === key
-                      ? 'bg-indigo-50 text-indigo-600'
-                      : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300'
+                      : 'text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-slate-900 dark:hover:text-gray-100'
                   }`}
                 >
                   {label}
@@ -177,7 +177,7 @@ function Header({ unreadCount }: HeaderProps) {
                   closeMenu();
                   handleLogout();
                 }}
-                className="text-left px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                className="text-left px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors"
               >
                 Logout
               </button>
@@ -382,8 +382,8 @@ function AppContent() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-slate-600 text-sm">Loading...</div>
+      <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-slate-600 dark:text-gray-400 text-sm">Loading...</div>
       </div>
     );
   }
@@ -395,7 +395,7 @@ function AppContent() {
   const isCalendarLoading = studentsLoading || classesLoading || enrollmentsLoading;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900">
       <Header unreadCount={unreadCount} />
       <Toaster position="top-right" richColors />
       <main className="max-w-6xl mx-auto px-3 sm:px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
@@ -441,5 +441,9 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+  }, []);
+
   return <AppContent />;
 }

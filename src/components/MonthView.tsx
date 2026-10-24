@@ -75,14 +75,14 @@ function DetailContent({
   const dateKey = formatDateKeyInTz(selectedDay.toISOString(), timezone);
   return (
     <>
-      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between">
-        <h3 className="text-base sm:text-lg font-semibold text-slate-800">
+      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between">
+        <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-gray-100">
           {formatDisplayDateInTz(selectedDay.toISOString(), timezone)}
         </h3>
         <button
           type="button"
           onClick={onClose}
-          className="text-slate-400 hover:text-slate-600"
+          className="text-slate-400 dark:text-gray-500 hover:text-slate-600 dark:hover:text-gray-300"
           aria-label="Close details"
         >
           <X className="w-5 h-5" />
@@ -97,7 +97,7 @@ function DetailContent({
               return (
                 <div
                   key={event.id}
-                  className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                  className="flex items-start gap-2.5 rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/50 px-3 py-2"
                   style={{ borderLeftColor: accent, borderLeftWidth: 3 }}
                 >
                   <span
@@ -106,7 +106,7 @@ function DetailContent({
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-800 truncate">{event.title}</span>
+                      <span className="text-sm font-medium text-slate-800 dark:text-gray-200 truncate">{event.title}</span>
                       <span
                         className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
                         style={{ color: accent, backgroundColor: `${accent}1a` }}
@@ -115,7 +115,7 @@ function DetailContent({
                       </span>
                     </div>
                     {event.notes && (
-                      <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-wrap">{event.notes}</p>
+                      <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5 whitespace-pre-wrap">{event.notes}</p>
                     )}
                   </div>
                   {onEditEvent && (
@@ -134,7 +134,7 @@ function DetailContent({
         )}
 
         <div className="flex items-center justify-between">
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-slate-500 dark:text-gray-400">
             {sessions.length} session{sessions.length === 1 ? '' : 's'}
           </span>
           {onAddSession && (
@@ -152,7 +152,7 @@ function DetailContent({
         </div>
 
         {sessions.length === 0 ? (
-          <p className="text-slate-500 text-sm">No sessions for this day.</p>
+          <p className="text-slate-500 dark:text-gray-400 text-sm">No sessions for this day.</p>
         ) : (
           sessions.map((session) => (
             <SessionCard
@@ -254,28 +254,28 @@ export function MonthView({
         <button
           type="button"
           onClick={() => handleMonthChange(-1)}
-          className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+          className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
           aria-label="Previous month"
         >
           ← Prev
         </button>
-        <h2 className="text-xl font-semibold text-slate-800">
+        <h2 className="text-xl font-semibold text-slate-800 dark:text-gray-100">
           {formatMonthYearInTz(normalizedMonthStart, timezone)}
         </h2>
         <button
           type="button"
           onClick={() => handleMonthChange(1)}
-          className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+          className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
           aria-label="Next month"
         >
           Next →
         </button>
       </div>
 
-      <div className="border border-slate-200 rounded-xl bg-white overflow-hidden">
-        <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+      <div className="border border-slate-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden">
+        <div className="grid grid-cols-7 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/50">
           {WEEKDAYS.map((day) => (
-            <div key={day} className="py-1.5 sm:py-2 text-center text-[10px] sm:text-xs font-semibold text-slate-600">
+            <div key={day} className="py-1.5 sm:py-2 text-center text-[10px] sm:text-xs font-semibold text-slate-600 dark:text-gray-400">
               {day}
             </div>
           ))}
@@ -293,9 +293,9 @@ export function MonthView({
                 key={dateKey}
                 type="button"
                 onClick={() => handleDayClick(day)}
-                className={`min-h-[60px] sm:min-h-[100px] p-1 sm:p-2 text-left border-b border-r border-slate-100 transition-colors hover:bg-slate-50 focus:outline-none ${
-                  active ? 'bg-indigo-50' : ''
-                } ${isCurrentMonth(day) ? '' : 'bg-slate-50/50 text-slate-400'} ${
+                className={`min-h-[60px] sm:min-h-[100px] p-1 sm:p-2 text-left border-b border-r border-slate-100 dark:border-gray-700 transition-colors hover:bg-slate-50 dark:hover:bg-gray-700 focus:outline-none ${
+                  active ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''
+                } ${isCurrentMonth(day) ? '' : 'bg-slate-50/50 dark:bg-gray-900/50 text-slate-400 dark:text-gray-500'} ${
                   isCurrentMonth(day) && dateKey === todayKey
                     ? 'bg-indigo-50/60 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700'
                     : ''
@@ -305,7 +305,7 @@ export function MonthView({
                   background: dayEvents[0] ? getEventTint(dayEvents[0]) : undefined,
                 }}
               >
-                <div className={`font-medium ${isCurrentMonth(day) ? 'text-slate-700' : 'text-slate-400'} text-xs sm:text-sm`}>
+                <div className={`font-medium ${isCurrentMonth(day) ? 'text-slate-700 dark:text-gray-300' : 'text-slate-400 dark:text-gray-500'} text-xs sm:text-sm`}>
                   {formatDisplayDateInTz(day.toISOString(), timezone).replace(/[^0-9]/g, '')}
                 </div>
                 {dayEvents.length > 0 && (
@@ -318,7 +318,7 @@ export function MonthView({
                       />
                     ))}
                     {dayEvents.length > 3 && (
-                      <span className="text-[8px] sm:text-[9px] text-slate-500 leading-none">+{dayEvents.length - 3}</span>
+                      <span className="text-[8px] sm:text-[9px] text-slate-500 dark:text-gray-400 leading-none">+{dayEvents.length - 3}</span>
                     )}
                   </div>
                 )}
@@ -332,7 +332,7 @@ export function MonthView({
                     </span>
                   ))}
                   {dayEntries.length > 6 && (
-                    <span className="text-[9px] sm:text-[10px] text-slate-500 leading-none">+{dayEntries.length - 6}</span>
+                    <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-gray-400 leading-none">+{dayEntries.length - 6}</span>
                   )}
                 </div>
               </button>
@@ -347,7 +347,7 @@ export function MonthView({
           onClick={closeDetail}
         >
           <div
-            className="bg-white w-full max-w-lg sm:rounded-xl rounded-t-xl shadow-lg max-h-[75vh] sm:max-h-[85vh] overflow-y-auto"
+            className="bg-white dark:bg-gray-800 w-full max-w-lg sm:rounded-xl rounded-t-xl shadow-lg max-h-[75vh] sm:max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <DetailContent
@@ -369,7 +369,7 @@ export function MonthView({
       )}
 
       {selectedDay && inlineDetail && (
-        <div className="border border-slate-200 rounded-xl bg-white shadow-sm mt-4">
+        <div className="border border-slate-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-sm mt-4">
             <DetailContent
             selectedDay={selectedDay}
             timezone={timezone}

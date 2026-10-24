@@ -172,7 +172,7 @@ export function WeekView({
     return (
       <div
         key={dateKey}
-        className="relative bg-white border-l border-slate-200 min-w-[80px]"
+        className="relative bg-white dark:bg-gray-800 border-l border-slate-200 dark:border-gray-700 min-w-[80px]"
         style={{
           gridColumn: dayIndex + 2,
           gridRow: `2 / span ${totalRows}`,
@@ -193,14 +193,14 @@ export function WeekView({
         {timeSlots.map((time, idx) => (
           <div
             key={time}
-            className="w-full border-b border-slate-100"
+            className="w-full border-b border-slate-100 dark:border-gray-700"
             style={{ gridRow: idx + 1 }}
           />
         ))}
         <button
           type="button"
           onClick={handleColumnClick}
-          className="absolute inset-0 w-full h-full text-left hover:bg-slate-50/50 transition-colors focus:outline-none focus:bg-indigo-50/50"
+          className="absolute inset-0 w-full h-full text-left hover:bg-slate-50/50 dark:hover:bg-gray-700/50 transition-colors focus:outline-none focus:bg-indigo-50/50 dark:focus:bg-indigo-900/30"
           aria-label={`Add session on ${dateKey}`}
         />
         {daySessions.map(renderSessionBlock)}
@@ -234,11 +234,11 @@ export function WeekView({
       >
         <SessionSymbol session={session} />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-slate-900 truncate">
+          <div className="text-sm font-semibold text-slate-900 dark:text-gray-100 truncate">
             {displayName}
             {isOverride && <span className="ml-1" title="Rate override">⚡</span>}
           </div>
-          <div className="text-xs text-slate-600">
+          <div className="text-xs text-slate-600 dark:text-gray-400">
             {startTime.slice(0, 5)} - {endTime.slice(0, 5)} ({session.durationMinutes}m)
           </div>
         </div>
@@ -249,7 +249,7 @@ export function WeekView({
   return (
     <>
       {/* Desktop time-grid */}
-      <div className="hidden sm:block overflow-x-auto border border-slate-200 rounded-xl bg-white">
+      <div className="hidden sm:block overflow-x-auto border border-slate-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800">
         <div
           className="min-w-[900px]"
           style={{
@@ -258,7 +258,7 @@ export function WeekView({
             gridTemplateRows: `auto repeat(${totalRows}, ${ROW_HEIGHT_PX}px)`,
           }}
         >
-          <div className="border-b border-r border-slate-200 bg-slate-50" />
+          <div className="border-b border-r border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/50" />
           {weekDays.map((day, idx) => {
             const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
             const dayEvents = eventsByDay.get(dateKey) ?? [];
@@ -266,22 +266,22 @@ export function WeekView({
             return (
               <div
                 key={idx}
-                className={`px-2 py-3 text-center border-b border-l border-slate-200 text-sm font-medium text-slate-700 ${
+                className={`px-2 py-3 text-center border-b border-l border-slate-200 dark:border-gray-700 text-sm font-medium text-slate-700 dark:text-gray-300 ${
                   dateKey === todayKey
                     ? 'bg-indigo-50/60 dark:bg-indigo-900/20'
-                    : 'bg-slate-50'
+                    : 'bg-slate-50 dark:bg-gray-900/50'
                 }`}
               >
                 <div>{formatDisplayWeekdayInTz(day.toISOString(), timezone)}</div>
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-slate-500 dark:text-gray-400">
                   {formatDisplayDateInTz(day.toISOString(), timezone)}
                 </div>
                 {dayEvents.length > 0 && accent && (
                   <div className="mt-1 flex items-center justify-center gap-1 text-[11px] font-normal" title={dayEvents.map((e) => e.title).join(', ')}>
                     <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
-                    <span className="truncate max-w-[80px] text-slate-600">{dayEvents[0].title}</span>
+                    <span className="truncate max-w-[80px] text-slate-600 dark:text-gray-400">{dayEvents[0].title}</span>
                     {dayEvents.length > 1 && (
-                      <span className="text-slate-400 shrink-0">+{dayEvents.length - 1}</span>
+                      <span className="text-slate-400 dark:text-gray-500 shrink-0">+{dayEvents.length - 1}</span>
                     )}
                   </div>
                 )}
@@ -292,7 +292,7 @@ export function WeekView({
           {timeSlots.map((time, idx) => (
             <div
               key={time}
-              className="text-xs text-slate-500 text-right pr-2 border-r border-slate-200 flex items-start justify-end"
+              className="text-xs text-slate-500 dark:text-gray-400 text-right pr-2 border-r border-slate-200 dark:border-gray-700 flex items-start justify-end"
               style={{ gridColumn: 1, gridRow: idx + 2 }}
             >
               {time}
@@ -310,10 +310,10 @@ export function WeekView({
           const daySessions = sessionsByDay.get(dateKey) ?? [];
           const dayEvents = eventsByDay.get(dateKey) ?? [];
           return (
-            <div key={dateKey} className="border border-slate-200 rounded-xl bg-white p-3">
-              <div className="text-sm font-semibold text-slate-700 mb-2">
+            <div key={dateKey} className="border border-slate-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 p-3">
+              <div className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2">
                 {formatDisplayWeekdayInTz(day.toISOString(), timezone)}{' '}
-                <span className="text-slate-500 font-normal">
+                <span className="text-slate-500 dark:text-gray-400 font-normal">
                   {formatDisplayDateInTz(day.toISOString(), timezone)}
                 </span>
               </div>
@@ -328,15 +328,15 @@ export function WeekView({
                         style={{ backgroundColor: getEventTint(event) }}
                       >
                         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
-                        <span className="font-medium text-slate-700 truncate">{event.title}</span>
-                        <span className="text-slate-400 shrink-0 ml-auto">{getEventTypeLabel(event)}</span>
+                        <span className="font-medium text-slate-700 dark:text-gray-300 truncate">{event.title}</span>
+                        <span className="text-slate-400 dark:text-gray-500 shrink-0 ml-auto">{getEventTypeLabel(event)}</span>
                       </div>
                     );
                   })}
                 </div>
               )}
               {daySessions.length === 0 ? (
-                <p className="text-xs text-slate-500 py-1">No sessions</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400 py-1">No sessions</p>
               ) : (
                 <div className="space-y-2">
                   {daySessions.sort((a, b) => a.plannedTime.localeCompare(b.plannedTime)).map(renderMobileSession)}

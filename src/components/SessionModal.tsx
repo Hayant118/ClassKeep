@@ -500,55 +500,55 @@ export function SessionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-800">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
             {isDraft ? (isEditing ? 'Edit Draft Session' : 'New Draft Session') : isEditing ? 'Edit Session' : 'New Session'}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none" aria-label="Close">×</button>
+          <button onClick={onClose} className="text-slate-400 dark:text-gray-500 hover:text-slate-600 dark:hover:text-gray-300 text-xl leading-none" aria-label="Close">×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-slate-500 dark:text-gray-400">
             Timezone: {defaultTimezone}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Student</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Student</label>
             {selectableStudents.length > 0 && (
               <input
                 type="text"
                 value={studentSearch}
                 onChange={(e) => setStudentSearch(e.target.value)}
                 placeholder="Search students…"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 mb-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-slate-300 dark:border-gray-600 dark:bg-gray-800 px-3 py-2 mb-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             )}
             {multiStudentMode ? (
               <>
-                <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-300 divide-y divide-slate-100">
+                <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-300 dark:border-gray-600 divide-y divide-slate-100 dark:divide-gray-700">
                   {filteredStudents.map((s) => (
                     <label
                       key={s.id}
-                      className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer"
+                      className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-gray-800 cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         checked={studentIds.includes(s.id)}
                         onChange={() => handleStudentToggle(s.id)}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        className="rounded border-slate-300 dark:border-gray-600 dark:bg-gray-800 text-indigo-600 focus:ring-indigo-500"
                       />
-                      <span className="flex-1 text-slate-700">{s.name}</span>
-                      <span className="text-xs text-slate-400">
+                      <span className="flex-1 text-slate-700 dark:text-gray-300">{s.name}</span>
+                      <span className="text-xs text-slate-400 dark:text-gray-500">
                         {s.defaultRate > 0 ? `${s.defaultRate}/hr` : 'no rate'}
                       </span>
                     </label>
                   ))}
                   {filteredStudents.length === 0 && (
-                    <p className="px-3 py-2 text-sm text-slate-400">No students match "{studentSearch}"</p>
+                    <p className="px-3 py-2 text-sm text-slate-400 dark:text-gray-500">No students match "{studentSearch}"</p>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
                   Select one or more students — one draft per student is created, each billed at their own default rate.
                 </p>
               </>
@@ -557,14 +557,14 @@ export function SessionModal({
                 <select
                   value={studentId}
                   onChange={(e) => handleStudentChange(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">{selectableStudents.length > 0 ? 'Select a student (1-on-1)' : 'No students'}</option>
                   {filteredStudents.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
                   Pick a student for 1-on-1 lessons — their default rate applies.
                 </p>
               </>
@@ -573,11 +573,11 @@ export function SessionModal({
 
           {isDraft && guests.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Guest (draft only)</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Guest (draft only)</label>
               <select
                 value={guestName}
                 onChange={(e) => handleGuestChange(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">Select a guest</option>
                 {guests.map((g) => (
@@ -588,7 +588,7 @@ export function SessionModal({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Group class</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Group class</label>
             <select
               value={classId}
               onChange={(e) => {
@@ -600,7 +600,7 @@ export function SessionModal({
                   setGuestRate(null);
                 }
               }}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">{groupClasses.length > 0 ? 'Select a group class' : 'No group classes'}</option>
               {groupClasses.map((cls) => (
@@ -610,24 +610,24 @@ export function SessionModal({
           </div>
 
           {selectedClass && classStudentNames && (
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500 dark:text-gray-400">
               Students in class: {classStudentNames}
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
+              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Date</label>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Time</label>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
+              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Time</label>
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
             </div>
           </div>
 
           {dayEvent && (
-            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 text-xs">
+            <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 rounded-lg px-3 py-2 text-xs">
               <TriangleAlert className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span>
                 This day is marked as {getEventTypeLabel(dayEvent)}: {dayEvent.title}
@@ -636,19 +636,19 @@ export function SessionModal({
           )}
 
           {!isEditing && (
-            <div className="rounded-lg border border-slate-200 p-3 space-y-2">
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+            <div className="rounded-lg border border-slate-200 dark:border-gray-700 p-3 space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-gray-300 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={repeatWeekly}
                   onChange={(e) => setRepeatWeekly(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  className="rounded border-slate-300 dark:border-gray-600 dark:bg-gray-800 text-indigo-600 focus:ring-indigo-500"
                 />
                 Repeat weekly
               </label>
               {repeatWeekly && (
                 <div className="flex items-center gap-2 pl-6">
-                  <label className="text-sm text-slate-600">Weeks</label>
+                  <label className="text-sm text-slate-600 dark:text-gray-400">Weeks</label>
                   <input
                     type="number"
                     min={2}
@@ -657,9 +657,9 @@ export function SessionModal({
                     onChange={(e) =>
                       setRepeatWeeks(Math.min(12, Math.max(2, parseInt(e.target.value, 10) || 2)))
                     }
-                    className="w-20 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-20 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-slate-500 dark:text-gray-400">
                     creates {repeatWeeks} sessions, 7 days apart
                   </span>
                 </div>
@@ -668,21 +668,21 @@ export function SessionModal({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Duration</label>
             <div className="flex flex-wrap gap-2 mb-2">
               {DURATION_OPTIONS.map((mins) => (
-                <button key={mins} type="button" onClick={() => { setDurationMode('preset'); setDuration(mins); }} className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${durationMode === 'preset' && duration === mins ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}>{mins}m</button>
+                <button key={mins} type="button" onClick={() => { setDurationMode('preset'); setDuration(mins); }} className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${durationMode === 'preset' && duration === mins ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-gray-900 text-slate-700 dark:text-gray-300 border-slate-300 dark:border-gray-600 hover:bg-slate-50 dark:hover:bg-gray-700'}`}>{mins}m</button>
               ))}
-              <button type="button" onClick={() => setDurationMode('custom')} className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${durationMode === 'custom' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}>Custom</button>
+              <button type="button" onClick={() => setDurationMode('custom')} className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${durationMode === 'custom' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white dark:bg-gray-900 text-slate-700 dark:text-gray-300 border-slate-300 dark:border-gray-600 hover:bg-slate-50 dark:hover:bg-gray-700'}`}>Custom</button>
             </div>
             {durationMode === 'custom' && (
-              <input type="number" min={15} step={5} value={customDuration} onChange={(e) => setCustomDuration(Math.max(15, parseInt(e.target.value) || 0))} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <input type="number" min={15} step={5} value={customDuration} onChange={(e) => setCustomDuration(Math.max(15, parseInt(e.target.value) || 0))} className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value as Session['status'])} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Status</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value as Session['status'])} className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
               {isEditingCompleted && (
                 <option value="completed" disabled>Completed</option>
               )}
@@ -693,23 +693,23 @@ export function SessionModal({
           </div>
 
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-gray-300 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isAdditional}
                 onChange={(e) => setIsAdditional(e.target.checked)}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-slate-300 dark:border-gray-600 dark:bg-gray-800 text-indigo-600 focus:ring-indigo-500"
               />
               Additional / catch-up class
             </label>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
               Mark classes outside the regular schedule (make-ups, extra sessions)
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Rate Mode</label>
-            <select value={rateMode} onChange={(e) => handleRateModeChange(e.target.value as Session['rateMode'])} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Rate Mode</label>
+            <select value={rateMode} onChange={(e) => handleRateModeChange(e.target.value as Session['rateMode'])} className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
               <option value="auto">Auto (student default)</option>
               <option value="override">Override</option>
               <option value="flat">Flat</option>
@@ -718,14 +718,14 @@ export function SessionModal({
 
           {rateMode !== 'auto' && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Rate Value</label>
-              <input type="number" step="0.01" min="0" value={rateValue} onChange={(e) => setRateValue(e.target.value)} placeholder="0.00" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
+              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Rate Value</label>
+              <input type="number" step="0.01" min="0" value={rateValue} onChange={(e) => setRateValue(e.target.value)} placeholder="0.00" className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Notes</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">

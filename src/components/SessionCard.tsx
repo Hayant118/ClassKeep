@@ -78,7 +78,7 @@ export function SessionCard({ session, student, fallbackName, timezone, students
           {onEdit && (
             <button
               onClick={() => onEdit(session)}
-              className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50"
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
             >
               Edit
             </button>
@@ -86,7 +86,7 @@ export function SessionCard({ session, student, fallbackName, timezone, students
           {onDelete && (
             <button
               onClick={() => onDelete(session.id)}
-              className="text-xs font-medium text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"
+              className="text-xs font-medium text-red-600 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-950/50"
             >
               Delete
             </button>

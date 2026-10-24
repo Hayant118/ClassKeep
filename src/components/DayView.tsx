@@ -107,12 +107,12 @@ export function DayView({
       >
         <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-slate-900 truncate flex items-center gap-1.5">
+          <div className="text-sm font-semibold text-slate-900 dark:text-gray-100 truncate flex items-center gap-1.5">
             <span className="truncate">{displayName}</span>
             <StatusIcon status={session.status} />
             {isOverride && <span title="Rate override">⚡</span>}
           </div>
-          <div className="text-xs text-slate-600">
+          <div className="text-xs text-slate-600 dark:text-gray-400">
             {startTime} - {endTime} ({session.durationMinutes}m)
           </div>
         </div>
@@ -121,21 +121,21 @@ export function DayView({
   };
 
   return (
-    <div className="border border-slate-200 rounded-xl bg-white overflow-hidden">
-      <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-4">
+    <div className="border border-slate-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 overflow-hidden">
+      <div className="p-4 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg font-semibold text-slate-800">
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
             {formatDisplayWeekdayInTz(day.toISOString(), timezone)},{' '}
             {formatDisplayDateInTz(day.toISOString(), timezone)}
           </h3>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-gray-400 mt-0.5">
             {daySessions.length} session{daySessions.length === 1 ? '' : 's'}
           </p>
         </div>
         <button
           type="button"
           onClick={() => onSlotClick(dateKey, startTimeStr)}
-          className="text-sm font-medium text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-50 border border-indigo-100"
+          className="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:hover:text-indigo-300 px-3 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-800"
         >
           + Add
         </button>
@@ -144,11 +144,11 @@ export function DayView({
       <div className="p-3">
         {daySessions.length === 0 ? (
           <div className="text-center py-10">
-            <p className="text-slate-500 text-sm">No sessions today</p>
+            <p className="text-slate-500 dark:text-gray-400 text-sm">No sessions today</p>
             <button
               type="button"
               onClick={() => onSlotClick(dateKey, startTimeStr)}
-              className="mt-3 text-sm font-medium text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-50"
+              className="mt-3 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:hover:text-indigo-300 px-3 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
             >
               Add a session
             </button>

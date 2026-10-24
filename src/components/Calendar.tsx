@@ -335,16 +335,16 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
             <CalendarPlus className="w-4 h-4" />
             Add Event
           </Button>
-          <div className="flex bg-slate-100 p-1 rounded-lg">
+          <div className="flex bg-slate-100 dark:bg-gray-800 p-1 rounded-lg">
             {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
-              <button key={v} type="button" onClick={() => setView(v)} className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${view === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>{v}</button>
+              <button key={v} type="button" onClick={() => setView(v)} className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${view === v ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'}`}>{v}</button>
             ))}
           </div>
           <div className="relative" ref={defaultViewMenuRef}>
             <button
               type="button"
               onClick={() => setIsDefaultViewMenuOpen((open) => !open)}
-              className={`p-2 rounded-lg border text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors ${isDefaultViewMenuOpen ? 'border-indigo-300 bg-indigo-50 text-indigo-600' : 'border-slate-300 bg-white'}`}
+              className={`p-2 rounded-lg border text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100 hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors ${isDefaultViewMenuOpen ? 'border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300' : 'border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800'}`}
               aria-label="Default calendar view"
               aria-expanded={isDefaultViewMenuOpen}
               title="Set default calendar view"
@@ -352,7 +352,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
               <Settings className="w-4 h-4" />
             </button>
             {isDefaultViewMenuOpen && (
-              <div className="absolute right-0 mt-1 w-44 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-1">
+              <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg shadow-lg z-50 p-1">
                 <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-gray-500">
                   Default view
                 </div>
@@ -366,7 +366,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
                         setPreferences({ defaultCalendarView: v });
                         setIsDefaultViewMenuOpen(false);
                       }}
-                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm capitalize hover:bg-slate-50"
+                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm capitalize hover:bg-slate-50 dark:hover:bg-gray-700"
                       aria-pressed={isDefault}
                     >
                       <span className={isDefault ? 'font-medium text-indigo-600' : 'text-slate-600 dark:text-gray-400'}>{v}</span>
@@ -380,15 +380,15 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4">
         <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
-          <div className="flex bg-slate-100 p-0.5 rounded-lg">
+          <div className="flex bg-slate-100 dark:bg-gray-800 p-0.5 rounded-lg">
             {(['students', 'classes', 'all'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setFilterTab(tab)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize transition-colors ${filterTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium capitalize transition-colors ${filterTab === tab ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'}`}
                 aria-pressed={filterTab === tab}
               >
                 {tab === 'all' ? 'All' : tab}
@@ -403,17 +403,17 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
                 value={chipQuery}
                 onChange={(e) => setChipQuery(e.target.value)}
                 placeholder="Search..."
-                className="pl-7 pr-2 py-1 w-36 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="pl-7 pr-2 py-1 w-36 rounded-lg border border-slate-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 aria-label="Filter chips by name"
               />
             </div>
-            <button type="button" onClick={selectAll} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50">Select all</button>
-            <button type="button" onClick={clearAll} className="text-xs font-medium text-slate-600 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100">Hide all</button>
+            <button type="button" onClick={selectAll} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-50 dark:hover:bg-indigo-950/50">Select all</button>
+            <button type="button" onClick={clearAll} className="text-xs font-medium text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100 px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-gray-700">Hide all</button>
           </div>
         </div>
         <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
           {(filterTab !== 'classes' ? visibleFilterStudents : []).map((student) => (
-            <button key={student.id} type="button" onClick={() => toggleStudent(student.id)} className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border whitespace-nowrap shrink-0 transition-colors ${selectedStudentIds.has(student.id) ? 'bg-slate-100 border-slate-300 text-slate-800' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+            <button key={student.id} type="button" onClick={() => toggleStudent(student.id)} className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border whitespace-nowrap shrink-0 transition-colors ${selectedStudentIds.has(student.id) ? 'bg-slate-100 dark:bg-gray-700 border-slate-300 dark:border-gray-600 text-slate-800 dark:text-gray-100' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-700 text-slate-400 dark:text-gray-500 hover:bg-slate-50 dark:hover:bg-gray-700'}`}>
               <span
                 className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: studentChipColors.get(student.id) }}
@@ -422,7 +422,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
             </button>
           ))}
           {(filterTab !== 'students' ? visibleGroupClasses : []).map((cls) => (
-            <button key={cls.id} type="button" onClick={() => toggleClass(cls.id)} className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border whitespace-nowrap shrink-0 transition-colors ${selectedClassIds.has(cls.id) ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
+            <button key={cls.id} type="button" onClick={() => toggleClass(cls.id)} className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border whitespace-nowrap shrink-0 transition-colors ${selectedClassIds.has(cls.id) ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-700 text-slate-400 dark:text-gray-500 hover:bg-slate-50 dark:hover:bg-gray-700'}`}>
               <span
                 className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: cls.color || '#6366f1' }}

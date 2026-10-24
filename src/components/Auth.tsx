@@ -50,28 +50,28 @@ export function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-8">
-        <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">ClassKeep</h1>
-        <p className="text-sm text-slate-500 text-center mb-6">
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-md p-8">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-gray-100 text-center mb-2">ClassKeep</h1>
+        <p className="text-sm text-slate-500 dark:text-gray-400 text-center mb-6">
           {mode === 'login' ? 'Sign in to your account' : 'Create a new account'}
         </p>
 
         {error && (
-          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-3">
+          <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm p-3">
             {error}
           </div>
         )}
 
         {message && (
-          <div className="mb-4 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm p-3">
+          <div className="mb-4 rounded-lg bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 text-sm p-3">
             {message}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
               Email
             </label>
             <input
@@ -80,13 +80,13 @@ export function Auth() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               required
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
               Password
             </label>
             <input
@@ -95,7 +95,7 @@ export function Auth() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               required
             />
           </div>
@@ -109,7 +109,7 @@ export function Auth() {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-sm text-slate-600">
+        <div className="mt-6 text-center text-sm text-slate-600 dark:text-gray-400">
           {mode === 'login' ? (
             <>
               Don&apos;t have an account?{' '}
@@ -119,7 +119,7 @@ export function Auth() {
                   setMode('signup');
                   resetMessages();
                 }}
-                className="text-indigo-600 hover:text-indigo-700 font-medium"
+                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium"
               >
                 Sign up
               </button>
@@ -133,7 +133,7 @@ export function Auth() {
                   setMode('login');
                   resetMessages();
                 }}
-                className="text-indigo-600 hover:text-indigo-700 font-medium"
+                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium"
               >
                 Sign in
               </button>

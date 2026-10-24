@@ -36,12 +36,12 @@ const WEEKDAY_CHIPS = [
 ];
 
 const STATUS_STYLES: Record<Proposal['status'], string> = {
-  draft: 'bg-slate-100 text-slate-700 border-slate-200',
-  committed: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-  sent: 'bg-amber-100 text-amber-700 border-amber-200',
-  accepted: 'bg-green-100 text-green-700 border-green-200',
-  rejected: 'bg-red-100 text-red-700 border-red-200',
-  archived: 'bg-slate-100 text-slate-500 border-slate-200',
+  draft: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-gray-300 dark:border-gray-600',
+  committed: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-800',
+  sent: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800',
+  accepted: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800',
+  rejected: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800',
+  archived: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-gray-400 dark:border-gray-600',
 };
 
 function StatusBadge({ status }: { status: Proposal['status'] }) {
@@ -102,10 +102,10 @@ function formatMoney(amount: number, currency: string): string {
 function SkeletonHeader() {
   return (
     <div className="flex items-center justify-between animate-pulse">
-      <div className="h-9 w-24 bg-slate-200 rounded-lg" />
+      <div className="h-9 w-24 bg-slate-200 dark:bg-gray-700 rounded-lg" />
       <div className="flex items-center gap-2">
-        <div className="h-9 w-24 bg-slate-200 rounded-lg" />
-        <div className="h-9 w-24 bg-slate-200 rounded-lg" />
+        <div className="h-9 w-24 bg-slate-200 dark:bg-gray-700 rounded-lg" />
+        <div className="h-9 w-24 bg-slate-200 dark:bg-gray-700 rounded-lg" />
       </div>
     </div>
   );
@@ -113,18 +113,18 @@ function SkeletonHeader() {
 
 function SkeletonCard() {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4 animate-pulse mt-6">
-      <div className="h-10 bg-slate-200 rounded-lg" />
-      <div className="h-4 w-1/3 bg-slate-200 rounded" />
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-6 shadow-sm space-y-4 animate-pulse mt-6">
+      <div className="h-10 bg-slate-200 dark:bg-gray-700 rounded-lg" />
+      <div className="h-4 w-1/3 bg-slate-200 dark:bg-gray-700 rounded" />
     </div>
   );
 }
 
 function SkeletonCalendar() {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm animate-pulse">
-      <div className="h-6 w-32 bg-slate-200 rounded mb-4" />
-      <div className="h-96 bg-slate-100 rounded-lg" />
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm animate-pulse">
+      <div className="h-6 w-32 bg-slate-200 dark:bg-gray-700 rounded mb-4" />
+      <div className="h-96 bg-slate-100 dark:bg-gray-700 rounded-lg" />
     </div>
   );
 }
@@ -725,7 +725,7 @@ export function ProposalEditor() {
 
   if (error) {
     return (
-      <div className="p-4 rounded-lg bg-red-50 text-red-600 text-sm">
+      <div className="p-4 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-300 text-sm">
         Error loading proposal: {error}
       </div>
     );
@@ -733,13 +733,13 @@ export function ProposalEditor() {
 
   if (!proposal) {
     return (
-      <div className="p-8 text-center text-slate-500">
+      <div className="p-8 text-center text-slate-500 dark:text-gray-400">
         Proposal not found.
         <div className="mt-4">
           <button
             type="button"
             onClick={() => navigate('/proposals')}
-            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700"
           >
             Back to proposals
           </button>
@@ -761,7 +761,7 @@ export function ProposalEditor() {
           <button
             type="button"
             onClick={() => navigate('/proposals')}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700"
           >
             ← Back
           </button>
@@ -778,7 +778,7 @@ export function ProposalEditor() {
               type="button"
               onClick={handleArchive}
               disabled={archiving || proposal.status === 'archived'}
-              className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {archiving ? 'Archiving...' : proposal.status === 'archived' ? 'Archived' : 'Archive'}
             </button>
@@ -786,7 +786,7 @@ export function ProposalEditor() {
               type="button"
               onClick={handleDelete}
               disabled={deleting}
-              className="px-4 py-2 rounded-lg border border-red-300 bg-white text-red-700 text-sm font-medium hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-lg border border-red-300 dark:border-red-800 bg-white dark:bg-gray-800 text-red-700 dark:text-red-300 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {deleting ? 'Deleting...' : 'Delete'}
             </button>
@@ -794,7 +794,7 @@ export function ProposalEditor() {
               type="button"
               onClick={handleExport}
               disabled={exporting || proposal.draftSessions.length === 0 || proposal.status === 'archived'}
-              className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {exporting ? 'Exporting...' : 'Export'}
             </button>
@@ -802,29 +802,29 @@ export function ProposalEditor() {
         </div>
 
         {commitError && (
-          <div className="mt-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm">
+          <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-300 text-sm">
             Commit failed: {commitError}
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4 mt-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-6 shadow-sm space-y-4 mt-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Title</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={handleTitleBlur}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-lg font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-lg font-semibold text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Status</label>
               <select
                 value={proposal.status}
                 onChange={(e) => handleStatusChange(e.target.value as Proposal['status'])}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="draft">Draft</option>
                 <option value="committed">Committed</option>
@@ -836,7 +836,7 @@ export function ProposalEditor() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400 pt-2 border-t border-slate-100 dark:border-gray-700">
             <StatusBadge status={proposal.status} />
             <span>Created {formatDate(proposal.createdAt)}</span>
             <span>·</span>
@@ -851,8 +851,8 @@ export function ProposalEditor() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
-        <h3 className="text-sm font-semibold text-slate-700">Guest students</h3>
+      <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-6 shadow-sm space-y-4">
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300">Guest students</h3>
 
         <form onSubmit={handleAddGuest} className="flex flex-col sm:flex-row gap-3">
           <input
@@ -860,7 +860,7 @@ export function ProposalEditor() {
             value={guestNameInput}
             onChange={(e) => setGuestNameInput(e.target.value)}
             placeholder="Guest name"
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex-1 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <input
             type="number"
@@ -869,7 +869,7 @@ export function ProposalEditor() {
             value={guestRateInput}
             onChange={(e) => setGuestRateInput(e.target.value)}
             placeholder="Hourly rate"
-            className="w-full sm:w-40 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full sm:w-40 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button
             type="submit"
@@ -884,7 +884,7 @@ export function ProposalEditor() {
             {proposal.guests.map((guest) => (
               <li
                 key={guest.name}
-                className="flex items-center justify-between gap-3 text-sm text-slate-700 bg-slate-50 rounded-lg px-3 py-2"
+                className="flex items-center justify-between gap-3 text-sm text-slate-700 dark:text-gray-300 bg-slate-50 dark:bg-gray-900/50 rounded-lg px-3 py-2"
               >
                 <span>
                   {guest.name} — {formatMoney(guest.hourlyRate, currency)}/hr
@@ -892,7 +892,7 @@ export function ProposalEditor() {
                 <button
                   type="button"
                   onClick={() => handleRemoveGuest(guest.name)}
-                  className="text-xs font-medium text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"
+                  className="text-xs font-medium text-red-600 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-950/50"
                 >
                   Remove
                 </button>
@@ -902,13 +902,13 @@ export function ProposalEditor() {
         )}
       </div>
 
-      <div className="max-w-4xl mx-auto bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+      <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between gap-4">
-          <h3 className="text-sm font-semibold text-slate-700">Billing</h3>
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300">Billing</h3>
           <select
             value={currency}
             onChange={(e) => handleCurrencyChange(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             {CURRENCIES.map((c) => (
               <option key={c.code} value={c.code}>
@@ -919,15 +919,15 @@ export function ProposalEditor() {
         </div>
 
         {billingRows.length === 0 ? (
-          <p className="text-sm text-slate-500">Add draft sessions to see the calculated total.</p>
+          <p className="text-sm text-slate-500 dark:text-gray-400">Add draft sessions to see the calculated total.</p>
         ) : (
           <>
             <ul className="space-y-1">
               {billingRows.map((row) => (
-                <li key={row.key} className="flex items-center justify-between gap-3 text-sm text-slate-700">
+                <li key={row.key} className="flex items-center justify-between gap-3 text-sm text-slate-700 dark:text-gray-300">
                   <span className="min-w-0">
                     {row.name}{' '}
-                    <span className="text-slate-400">
+                    <span className="text-slate-400 dark:text-gray-500">
                       · {row.sessions} {row.sessions === 1 ? 'session' : 'sessions'}
                     </span>
                   </span>
@@ -935,16 +935,16 @@ export function ProposalEditor() {
                 </li>
               ))}
             </ul>
-            <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-sm">
-              <span className="font-medium text-slate-700">Calculated total</span>
-              <span className="font-semibold text-slate-900">{formatMoney(calculatedTotal, currency)}</span>
+            <div className="flex items-center justify-between border-t border-slate-100 dark:border-gray-700 pt-2 text-sm">
+              <span className="font-medium text-slate-700 dark:text-gray-300">Calculated total</span>
+              <span className="font-semibold text-slate-900 dark:text-gray-100">{formatMoney(calculatedTotal, currency)}</span>
             </div>
           </>
         )}
 
         <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1">
-            Quoted amount <span className="font-normal text-slate-500">(manual override)</span>
+          <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">
+            Quoted amount <span className="font-normal text-slate-500 dark:text-gray-400">(manual override)</span>
           </label>
           <div className="flex items-center gap-3">
             <input
@@ -955,19 +955,19 @@ export function ProposalEditor() {
               onChange={(e) => handleQuotedChange(e.target.value)}
               onBlur={handleQuotedBlur}
               placeholder="0.00"
-              className="w-full sm:w-48 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full sm:w-48 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             {quotedTouched && (
               <button
                 type="button"
                 onClick={handleResetQuoted}
-                className="text-xs font-medium text-indigo-600 hover:text-indigo-700 whitespace-nowrap"
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:hover:text-indigo-300 whitespace-nowrap"
               >
                 Reset to calculated
               </button>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
             Prefilled from the calculated total — edit for discounts or carried-over classes.
           </p>
         </div>
@@ -986,19 +986,19 @@ export function ProposalEditor() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-slate-700">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300">
             Draft sessions ({proposal.draftSessions.length})
           </h3>
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-gray-800 p-1 rounded-lg">
             <button
               type="button"
               onClick={() => setCalendarView('day')}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 calendarView === 'day'
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
+                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'
               }`}
             >
               Day
@@ -1008,8 +1008,8 @@ export function ProposalEditor() {
               onClick={() => setCalendarView('week')}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 calendarView === 'week'
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
+                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'
               }`}
             >
               Week
@@ -1019,8 +1019,8 @@ export function ProposalEditor() {
               onClick={() => setCalendarView('month')}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 calendarView === 'month'
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
+                  : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'
               }`}
             >
               Month
@@ -1028,11 +1028,11 @@ export function ProposalEditor() {
           </div>
         </div>
 
-        <div className="border-t border-slate-100 pt-3">
+        <div className="border-t border-slate-100 dark:border-gray-700 pt-3">
           <button
             type="button"
             onClick={() => setRepeatExpanded((prev) => !prev)}
-            className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-indigo-600"
+            className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400"
           >
             <span>{repeatExpanded ? '▾' : '▸'}</span>
             Repeat weekly
@@ -1041,11 +1041,11 @@ export function ProposalEditor() {
           {repeatExpanded && (
             <div className="mt-3 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Student / Guest</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">Student / Guest</label>
                 <select
                   value={repeatTarget}
                   onChange={(e) => setRepeatTarget(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">Select a student or guest</option>
                   <optgroup label="Students (1-on-1)">
@@ -1068,7 +1068,7 @@ export function ProposalEditor() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Days</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">Days</label>
                 <div className="flex flex-wrap gap-2">
                   {WEEKDAY_CHIPS.map(({ label, value }) => (
                     <button
@@ -1077,8 +1077,8 @@ export function ProposalEditor() {
                       onClick={() => toggleRepeatDay(value)}
                       className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                         repeatDays.has(value)
-                          ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          ? 'bg-indigo-100 dark:bg-indigo-900/40 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
+                          : 'bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-600 text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-700'
                       }`}
                     >
                       {label}
@@ -1089,35 +1089,35 @@ export function ProposalEditor() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Start</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">Start</label>
                   <input
                     type="time"
                     value={repeatStartTime}
                     onChange={(e) => setRepeatStartTime(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">End</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">End</label>
                   <input
                     type="time"
                     value={repeatEndTime}
                     onChange={(e) => setRepeatEndTime(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">End condition</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">End condition</label>
                 <div className="flex items-center gap-2 mb-2">
                   <button
                     type="button"
                     onClick={() => setRepeatEndMode('weeks')}
                     className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors ${
                       repeatEndMode === 'weeks'
-                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
+                        : 'bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-600 text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     Number of weeks
@@ -1127,8 +1127,8 @@ export function ProposalEditor() {
                     onClick={() => setRepeatEndMode('date')}
                     className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors ${
                       repeatEndMode === 'date'
-                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        ? 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
+                        : 'bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-600 text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     Until date
@@ -1141,14 +1141,14 @@ export function ProposalEditor() {
                     min={1}
                     value={repeatWeeks}
                     onChange={(e) => setRepeatWeeks(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 ) : (
                   <input
                     type="date"
                     value={repeatUntilDate}
                     onChange={(e) => setRepeatUntilDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 )}
               </div>
@@ -1171,26 +1171,26 @@ export function ProposalEditor() {
                 <button
                   type="button"
                   onClick={handleWeekPrev}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
                 >
                   ← Prev
                 </button>
                 <button
                   type="button"
                   onClick={handleWeekToday}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
                 >
                   Today
                 </button>
                 <button
                   type="button"
                   onClick={handleWeekNext}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
                 >
                   Next →
                 </button>
               </div>
-              <h2 className="text-lg font-semibold text-slate-800">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
                 {formatWeekRangeInTz(weekStart, TIMEZONE)}
               </h2>
             </div>

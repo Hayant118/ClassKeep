@@ -541,7 +541,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           <button
             type="button"
             onClick={() => setDetailMonthOffset((o) => o - 1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
           >
             ← Prev
           </button>
@@ -555,7 +555,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           <button
             type="button"
             onClick={() => setDetailMonthOffset((o) => o + 1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
           >
             Next →
           </button>
@@ -661,7 +661,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           <button
             type="button"
             onClick={() => setSelectedMonthOffset((o) => o - 1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
           >
             ← Prev
           </button>
@@ -676,7 +676,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           <button
             type="button"
             onClick={() => setSelectedMonthOffset((o) => o + 1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
           >
             Next →
           </button>
