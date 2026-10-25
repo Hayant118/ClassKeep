@@ -33,32 +33,49 @@ function getDaysInMonth(year: number, month: number): number {
 export function ReviewView({ students, classes, enrollments = [] }: ReviewViewProps) {
   const { sessions, loading, error, fetchSessions } = useSessions();
 
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
+  const [startMonth, setStartMonth] = useState(now.getMonth() + 1);
+  const [startYear, setStartYear] = useState(now.getFullYear());
+  const [endMonth, setEndMonth] = useState(now.getMonth() + 1);
+  const [endYear, setEndYear] = useState(now.getFullYear());
   const [locale, setLocale] = useState<'en' | 'zh'>('zh');
   const [exporting, setExporting] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedFamilyGroup, setSelectedFamilyGroup] = useState<string | null>(null);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
 
+  const selectedMonths = useMemo(() => {
+    const startIdx = startYear * 12 + (startMonth - 1);
+    const endIdx = endYear * 12 + (endMonth - 1);
+    const [from, to] = startIdx <= endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+    const months: Array<{ month: number; year: number }> = [];
+    for (let i = from; i <= to && months.length < 12; i++) {
+      months.push({ year: Math.floor(i / 12), month: (i % 12) + 1 });
+    }
+    return months;
+  }, [startMonth, startYear, endMonth, endYear]);
+
   useEffect(() => {
-    const start = new Date(year, month - 1, 1);
+    const first = selectedMonths[0];
+    const last = selectedMonths[selectedMonths.length - 1];
+    const start = new Date(first.year, first.month - 1, 1);
     start.setDate(start.getDate() - 7);
-    const end = new Date(year, month - 1, getDaysInMonth(year, month));
+    const end = new Date(last.year, last.month - 1, getDaysInMonth(last.year, last.month));
     end.setDate(end.getDate() + 7);
 
     fetchSessions({
       startDate: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
       endDate: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`,
     });
-  }, [month, year, fetchSessions]);
+  }, [selectedMonths, fetchSessions]);
 
   const filteredSessions = useMemo(() => {
-    const prefix = `${year}-${pad(month)}`;
-    return sessions.filter(
-      (s) => s.plannedDate.startsWith(prefix) || (s.actualDate && s.actualDate.startsWith(prefix))
+    const prefixes = selectedMonths.map((m) => `${m.year}-${pad(m.month)}`);
+    return sessions.filter((s) =>
+      prefixes.some(
+        (p) => s.plannedDate.startsWith(p) || (s.actualDate && s.actualDate.startsWith(p))
+      )
     );
-  }, [sessions, month, year]);
+  }, [sessions, selectedMonths]);
 
   const selectedStudent = selectedStudentId
     ? students.find((s) => s.id === selectedStudentId) ?? null
@@ -201,8 +218,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
       flushSync(() => {
         root.render(
           <ReviewExport
-            month={month}
-            year={year}
+            months={selectedMonths}
             sessions={studentSessions}
             classes={classes}
             students={students}
@@ -222,9 +238,16 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
       const canvas = await html2canvas(target, { scale: 2, backgroundColor: null });
       const dataUrl = canvas.toDataURL('image/png');
 
-      const monthName = getMonthName(month, year, 'en').replace(/\s+/g, '_');
+      const first = selectedMonths[0];
+      const last = selectedMonths[selectedMonths.length - 1];
+      const firstName = getMonthName(first.month, first.year, 'en').replace(/\s+/g, '_');
+      const lastName = getMonthName(last.month, last.year, 'en').replace(/\s+/g, '_');
+      const range =
+        firstName === lastName && first.year === last.year
+          ? `${firstName}_${first.year}`
+          : `${firstName}_${first.year}-${lastName}_${last.year}`;
       const link = document.createElement('a');
-      link.download = `Review_${monthName}_${year}.png`;
+      link.download = `Review_${range}.png`;
       link.href = dataUrl;
       document.body.appendChild(link);
       link.click();
@@ -248,29 +271,61 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
         <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
           {locale === 'zh' ? '月度回顾' : 'Monthly Review'}
         </h2>
-        <div className="flex items-center gap-2">
-          <select
-            value={month}
-            onChange={(e) => setMonth(parseInt(e.target.value, 10))}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
-          >
-            {monthOptions.map((m) => (
-              <option key={m} value={m}>
-                {getMonthName(m, year, locale)}
-              </option>
-            ))}
-          </select>
-          <select
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value, 10))}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
-          >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-slate-500 dark:text-gray-500">
+              {locale === 'zh' ? '从' : 'From'}
+            </span>
+            <select
+              value={startMonth}
+              onChange={(e) => setStartMonth(parseInt(e.target.value, 10))}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
+            >
+              {monthOptions.map((m) => (
+                <option key={m} value={m}>
+                  {getMonthName(m, startYear, locale)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={startYear}
+              onChange={(e) => setStartYear(parseInt(e.target.value, 10))}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-slate-500 dark:text-gray-500">
+              {locale === 'zh' ? '至' : 'To'}
+            </span>
+            <select
+              value={endMonth}
+              onChange={(e) => setEndMonth(parseInt(e.target.value, 10))}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
+            >
+              {monthOptions.map((m) => (
+                <option key={m} value={m}>
+                  {getMonthName(m, endYear, locale)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={endYear}
+              onChange={(e) => setEndYear(parseInt(e.target.value, 10))}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
+            >
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
           <select
             value={locale}
             onChange={(e) => setLocale(e.target.value as 'en' | 'zh')}
@@ -333,7 +388,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
                       </span>
                     </span>
                     <span className="text-xs text-slate-500 dark:text-gray-500">
-                      {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
+                      {locale === 'zh' ? `${count} 节课本月` : `${count} classes in selected period`}
                     </span>
                   </button>
                 );
@@ -365,7 +420,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
                     </span>
                     <span className="text-xs text-slate-500 dark:text-gray-500">
                       {members.length} {locale === 'zh' ? '名学生' : 'students'} ·{' '}
-                      {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
+                      {locale === 'zh' ? `${count} 节课本月` : `${count} classes in selected period`}
                     </span>
                   </button>
                 );
@@ -395,7 +450,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
                       {student.name}
                     </span>
                     <span className="text-xs text-slate-500 dark:text-gray-500">
-                      {locale === 'zh' ? `${count} 节课本月` : `${count} classes this month`}
+                      {locale === 'zh' ? `${count} 节课本月` : `${count} classes in selected period`}
                     </span>
                   </button>
                 );
@@ -407,7 +462,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
         <div
           className="p-8 text-center text-sm rounded-xl border text-slate-500 dark:text-gray-500 bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-700"
         >
-          {locale === 'zh' ? '该月份没有课程记录。' : 'No sessions found for this month.'}
+          {locale === 'zh' ? '所选时间段没有课程记录。' : 'No sessions found for the selected period.'}
         </div>
       ) : (
         <div className="space-y-4">
@@ -424,8 +479,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
           </button>
           <div className="flex justify-center">
             <ReviewExport
-              month={month}
-              year={year}
+              months={selectedMonths}
               sessions={studentSessions}
               classes={classes}
               students={students}
