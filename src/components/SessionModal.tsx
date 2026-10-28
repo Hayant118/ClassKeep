@@ -4,8 +4,10 @@ import { TriangleAlert } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { sessionsOverlap } from '../utils/calendar';
 import { findEventForDate, getEventTypeLabel } from '../utils/events';
-import type { Session, Student, Class, Enrollment, Guest, CalendarEvent } from '../types';
+import type { Session, Student, Class, Enrollment, Guest, CalendarEvent, Curriculum } from '../types';
 import { Button } from './Button';
+import { ProgressLogModal } from './ProgressLogModal';
+import type { ProgressLogPayload } from './ProgressLogModal';
 
 function isValidDateString(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -40,6 +42,8 @@ interface SessionModalProps {
   enrollments?: Enrollment[];
   guests?: Guest[];
   isDraft?: boolean;
+  curricula?: Curriculum[];
+  onLogProgress?: (payload: ProgressLogPayload) => void;
   onSave: (session: SessionPayload | SessionPayload[]) => void;
   onUpdate: (id: string, updates: Partial<Session>) => void;
   onDelete: (id: string) => void;
@@ -167,6 +171,8 @@ export function SessionModal({
   enrollments = [],
   guests = [],
   isDraft = false,
+  curricula = [],
+  onLogProgress,
   onSave,
   onUpdate,
   onDelete,
@@ -197,6 +203,7 @@ export function SessionModal({
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [repeatWeeks, setRepeatWeeks] = useState(4);
   const [studentSearch, setStudentSearch] = useState('');
+  const [isProgressLogOpen, setIsProgressLogOpen] = useState(false);
 
   // Group-only students are hidden from 1-on-1 selection unless they also
   // have at least one 1-on-1 session on record. Without session data
@@ -730,11 +737,29 @@ export function SessionModal({
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <Button type="submit" variant="primary" className="flex-1">{isDraft ? 'Save Draft' : isEditing ? 'Save Changes' : 'Save Session'}</Button>
+            {isEditing && onLogProgress && (session?.classId || session?.studentId) && (
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => setIsProgressLogOpen(true)}>Log Progress</Button>
+            )}
             {isEditing && <Button type="button" variant="danger" className="flex-1" onClick={handleDelete}>Delete</Button>}
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
           </div>
         </form>
       </div>
+
+      {session && (
+        <ProgressLogModal
+          isOpen={isProgressLogOpen}
+          onClose={() => setIsProgressLogOpen(false)}
+          session={session}
+          students={students}
+          classes={classes}
+          curricula={curricula}
+          onSave={(payload) => {
+            setIsProgressLogOpen(false);
+            onLogProgress?.(payload);
+          }}
+        />
+      )}
     </div>
   );
 }

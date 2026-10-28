@@ -6,7 +6,11 @@ import { toast } from 'sonner';
 import { useSessions } from '../hooks/useSessions';
 import { useProposals } from '../hooks/useProposals';
 import { useReminders } from '../hooks/useReminders';
+import { useCurricula } from '../hooks/useCurricula';
+import { useProgress } from '../hooks/useProgress';
 import { SessionModal } from './SessionModal';
+import { ProgressLogModal } from './ProgressLogModal';
+import type { ProgressLogPayload } from './ProgressLogModal';
 import type { Reminder, Student, Class, Enrollment, Session } from '../types';
 import { CURATED_PALETTE, DEFAULT_COLOR, normalizeColor } from '../utils/colors';
 import { SessionSymbol } from '../utils/sessionSymbols';
@@ -180,9 +184,20 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const { sessions, loading: sessionsLoading, updateSession, fetchSessions } = useSessions();
   const { proposals, loading: proposalsLoading } = useProposals();
   const { reminders, dismissReminder } = useReminders();
+  const { curricula } = useCurricula();
+  const {
+    classCurricula,
+    studentCurricula,
+    logLessonProgress,
+    addStudentCurriculum,
+    updateStudentCurriculum,
+    fetchAllProgress,
+  } = useProgress();
 
   const [editingSession, setEditingSession] = useState<Session | undefined>();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [progressSession, setProgressSession] = useState<Session | undefined>();
+  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
   const [showAllReminders, setShowAllReminders] = useState(false);
   const [dismissedPostClassIds, setDismissedPostClassIds] = useState<Set<string>>(() =>
     readDismissedPostClassIds()
@@ -385,21 +400,117 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     setSelectedDayKey(key);
   };
 
+  useEffect(() => {
+    fetchAllProgress();
+  }, [fetchAllProgress]);
+
+  // Curriculum progress previews shown on session cards, e.g. "RE3: Unit 3B → 3C".
+  const classProgressPreview = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const cc of classCurricula) {
+      if (cc.status !== 'active' || map.has(cc.classId)) continue;
+      if (!cc.currentPosition && !cc.nextUp) continue;
+      const title = curricula.find((c) => c.id === cc.curriculumId)?.title ?? 'Curriculum';
+      map.set(
+        cc.classId,
+        `${title}: ${cc.currentPosition ?? '—'}${cc.nextUp ? ` → ${cc.nextUp}` : ''}`
+      );
+    }
+    return map;
+  }, [classCurricula, curricula]);
+
+  const studentProgressPreview = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const sc of studentCurricula) {
+      if (sc.status !== 'active' || map.has(sc.studentId)) continue;
+      if (!sc.currentPosition && !sc.nextUp) continue;
+      const title = curricula.find((c) => c.id === sc.curriculumId)?.title ?? 'Curriculum';
+      map.set(
+        sc.studentId,
+        `${title}: ${sc.currentPosition ?? '—'}${sc.nextUp ? ` → ${sc.nextUp}` : ''}`
+      );
+    }
+    return map;
+  }, [studentCurricula, curricula]);
+
+  const dismissFromBanner = (sessionId: string) => {
+    // Belt and braces: even if a stale refetch momentarily brings back the
+    // old status, the dismissed list keeps it out of the banner.
+    setDismissedPostClassIds((prev) => {
+      if (prev.has(sessionId)) return prev;
+      const next = new Set(prev);
+      next.add(sessionId);
+      writeDismissedPostClassIds(next);
+      return next;
+    });
+  };
+
   const handleQuickStatus = async (session: Session, status: Session['status']) => {
     try {
       await updateSession(session.id, { status });
       await fetchSessions();
-      // Belt and braces: even if a stale refetch momentarily brings back the
-      // old status, the dismissed list keeps it out of the banner.
-      setDismissedPostClassIds((prev) => {
-        if (prev.has(session.id)) return prev;
-        const next = new Set(prev);
-        next.add(session.id);
-        writeDismissedPostClassIds(next);
-        return next;
-      });
+      dismissFromBanner(session.id);
+      if (status === 'completed') {
+        setProgressSession(session);
+        setIsProgressModalOpen(true);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update session');
+    }
+  };
+
+  const closeProgressModal = () => {
+    setIsProgressModalOpen(false);
+    setProgressSession(undefined);
+  };
+
+  const handleProgressSave = async (payload: ProgressLogPayload) => {
+    try {
+      await updateSession(payload.sessionId, { status: 'completed' });
+      await logLessonProgress(
+        payload.sessionId,
+        payload.classId,
+        payload.studentId,
+        payload.curriculumId,
+        payload.covered,
+        payload.nextUp,
+        payload.progressType
+      );
+
+      // Group progress also advances every enrolled student's individual position.
+      if (payload.progressType === 'group' && payload.classId) {
+        const memberIds = enrollments
+          .filter((e) => e.classId === payload.classId && e.status === 'active')
+          .map((e) => e.studentId);
+        for (const studentId of memberIds) {
+          const existing = studentCurricula.find(
+            (sc) => sc.studentId === studentId && sc.curriculumId === payload.curriculumId
+          );
+          if (existing) {
+            await updateStudentCurriculum(existing.id, {
+              currentPosition: payload.covered,
+              nextUp: payload.nextUp,
+            });
+          } else {
+            await addStudentCurriculum({
+              studentId,
+              curriculumId: payload.curriculumId,
+              currentPosition: payload.covered,
+              nextUp: payload.nextUp,
+              status: 'active',
+            });
+          }
+        }
+      }
+
+      dismissFromBanner(payload.sessionId);
+      await fetchSessions();
+      await fetchAllProgress();
+      toast.success('Progress logged');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to log progress');
+    } finally {
+      closeProgressModal();
     }
   };
 
@@ -660,7 +771,13 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {selectedDaySessions.map((session) => (
+            {selectedDaySessions.map((session) => {
+              const progressPreview = session.classId
+                ? classProgressPreview.get(session.classId)
+                : session.studentId
+                ? studentProgressPreview.get(session.studentId)
+                : undefined;
+              return (
               <div
                 key={session.id}
                 className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-700/30 hover:shadow-sm transition-shadow"
@@ -676,6 +793,14 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                   <p className="text-xs text-slate-500 dark:text-gray-400 truncate">
                     {getStudentNames(session, enrollments, students)}
                   </p>
+                  {progressPreview && (
+                    <p
+                      className="text-[11px] text-indigo-600 dark:text-indigo-400 mt-1 truncate"
+                      title={progressPreview}
+                    >
+                      {progressPreview}
+                    </p>
+                  )}
                   <span className={`inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full capitalize ${
                     session.status === 'completed'
                       ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
@@ -721,7 +846,8 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -814,10 +940,24 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
         classes={classes}
         sessions={sessions}
         enrollments={enrollments}
+        curricula={curricula}
         onSave={() => {}}
         onUpdate={handleUpdateSession}
         onDelete={() => {}}
+        onLogProgress={handleProgressSave}
       />
+
+      {progressSession && (
+        <ProgressLogModal
+          isOpen={isProgressModalOpen}
+          onClose={closeProgressModal}
+          session={progressSession}
+          students={students}
+          classes={classes}
+          curricula={curricula}
+          onSave={handleProgressSave}
+        />
+      )}
     </div>
   );
 }

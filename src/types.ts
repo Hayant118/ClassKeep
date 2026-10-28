@@ -158,6 +158,52 @@ export interface SessionWithOverlap extends Session {
   hasOverlap: boolean;
 }
 
+export interface Curriculum {
+  id: string;
+  userId: string;
+  title: string;
+  subject?: string;
+  color?: string;
+  createdAt: string;
+}
+
+export type CurriculumStatus = 'active' | 'paused' | 'completed';
+
+export interface ClassCurriculum {
+  id: string;
+  userId: string;
+  classId: string;
+  curriculumId: string;
+  currentPosition?: string;
+  nextUp?: string;
+  status: CurriculumStatus;
+  updatedAt: string;
+}
+
+export interface StudentCurriculum {
+  id: string;
+  userId: string;
+  studentId: string;
+  curriculumId: string;
+  currentPosition?: string;
+  nextUp?: string;
+  status: CurriculumStatus;
+  updatedAt: string;
+}
+
+export interface LessonLog {
+  id: string;
+  userId: string;
+  sessionId?: string;
+  classId?: string;
+  studentId?: string;
+  curriculumId: string;
+  covered: string;
+  nextUp?: string;
+  progressType: 'group' | 'individual';
+  createdAt: string;
+}
+
 export interface CalendarEvent {
   id: string;
   userId: string;

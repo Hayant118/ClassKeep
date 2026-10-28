@@ -7,12 +7,15 @@ import { useClasses } from '../hooks/useClasses';
 import { useEnrollments } from '../hooks/useEnrollments';
 import { useSessions } from '../hooks/useSessions';
 import { usePayments } from '../hooks/usePayments';
+import { useCurricula } from '../hooks/useCurricula';
+import { useProgress } from '../hooks/useProgress';
 import { SessionModal } from './SessionModal';
 import type { Student, Class, Enrollment, Session } from '../types';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'courseware', label: 'Courseware' },
+  { key: 'progress', label: 'Progress' },
   { key: 'schedule', label: 'Schedule' },
   { key: 'payments', label: 'Payments' },
 ] as const;
@@ -98,6 +101,9 @@ export function StudentDetailView() {
   const { enrollments, loading: enrollmentsLoading, updateEnrollment, fetchEnrollments } = useEnrollments();
   const { sessions, loading: sessionsLoading, updateSession, deleteSession, addSession } = useSessions();
   const { payments, loading: paymentsLoading, fetchPayments, insertPayment } = usePayments();
+  const { curricula } = useCurricula();
+  const { studentCurricula, classCurricula, lessonLogs, fetchStudentCurricula, fetchLessonLogs } =
+    useProgress();
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -141,6 +147,39 @@ export function StudentDetailView() {
   const upcomingSessions = useMemo(
     () => studentSessions.filter((s) => s.plannedDate >= todayStr()),
     [studentSessions]
+  );
+
+  useEffect(() => {
+    if (!id) return;
+    fetchStudentCurricula(id);
+    fetchLessonLogs({ studentId: id });
+  }, [id, fetchStudentCurricula, fetchLessonLogs]);
+
+  const getCurriculumTitle = (curriculumId: string): string =>
+    curricula.find((c) => c.id === curriculumId)?.title ?? 'Unknown curriculum';
+
+  // Active individual curricula for this student…
+  const activeStudentCurricula = useMemo(
+    () => studentCurricula.filter((sc) => sc.studentId === id && sc.status === 'active'),
+    [studentCurricula, id]
+  );
+
+  // …plus active group curricula from their enrolled classes (shown in blue).
+  const activeClassCurricula = useMemo(() => {
+    const enrolledClassIds = new Set(
+      studentEnrollments.filter((e) => e.status === 'active').map((e) => e.classId)
+    );
+    return classCurricula.filter(
+      (cc) => enrolledClassIds.has(cc.classId) && cc.status === 'active'
+    );
+  }, [classCurricula, studentEnrollments]);
+
+  const recentLessonLogs = useMemo(
+    () =>
+      lessonLogs
+        .filter((l) => l.studentId === id)
+        .slice(0, 8),
+    [lessonLogs, id]
   );
 
   const getClass = (classId: string | undefined): Class | undefined =>
@@ -519,6 +558,94 @@ export function StudentDetailView() {
               );
             })
           )}
+        </div>
+      )}
+
+      {/* Progress */}
+      {activeTab === 'progress' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">Progress</h2>
+            {activeStudentCurricula.length === 0 && activeClassCurricula.length === 0 ? (
+              <p className="text-sm text-slate-500">No active curricula yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {activeClassCurricula.map((cc) => (
+                  <div key={cc.id} className="border border-slate-200 rounded-lg p-4">
+                    <div className="h-1.5 rounded-full bg-blue-100 mb-3">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: '100%' }} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-slate-900">
+                        {getCurriculumTitle(cc.curriculumId)}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                        Group · {getClass(cc.classId)?.name ?? 'Class'}
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-600 mt-1">
+                      {cc.currentPosition ?? '—'}
+                      {cc.nextUp && <span className="text-slate-400"> → {cc.nextUp}</span>}
+                    </div>
+                  </div>
+                ))}
+                {activeStudentCurricula.map((sc) => (
+                  <div key={sc.id} className="border border-slate-200 rounded-lg p-4">
+                    <div className="h-1.5 rounded-full bg-emerald-100 mb-3">
+                      <div className="h-full rounded-full bg-emerald-500" style={{ width: '100%' }} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-slate-900">
+                        {getCurriculumTitle(sc.curriculumId)}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                        Individual
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-600 mt-1">
+                      {sc.currentPosition ?? '—'}
+                      {sc.nextUp && <span className="text-slate-400"> → {sc.nextUp}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">Recent Lesson Logs</h2>
+            {recentLessonLogs.length === 0 ? (
+              <p className="text-sm text-slate-500">No progress logged yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {recentLessonLogs.map((log) => (
+                  <li key={log.id} className="border border-slate-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-slate-900">
+                        {getCurriculumTitle(log.curriculumId)}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {formatDate(log.createdAt.slice(0, 10))}
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-600 mt-1">
+                      Covered: {log.covered}
+                      {log.nextUp && <span> · Next: {log.nextUp}</span>}
+                    </div>
+                    <span
+                      className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        log.progressType === 'group'
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-emerald-100 text-emerald-700'
+                      }`}
+                    >
+                      {log.progressType === 'group' ? 'Group' : 'Individual'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 
