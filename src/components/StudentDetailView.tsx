@@ -10,7 +10,7 @@ import { usePayments } from '../hooks/usePayments';
 import { useCurricula } from '../hooks/useCurricula';
 import { useProgress } from '../hooks/useProgress';
 import { SessionModal } from './SessionModal';
-import type { Student, Class, Enrollment, Session } from '../types';
+import type { Student, Class, Enrollment, Session, StudentCurriculum, CurriculumStatus } from '../types';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
@@ -102,8 +102,16 @@ export function StudentDetailView() {
   const { sessions, loading: sessionsLoading, updateSession, deleteSession, addSession } = useSessions();
   const { payments, loading: paymentsLoading, fetchPayments, insertPayment } = usePayments();
   const { curricula } = useCurricula();
-  const { studentCurricula, classCurricula, lessonLogs, fetchStudentCurricula, fetchLessonLogs } =
+  const { studentCurricula, classCurricula, lessonLogs, fetchStudentCurricula, fetchLessonLogs, addStudentCurriculum, updateStudentCurriculum } =
     useProgress();
+
+  // Assign / edit curriculum modal state
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [editingCurriculum, setEditingCurriculum] = useState<StudentCurriculum | null>(null);
+  const [assignCurriculumId, setAssignCurriculumId] = useState('');
+  const [assignCurrentPosition, setAssignCurrentPosition] = useState('');
+  const [assignNextUp, setAssignNextUp] = useState('');
+  const [assignStatus, setAssignStatus] = useState<CurriculumStatus>('active');
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -256,6 +264,58 @@ export function StudentDetailView() {
     setIsSessionModalOpen(true);
   };
 
+  const openAssignModal = () => {
+    const unassigned = curricula.find(
+      (c) => !studentCurricula.some((sc) => sc.curriculumId === c.id)
+    );
+    setEditingCurriculum(null);
+    setAssignCurriculumId(unassigned?.id ?? '');
+    setAssignCurrentPosition('');
+    setAssignNextUp('');
+    setAssignStatus('active');
+    setAssignModalOpen(true);
+  };
+
+  const openEditCurriculum = (sc: StudentCurriculum) => {
+    setEditingCurriculum(sc);
+    setAssignCurriculumId(sc.curriculumId);
+    setAssignCurrentPosition(sc.currentPosition ?? '');
+    setAssignNextUp(sc.nextUp ?? '');
+    setAssignStatus(sc.status);
+    setAssignModalOpen(true);
+  };
+
+  const handleAssignSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCurriculum && !assignCurriculumId) {
+      toast.error('Please pick a curriculum');
+      return;
+    }
+    try {
+      if (editingCurriculum) {
+        await updateStudentCurriculum(editingCurriculum.id, {
+          currentPosition: assignCurrentPosition.trim() || undefined,
+          nextUp: assignNextUp.trim() || undefined,
+          status: assignStatus,
+        });
+        toast.success('Curriculum updated');
+      } else {
+        await addStudentCurriculum({
+          studentId: student!.id,
+          curriculumId: assignCurriculumId,
+          currentPosition: assignCurrentPosition.trim() || undefined,
+          nextUp: assignNextUp.trim() || undefined,
+          status: assignStatus,
+        });
+        toast.success('Curriculum assigned');
+      }
+      setAssignModalOpen(false);
+      await fetchStudentCurricula(student!.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save curriculum');
+    }
+  };
+
   const handleSessionUpdate = async (sessionId: string, updates: Partial<Session>) => {
     try {
       await updateSession(sessionId, updates);
@@ -362,12 +422,12 @@ export function StudentDetailView() {
           />
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto whitespace-nowrap pb-1">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
                 activeTab === tab.key
                   ? 'bg-indigo-600 text-white'
                   : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
@@ -565,9 +625,25 @@ export function StudentDetailView() {
       {activeTab === 'progress' && (
         <div className="space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-800 mb-4">Progress</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-800">Progress</h2>
+              <button
+                onClick={openAssignModal}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+              >
+                + Assign Curriculum
+              </button>
+            </div>
             {activeStudentCurricula.length === 0 && activeClassCurricula.length === 0 ? (
-              <p className="text-sm text-slate-500">No active curricula yet.</p>
+              <div className="text-center py-6">
+                <p className="text-sm text-slate-500 mb-3">No active curricula yet.</p>
+                <button
+                  onClick={openAssignModal}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  Assign curriculum
+                </button>
+              </div>
             ) : (
               <div className="space-y-4">
                 {activeClassCurricula.map((cc) => (
@@ -598,8 +674,16 @@ export function StudentDetailView() {
                       <span className="font-medium text-slate-900">
                         {getCurriculumTitle(sc.curriculumId)}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
-                        Individual
+                      <span className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                          Individual
+                        </span>
+                        <button
+                          onClick={() => openEditCurriculum(sc)}
+                          className="text-xs text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+                        >
+                          Edit
+                        </button>
                       </span>
                     </div>
                     <div className="text-sm text-slate-600 mt-1">
@@ -809,6 +893,97 @@ export function StudentDetailView() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Assign / Edit Curriculum Modal */}
+      {assignModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-800">
+                {editingCurriculum ? 'Edit Curriculum' : 'Assign Curriculum'}
+              </h2>
+              <button
+                onClick={() => setAssignModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleAssignSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Curriculum</label>
+                {editingCurriculum ? (
+                  <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                    {getCurriculumTitle(editingCurriculum.curriculumId)}
+                  </div>
+                ) : (
+                  <select
+                    value={assignCurriculumId}
+                    onChange={(e) => setAssignCurriculumId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  >
+                    <option value="">Pick a curriculum…</option>
+                    {curricula.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Current Position</label>
+                <input
+                  type="text"
+                  value={assignCurrentPosition}
+                  onChange={(e) => setAssignCurrentPosition(e.target.value)}
+                  placeholder="e.g. Unit 3, Lesson 2"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Next Up</label>
+                <input
+                  type="text"
+                  value={assignNextUp}
+                  onChange={(e) => setAssignNextUp(e.target.value)}
+                  placeholder="e.g. Unit 3, Lesson 3"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <select
+                  value={assignStatus}
+                  onChange={(e) => setAssignStatus(e.target.value as CurriculumStatus)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="active">Active</option>
+                  <option value="paused">Paused</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  {editingCurriculum ? 'Save Changes' : 'Assign'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAssignModalOpen(false)}
+                  className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
