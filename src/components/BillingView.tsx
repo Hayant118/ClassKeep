@@ -537,30 +537,6 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setDetailMonthOffset((o) => o - 1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
-          >
-            ← Prev
-          </button>
-          <button
-            type="button"
-            onClick={() => setDetailMonthOffset(0)}
-            className="text-sm font-semibold text-slate-800 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400"
-          >
-            {monthLabel(breakdownDetail.monthKey)}
-          </button>
-          <button
-            type="button"
-            onClick={() => setDetailMonthOffset((o) => o + 1)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
-          >
-            Next →
-          </button>
-        </div>
-
         <MonthView
           monthStart={breakdownDetail.monthStart}
           timezone={student?.timezone || DEFAULT_TIMEZONE}

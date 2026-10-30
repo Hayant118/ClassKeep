@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Session as SupabaseSession } from '@supabase/supabase-js';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
@@ -16,7 +16,9 @@ import {
   checkPreClassReminders,
   checkLowBalanceReminders,
   generateDailyDigest,
+  isPreClassReminderStale,
 } from './utils/reminders';
+import { getNowInDisplayTz } from './utils/timezone';
 import { Auth } from './components/Auth';
 import { Calendar } from './components/Calendar';
 import { SettingsView } from './components/SettingsView';
@@ -198,8 +200,18 @@ function AppContent() {
   const { classes, loading: classesLoading, fetchClasses, addClass } = useClasses();
   const { enrollments, loading: enrollmentsLoading, fetchEnrollments, addEnrollment } = useEnrollments();
   const { sessions, loading: sessionsLoading, fetchSessions } = useSessions();
-  const { fetchReminders, unreadCount } = useReminders();
+  const { fetchReminders, reminders } = useReminders();
   const { settings, loading: settingsLoading } = useReminderSettings();
+
+  // Bell badge ignores pre_class reminders whose session started >30 min ago,
+  // even if the background scan has not dismissed them yet.
+  const unreadCount = useMemo(
+    () =>
+      reminders.filter(
+        (r) => !isPreClassReminderStale(r, sessions, getNowInDisplayTz())
+      ).length,
+    [reminders, sessions]
+  );
 
   const resolveClassForStudent = async (studentId: string): Promise<string> => {
     const student = students.find((s) => s.id === studentId);

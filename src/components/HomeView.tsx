@@ -15,6 +15,7 @@ import type { Reminder, Student, Class, Enrollment, Session } from '../types';
 import { CURATED_PALETTE, DEFAULT_COLOR, normalizeColor } from '../utils/colors';
 import { SessionSymbol } from '../utils/sessionSymbols';
 import { getNowInDisplayTz } from '../utils/timezone';
+import { isPreClassReminderStale } from '../utils/reminders';
 import { Button } from './Button';
 
 interface HomeViewProps {
@@ -336,6 +337,16 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     })}`;
   }, [selectedDayKey, today]);
 
+  // Ignore pre_class reminders whose session started >30 min ago, even if the
+  // background scan has not dismissed them yet.
+  const visibleReminders = useMemo(
+    () =>
+      reminders.filter(
+        (r) => !isPreClassReminderStale(r, sessions, getNowInDisplayTz())
+      ),
+    [reminders, sessions]
+  );
+
   const isLoading = sessionsLoading || proposalsLoading;
 
   const TYPE_ACCENTS: Record<Reminder['type'], { dot: string; icon: string; border: string }> = {
@@ -623,9 +634,9 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
       )}
 
       {/* Reminder notifications */}
-      {reminders.length > 0 && (
+      {visibleReminders.length > 0 && (
         <div className="bg-slate-900 rounded-xl border border-slate-700 p-3 space-y-2">
-          {(showAllReminders ? reminders : reminders.slice(0, 2)).map((reminder) => (
+          {(showAllReminders ? visibleReminders : visibleReminders.slice(0, 2)).map((reminder) => (
             <div
               key={reminder.id}
               className={`flex items-center gap-2.5 pl-3 pr-2 py-2 rounded-lg bg-slate-800/60 border border-slate-700 border-l-2 ${TYPE_ACCENTS[reminder.type].border}`}
@@ -652,13 +663,13 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
               </button>
             </div>
           ))}
-          {!showAllReminders && reminders.length > 2 && (
+          {!showAllReminders && visibleReminders.length > 2 && (
             <button
               type="button"
               onClick={() => setShowAllReminders(true)}
               className="w-full text-left text-sm text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-800/60 transition-colors"
             >
-              +{reminders.length - 2} more
+              +{visibleReminders.length - 2} more
             </button>
           )}
         </div>

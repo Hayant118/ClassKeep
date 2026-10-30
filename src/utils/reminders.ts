@@ -1,6 +1,35 @@
 // src/utils/reminders.ts
 import { supabase } from '../lib/supabase';
 import type { Class, Enrollment, Reminder, Session, Student } from '../types';
+import { getNowInDisplayTz } from './timezone';
+
+export const PRE_CLASS_STALE_MINUTES = 30;
+
+/**
+ * A pre_class reminder is stale once its session started more than
+ * PRE_CLASS_STALE_MINUTES ago. Falls back to scheduled_at when the session
+ * row is unavailable.
+ */
+export function isPreClassReminderStale(
+  reminder: Reminder,
+  sessions: Session[],
+  now: Date
+): boolean {
+  if (reminder.type !== 'pre_class') return false;
+  const session = reminder.reference_id
+    ? sessions.find((s) => s.id === reminder.reference_id)
+    : undefined;
+  let startMs: number;
+  if (session) {
+    startMs = new Date(`${session.plannedDate}T${session.plannedTime}`).getTime();
+  } else if (reminder.scheduled_at) {
+    startMs = new Date(reminder.scheduled_at).getTime();
+  } else {
+    return false;
+  }
+  if (isNaN(startMs)) return false;
+  return (now.getTime() - startMs) / 60_000 > PRE_CLASS_STALE_MINUTES;
+}
 
 function reminderExists(existing: Reminder[], type: Reminder['type'], referenceId?: string) {
   return existing.some(
@@ -90,7 +119,24 @@ export async function checkPreClassReminders(
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return;
 
-  const now = new Date();
+  const now = getNowInDisplayTz();
+
+  // Expire pre_class reminders whose session start is >30 min past: mark them
+  // dismissed so they stop counting toward the badge/banners, and so a fresh
+  // reminder can be created if the session is rescheduled into the future.
+  for (const reminder of existingReminders) {
+    if (reminder.dismissed_at || !isPreClassReminderStale(reminder, sessions, now)) continue;
+    const dismissedAt = new Date().toISOString();
+    const { error: dismissError } = await supabase
+      .from('ck_reminders')
+      .update({ dismissed_at: dismissedAt })
+      .eq('id', reminder.id);
+    if (dismissError) {
+      console.error('[ClassKeep] Failed to expire stale pre_class reminder:', dismissError);
+    } else {
+      reminder.dismissed_at = dismissedAt;
+    }
+  }
 
   // Deduplicate by session ID up front: duplicate session rows (e.g. the same
   // group class occurrence stored once per enrolled student) must produce a
