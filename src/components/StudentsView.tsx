@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ChevronDown } from 'lucide-react';
 import { useStudents } from '../hooks/useStudents';
 import { useClasses } from '../hooks/useClasses';
 import { useEnrollments } from '../hooks/useEnrollments';
@@ -26,6 +27,38 @@ const COMMON_TIMEZONES = [
   'Australia/Sydney',
   'Pacific/Auckland',
 ];
+
+const COLLAPSED_STORAGE_KEY = 'ck_students_collapsed';
+
+interface CollapsedState {
+  groupClasses: boolean;
+  families: Record<string, boolean>;
+}
+
+function readCollapsedState(): CollapsedState {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        groupClasses: Boolean(parsed.groupClasses),
+        families:
+          parsed.families && typeof parsed.families === 'object' ? parsed.families : {},
+      };
+    }
+  } catch {
+    // Malformed or unavailable storage — fall through to defaults.
+  }
+  return { groupClasses: false, families: {} };
+}
+
+function writeCollapsedState(state: CollapsedState) {
+  try {
+    localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Storage unavailable — collapse state just won't persist.
+  }
+}
 
 export function StudentsView() {
   const navigate = useNavigate();
@@ -59,6 +92,28 @@ export function StudentsView() {
   // Per-class inline add-student state
   const [enrollPickByClass, setEnrollPickByClass] = useState<Record<string, string>>({});
   const [quickNameByClass, setQuickNameByClass] = useState<Record<string, string>>({});
+
+  // Collapsible sections (persisted in localStorage; default = expanded)
+  const [collapsed, setCollapsed] = useState<CollapsedState>(readCollapsedState);
+
+  const toggleGroupClasses = () => {
+    setCollapsed((prev) => {
+      const next = { ...prev, groupClasses: !prev.groupClasses };
+      writeCollapsedState(next);
+      return next;
+    });
+  };
+
+  const toggleFamily = (familyName: string) => {
+    setCollapsed((prev) => {
+      const next = {
+        ...prev,
+        families: { ...prev.families, [familyName]: !prev.families[familyName] },
+      };
+      writeCollapsedState(next);
+      return next;
+    });
+  };
 
   const resetStudentForm = () => {
     setName('');
@@ -495,11 +550,27 @@ export function StudentsView() {
 
       {/* Group Class Management — student-first model: classes are GROUPS only */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-1">Group Classes</h2>
-        <p className="text-xs text-slate-500 dark:text-gray-500 mb-4">
-          1-on-1 lessons need no class — schedule students directly on the calendar.
-        </p>
+        <button
+          type="button"
+          onClick={toggleGroupClasses}
+          aria-expanded={!collapsed.groupClasses}
+          className="w-full min-h-[44px] flex items-center justify-between gap-3 mb-4 text-left"
+        >
+          <span>
+            <span className="block text-lg font-semibold text-slate-800 dark:text-gray-100 mb-1">Group Classes</span>
+            <span className="block text-xs text-slate-500 dark:text-gray-500">
+              1-on-1 lessons need no class — schedule students directly on the calendar.
+            </span>
+          </span>
+          <ChevronDown
+            className={`w-5 h-5 text-slate-400 dark:text-gray-500 shrink-0 transition-transform ${
+              collapsed.groupClasses ? '-rotate-90' : ''
+            }`}
+          />
+        </button>
 
+        {!collapsed.groupClasses && (
+        <>
         {/* Create Group Class */}
         <form onSubmit={handleCreateClass} className="flex flex-col sm:flex-row gap-3 mb-6">
           <input
@@ -726,6 +797,8 @@ export function StudentsView() {
             })}
           </div>
         )}
+        </>
+        )}
       </div>
 
       {/* Students List */}
@@ -742,12 +815,32 @@ export function StudentsView() {
           <div className="space-y-3">
             {groupedStudents.map(([group, groupStudents]) => {
               const familyColor = groupStudents.find((s) => s.color)?.color || '#94a3b8';
+              const isUngrouped = group === 'Ungrouped';
+              const isCollapsed = !isUngrouped && !!collapsed.families[group];
               return (
                 <div key={group}>
-                  <div className="px-6 py-2 bg-slate-50 dark:bg-gray-900/50 text-sm font-semibold text-slate-600 dark:text-gray-400 border-b border-slate-200 dark:border-gray-700 flex items-center gap-3">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: familyColor }} />
-                    {group} ({groupStudents.length})
-                  </div>
+                  {isUngrouped ? (
+                    <div className="px-6 py-2 min-h-[44px] bg-slate-50 dark:bg-gray-900/50 text-sm font-semibold text-slate-600 dark:text-gray-400 border-b border-slate-200 dark:border-gray-700 flex items-center gap-3">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: familyColor }} />
+                      {group} ({groupStudents.length})
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => toggleFamily(group)}
+                      aria-expanded={!isCollapsed}
+                      className="w-full px-6 py-2 min-h-[44px] bg-slate-50 dark:bg-gray-900/50 text-sm font-semibold text-slate-600 dark:text-gray-400 border-b border-slate-200 dark:border-gray-700 flex items-center gap-3 text-left"
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: familyColor }} />
+                      <span className="flex-1">{group} ({groupStudents.length})</span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-slate-400 dark:text-gray-500 shrink-0 transition-transform ${
+                          isCollapsed ? '-rotate-90' : ''
+                        }`}
+                      />
+                    </button>
+                  )}
+                  {!isCollapsed && (
                   <ul
                     className="border-l-4 ml-4 sm:ml-6 space-y-3 py-3 pr-3"
                     style={{ borderColor: familyColor }}
@@ -823,6 +916,7 @@ export function StudentsView() {
                       );
                     })}
                   </ul>
+                  )}
                 </div>
               );
             })}
