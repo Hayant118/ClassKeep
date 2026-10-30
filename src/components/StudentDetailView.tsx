@@ -101,14 +101,17 @@ export function StudentDetailView() {
   const { enrollments, loading: enrollmentsLoading, updateEnrollment, fetchEnrollments } = useEnrollments();
   const { sessions, loading: sessionsLoading, updateSession, deleteSession, addSession } = useSessions();
   const { payments, loading: paymentsLoading, fetchPayments, insertPayment } = usePayments();
-  const { curricula } = useCurricula();
+  const { curricula, addCurriculum } = useCurricula();
   const { studentCurricula, classCurricula, lessonLogs, fetchStudentCurricula, fetchLessonLogs, addStudentCurriculum, updateStudentCurriculum } =
     useProgress();
 
   // Assign / edit curriculum modal state
+  const NEW_CURRICULUM_VALUE = '__new__';
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [editingCurriculum, setEditingCurriculum] = useState<StudentCurriculum | null>(null);
   const [assignCurriculumId, setAssignCurriculumId] = useState('');
+  const [newCurriculumTitle, setNewCurriculumTitle] = useState('');
+  const [newCurriculumSubject, setNewCurriculumSubject] = useState('');
   const [assignCurrentPosition, setAssignCurrentPosition] = useState('');
   const [assignNextUp, setAssignNextUp] = useState('');
   const [assignStatus, setAssignStatus] = useState<CurriculumStatus>('active');
@@ -269,7 +272,10 @@ export function StudentDetailView() {
       (c) => !studentCurricula.some((sc) => sc.curriculumId === c.id)
     );
     setEditingCurriculum(null);
-    setAssignCurriculumId(unassigned?.id ?? '');
+    // Empty library defaults to the "create new curriculum" path.
+    setAssignCurriculumId(unassigned?.id ?? (curricula.length === 0 ? NEW_CURRICULUM_VALUE : ''));
+    setNewCurriculumTitle('');
+    setNewCurriculumSubject('');
     setAssignCurrentPosition('');
     setAssignNextUp('');
     setAssignStatus('active');
@@ -279,6 +285,8 @@ export function StudentDetailView() {
   const openEditCurriculum = (sc: StudentCurriculum) => {
     setEditingCurriculum(sc);
     setAssignCurriculumId(sc.curriculumId);
+    setNewCurriculumTitle('');
+    setNewCurriculumSubject('');
     setAssignCurrentPosition(sc.currentPosition ?? '');
     setAssignNextUp(sc.nextUp ?? '');
     setAssignStatus(sc.status);
@@ -300,9 +308,21 @@ export function StudentDetailView() {
         });
         toast.success('Curriculum updated');
       } else {
+        let curriculumId = assignCurriculumId;
+        if (assignCurriculumId === NEW_CURRICULUM_VALUE) {
+          if (!newCurriculumTitle.trim()) {
+            toast.error('Please enter a curriculum title');
+            return;
+          }
+          const created = await addCurriculum({
+            title: newCurriculumTitle.trim(),
+            subject: newCurriculumSubject.trim() || undefined,
+          });
+          curriculumId = created.id;
+        }
         await addStudentCurriculum({
           studentId: student!.id,
-          curriculumId: assignCurriculumId,
+          curriculumId,
           currentPosition: assignCurrentPosition.trim() || undefined,
           nextUp: assignNextUp.trim() || undefined,
           status: assignStatus,
@@ -354,7 +374,7 @@ export function StudentDetailView() {
   if (studentsLoading || classesLoading || enrollmentsLoading || sessionsLoading || paymentsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-slate-500">Loading...</div>
+        <div className="text-slate-500 dark:text-gray-400">Loading...</div>
       </div>
     );
   }
@@ -362,7 +382,7 @@ export function StudentDetailView() {
   if (!student) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <div className="text-slate-500">Student not found</div>
+        <div className="text-slate-500 dark:text-gray-400">Student not found</div>
         <button
           onClick={() => navigate('/students')}
           className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
@@ -380,7 +400,7 @@ export function StudentDetailView() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/students')}
-            className="text-slate-500 hover:text-slate-700 text-sm"
+            className="text-slate-500 hover:text-slate-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm"
           >
             ← Back
           </button>
@@ -388,12 +408,12 @@ export function StudentDetailView() {
             <button
               type="button"
               onClick={() => setShowColorPicker((v) => !v)}
-              className="w-8 h-8 rounded-full border-2 border-white shadow-sm ring-2 ring-slate-200"
+              className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 shadow-sm ring-2 ring-slate-200 dark:ring-gray-600"
               style={{ backgroundColor: student.color || '#6366f1' }}
               aria-label="Change color"
             />
             {showColorPicker && (
-              <div className="absolute top-10 left-0 z-20 bg-white rounded-lg shadow-lg border border-slate-200 p-2 flex flex-wrap gap-2 w-40">
+              <div className="absolute top-10 left-0 z-20 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-slate-200 dark:border-gray-700 p-2 flex flex-wrap gap-2 w-40">
                 {COLOR_OPTIONS.map((color) => (
                   <button
                     key={color}
@@ -402,7 +422,7 @@ export function StudentDetailView() {
                       handleUpdateStudent({ color });
                       setShowColorPicker(false);
                     }}
-                    className="w-6 h-6 rounded-full border border-slate-200"
+                    className="w-6 h-6 rounded-full border border-slate-200 dark:border-gray-600"
                     style={{ backgroundColor: color }}
                     aria-label={`Select color ${color}`}
                   />
@@ -418,7 +438,7 @@ export function StudentDetailView() {
                 handleUpdateStudent({ name: e.target.value.trim() });
               }
             }}
-            className="text-2xl font-bold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1"
+            className="text-2xl font-bold text-slate-900 dark:text-gray-100 bg-transparent border-b border-transparent hover:border-slate-300 dark:hover:border-gray-600 focus:border-indigo-500 focus:outline-none px-1"
           />
         </div>
 
@@ -430,7 +450,7 @@ export function StudentDetailView() {
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
                 activeTab === tab.key
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                  : 'bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-700 border border-slate-200 dark:border-gray-700'
               }`}
             >
               {tab.label}
@@ -442,20 +462,20 @@ export function StudentDetailView() {
       {/* Overview */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-800 mb-4">Profile</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-4">Profile</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Contact</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Contact</label>
                 <input
                   type="text"
                   defaultValue={student.contact}
                   onBlur={(e) => handleUpdateStudent({ contact: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Default Rate</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Default Rate</label>
                 <input
                   type="number"
                   step="0.01"
@@ -465,34 +485,34 @@ export function StudentDetailView() {
                     const value = parseFloat(e.target.value);
                     if (!isNaN(value)) handleUpdateStudent({ defaultRate: value });
                   }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Timezone</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Timezone</label>
                 <input
                   type="text"
                   defaultValue={student.timezone}
                   onBlur={(e) => handleUpdateStudent({ timezone: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Notes</label>
                 <input
                   type="text"
                   defaultValue={student.notes}
                   onBlur={(e) => handleUpdateStudent({ notes: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-800 mb-4">Enrollments</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-4">Enrollments</h2>
             {studentEnrollments.length === 0 ? (
-              <p className="text-sm text-slate-500">No enrollments yet.</p>
+              <p className="text-sm text-slate-500 dark:text-gray-400">No enrollments yet.</p>
             ) : (
               <div className="space-y-4">
                 {studentEnrollments.map((enrollment) => {
@@ -503,15 +523,15 @@ export function StudentDetailView() {
                   return (
                     <div
                       key={enrollment.id}
-                      className="border border-slate-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                      className="border border-slate-200 dark:border-gray-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
                     >
                       <div>
-                        <div className="font-medium text-slate-900">{cls?.name || 'Unknown class'}</div>
-                        <div className="text-sm text-slate-500 mt-1">
+                        <div className="font-medium text-slate-900 dark:text-gray-100">{cls?.name || 'Unknown class'}</div>
+                        <div className="text-sm text-slate-500 dark:text-gray-400 mt-1">
                           {paymentTypeLabel(enrollment.paymentType)} • Rate: {formatCurrency(rate)}
                         </div>
                         {enrollment.paymentType === 'prepaid' && (
-                          <div className="text-sm mt-1">
+                          <div className="text-sm mt-1 text-slate-900 dark:text-gray-100">
                             Balance:{' '}
                             <span className={enrollment.prepaidBalance < 0 ? 'text-red-600 font-medium' : 'font-medium'}>
                               {formatCurrency(enrollment.prepaidBalance)}
@@ -519,7 +539,7 @@ export function StudentDetailView() {
                           </div>
                         )}
                         {lowBalance && (
-                          <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
+                          <div className="mt-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded px-2 py-1 inline-block">
                             Low balance — less than 2 sessions remaining
                           </div>
                         )}
@@ -528,17 +548,17 @@ export function StudentDetailView() {
                         <span
                           className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                             enrollment.status === 'active'
-                              ? 'bg-emerald-100 text-emerald-700'
+                              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                               : enrollment.status === 'paused'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-slate-100 text-slate-700'
+                              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                              : 'bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300'
                           }`}
                         >
                           {enrollment.status}
                         </span>
                         <button
                           onClick={() => setActiveTab('payments')}
-                          className="text-sm text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+                          className="text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
                         >
                           Payments
                         </button>
@@ -551,22 +571,22 @@ export function StudentDetailView() {
           </div>
 
           {upcomingSessions.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4">Up Next</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-4">Up Next</h2>
               <div className="space-y-3">
                 {upcomingSessions.slice(0, 3).map((session) => (
                   <button
                     key={session.id}
                     onClick={() => openSessionModal(session)}
-                    className="w-full text-left border border-slate-200 rounded-lg p-3 hover:bg-slate-50 transition-colors"
+                    className="w-full text-left border border-slate-200 dark:border-gray-700 rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="font-medium text-slate-900">
+                      <div className="font-medium text-slate-900 dark:text-gray-100">
                         {formatDate(session.plannedDate)} {session.plannedTime}
                       </div>
                       {statusBadge(session.status)}
                     </div>
-                    <div className="text-sm text-slate-500 mt-1">
+                    <div className="text-sm text-slate-500 dark:text-gray-400 mt-1">
                       {getSessionLabel(session)} • {session.durationMinutes}m
                     </div>
                   </button>
@@ -581,7 +601,7 @@ export function StudentDetailView() {
       {activeTab === 'courseware' && (
         <div className="space-y-6">
           {studentEnrollments.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-slate-500">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6 text-slate-500 dark:text-gray-400">
               No enrollments yet.
             </div>
           ) : (
@@ -591,26 +611,26 @@ export function StudentDetailView() {
               return (
                 <div
                   key={enrollment.id}
-                  className="bg-white rounded-xl shadow-sm border border-slate-200 p-6"
+                  className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6"
                 >
-                  <h3 className="text-lg font-semibold text-slate-800 mb-4">{cls.name}</h3>
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-4">{cls.name}</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Textbook</label>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Textbook</label>
                       <input
                         type="text"
                         defaultValue={cls.textbook}
                         onBlur={(e) => handleUpdateClass(cls.id, { textbook: e.target.value })}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Current Unit</label>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Current Unit</label>
                       <input
                         type="text"
                         defaultValue={cls.currentUnit}
                         onBlur={(e) => handleUpdateClass(cls.id, { currentUnit: e.target.value })}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                   </div>
@@ -624,9 +644,9 @@ export function StudentDetailView() {
       {/* Progress */}
       {activeTab === 'progress' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-800">Progress</h2>
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Progress</h2>
               <button
                 onClick={openAssignModal}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
@@ -636,7 +656,7 @@ export function StudentDetailView() {
             </div>
             {activeStudentCurricula.length === 0 && activeClassCurricula.length === 0 ? (
               <div className="text-center py-6">
-                <p className="text-sm text-slate-500 mb-3">No active curricula yet.</p>
+                <p className="text-sm text-slate-500 dark:text-gray-400 mb-3">No active curricula yet.</p>
                 <button
                   onClick={openAssignModal}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
@@ -647,48 +667,48 @@ export function StudentDetailView() {
             ) : (
               <div className="space-y-4">
                 {activeClassCurricula.map((cc) => (
-                  <div key={cc.id} className="border border-slate-200 rounded-lg p-4">
-                    <div className="h-1.5 rounded-full bg-blue-100 mb-3">
+                  <div key={cc.id} className="border border-slate-200 dark:border-gray-700 rounded-lg p-4">
+                    <div className="h-1.5 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-3">
                       <div className="h-full rounded-full bg-blue-500" style={{ width: '100%' }} />
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-slate-900">
+                      <span className="font-medium text-slate-900 dark:text-gray-100">
                         {getCurriculumTitle(cc.curriculumId)}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
                         Group · {getClass(cc.classId)?.name ?? 'Class'}
                       </span>
                     </div>
-                    <div className="text-sm text-slate-600 mt-1">
+                    <div className="text-sm text-slate-600 dark:text-gray-300 mt-1">
                       {cc.currentPosition ?? '—'}
-                      {cc.nextUp && <span className="text-slate-400"> → {cc.nextUp}</span>}
+                      {cc.nextUp && <span className="text-slate-400 dark:text-gray-500"> → {cc.nextUp}</span>}
                     </div>
                   </div>
                 ))}
                 {activeStudentCurricula.map((sc) => (
-                  <div key={sc.id} className="border border-slate-200 rounded-lg p-4">
-                    <div className="h-1.5 rounded-full bg-emerald-100 mb-3">
+                  <div key={sc.id} className="border border-slate-200 dark:border-gray-700 rounded-lg p-4">
+                    <div className="h-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 mb-3">
                       <div className="h-full rounded-full bg-emerald-500" style={{ width: '100%' }} />
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-slate-900">
+                      <span className="font-medium text-slate-900 dark:text-gray-100">
                         {getCurriculumTitle(sc.curriculumId)}
                       </span>
                       <span className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
                           Individual
                         </span>
                         <button
                           onClick={() => openEditCurriculum(sc)}
-                          className="text-xs text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+                          className="text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors"
                         >
                           Edit
                         </button>
                       </span>
                     </div>
-                    <div className="text-sm text-slate-600 mt-1">
+                    <div className="text-sm text-slate-600 dark:text-gray-300 mt-1">
                       {sc.currentPosition ?? '—'}
-                      {sc.nextUp && <span className="text-slate-400"> → {sc.nextUp}</span>}
+                      {sc.nextUp && <span className="text-slate-400 dark:text-gray-500"> → {sc.nextUp}</span>}
                     </div>
                   </div>
                 ))}
@@ -696,31 +716,31 @@ export function StudentDetailView() {
             )}
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-800 mb-4">Recent Lesson Logs</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-4">Recent Lesson Logs</h2>
             {recentLessonLogs.length === 0 ? (
-              <p className="text-sm text-slate-500">No progress logged yet.</p>
+              <p className="text-sm text-slate-500 dark:text-gray-400">No progress logged yet.</p>
             ) : (
               <ul className="space-y-2">
                 {recentLessonLogs.map((log) => (
-                  <li key={log.id} className="border border-slate-200 rounded-lg p-3">
+                  <li key={log.id} className="border border-slate-200 dark:border-gray-700 rounded-lg p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-slate-900">
+                      <span className="text-sm font-medium text-slate-900 dark:text-gray-100">
                         {getCurriculumTitle(log.curriculumId)}
                       </span>
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-slate-500 dark:text-gray-400">
                         {formatDate(log.createdAt.slice(0, 10))}
                       </span>
                     </div>
-                    <div className="text-sm text-slate-600 mt-1">
+                    <div className="text-sm text-slate-600 dark:text-gray-300 mt-1">
                       Covered: {log.covered}
                       {log.nextUp && <span> · Next: {log.nextUp}</span>}
                     </div>
                     <span
                       className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
                         log.progressType === 'group'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-emerald-100 text-emerald-700'
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                          : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                       }`}
                     >
                       {log.progressType === 'group' ? 'Group' : 'Individual'}
@@ -735,9 +755,9 @@ export function StudentDetailView() {
 
       {/* Schedule */}
       {activeTab === 'schedule' && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-slate-800">Schedule</h2>
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Schedule</h2>
             <button
               onClick={() => openSessionModal()}
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
@@ -747,11 +767,11 @@ export function StudentDetailView() {
           </div>
 
           {studentSessions.length === 0 ? (
-            <p className="text-slate-500 text-sm">No sessions yet.</p>
+            <p className="text-slate-500 dark:text-gray-400 text-sm">No sessions yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600">
+                <thead className="bg-slate-50 dark:bg-gray-900/50 text-slate-600 dark:text-gray-400">
                   <tr>
                     <th className="px-4 py-2 text-left font-medium">Date</th>
                     <th className="px-4 py-2 text-left font-medium">Time</th>
@@ -761,12 +781,12 @@ export function StudentDetailView() {
                     <th className="px-4 py-2 text-right font-medium">Charge</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-slate-200 dark:divide-gray-700 text-slate-900 dark:text-gray-100">
                   {studentSessions.map((session) => (
                     <tr
                       key={session.id}
                       onClick={() => openSessionModal(session)}
-                      className="hover:bg-slate-50 cursor-pointer"
+                      className="hover:bg-slate-50 dark:hover:bg-gray-700 cursor-pointer"
                     >
                       <td className="px-4 py-3 whitespace-nowrap">{formatDate(session.plannedDate)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{session.plannedTime}</td>
@@ -801,11 +821,11 @@ export function StudentDetailView() {
             const lowBalance = enrollment.paymentType === 'prepaid' && rate > 0 && enrollment.prepaidBalance < 2 * rate;
 
             return (
-              <div key={enrollment.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+              <div key={enrollment.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-800">{cls?.name || 'Unknown class'}</h3>
-                    <div className="text-sm text-slate-500">
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-100">{cls?.name || 'Unknown class'}</h3>
+                    <div className="text-sm text-slate-500 dark:text-gray-400">
                       {paymentTypeLabel(enrollment.paymentType)} • Rate: {formatCurrency(rate)}
                     </div>
                   </div>
@@ -819,16 +839,16 @@ export function StudentDetailView() {
 
                 {enrollment.paymentType === 'prepaid' && (
                   <div className="mb-4">
-                    <div className="text-sm text-slate-500">Prepaid Balance</div>
+                    <div className="text-sm text-slate-500 dark:text-gray-400">Prepaid Balance</div>
                     <div
                       className={`text-3xl font-bold ${
-                        enrollment.prepaidBalance < 0 ? 'text-red-600' : 'text-slate-900'
+                        enrollment.prepaidBalance < 0 ? 'text-red-600' : 'text-slate-900 dark:text-gray-100'
                       }`}
                     >
                       {formatCurrency(enrollment.prepaidBalance)}
                     </div>
                     {lowBalance && (
-                      <div className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                      <div className="mt-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded px-3 py-2">
                         Balance is below 2 sessions ({formatCurrency(2 * rate)}). Consider topping up.
                       </div>
                     )}
@@ -838,12 +858,12 @@ export function StudentDetailView() {
                 {enrollment.paymentType === 'monthly_advance' && (
                   <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <div className="text-sm text-slate-500">Monthly Rate</div>
-                      <div className="text-xl font-semibold text-slate-900">{formatCurrency(rate)}</div>
+                      <div className="text-sm text-slate-500 dark:text-gray-400">Monthly Rate</div>
+                      <div className="text-xl font-semibold text-slate-900 dark:text-gray-100">{formatCurrency(rate)}</div>
                     </div>
                     <div>
-                      <div className="text-sm text-slate-500">Next Due</div>
-                      <div className="text-xl font-semibold text-slate-900">
+                      <div className="text-sm text-slate-500 dark:text-gray-400">Next Due</div>
+                      <div className="text-xl font-semibold text-slate-900 dark:text-gray-100">
                         {enrollmentPayments.length > 0
                           ? formatDate(addOneMonth(enrollmentPayments[0].paymentDate))
                           : '—'}
@@ -854,20 +874,20 @@ export function StudentDetailView() {
 
                 {enrollment.paymentType === 'on_completion' && (
                   <div className="mb-4">
-                    <div className="text-sm text-slate-500">Total Owed (completed sessions)</div>
-                    <div className={`text-3xl font-bold ${owed > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
+                    <div className="text-sm text-slate-500 dark:text-gray-400">Total Owed (completed sessions)</div>
+                    <div className={`text-3xl font-bold ${owed > 0 ? 'text-amber-600' : 'text-slate-900 dark:text-gray-100'}`}>
                       {formatCurrency(Math.max(0, owed))}
                     </div>
                   </div>
                 )}
 
-                <h4 className="text-sm font-semibold text-slate-700 mb-2">Payment History</h4>
+                <h4 className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2">Payment History</h4>
                 {enrollmentPayments.length === 0 ? (
-                  <p className="text-sm text-slate-500">No payments recorded.</p>
+                  <p className="text-sm text-slate-500 dark:text-gray-400">No payments recorded.</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
-                      <thead className="bg-slate-50 text-slate-600">
+                      <thead className="bg-slate-50 dark:bg-gray-900/50 text-slate-600 dark:text-gray-400">
                         <tr>
                           <th className="px-3 py-2 text-left font-medium">Date</th>
                           <th className="px-3 py-2 text-left font-medium">Method</th>
@@ -875,12 +895,12 @@ export function StudentDetailView() {
                           <th className="px-3 py-2 text-right font-medium">Amount</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-200">
+                      <tbody className="divide-y divide-slate-200 dark:divide-gray-700 text-slate-900 dark:text-gray-100">
                         {enrollmentPayments.map((payment) => (
                           <tr key={payment.id}>
                             <td className="px-3 py-2 whitespace-nowrap">{formatDate(payment.paymentDate)}</td>
                             <td className="px-3 py-2 whitespace-nowrap">{payment.paymentMethod}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-slate-500">{payment.notes || '—'}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-slate-500 dark:text-gray-400">{payment.notes || '—'}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-right font-medium">
                               {formatCurrency(payment.amount)}
                             </td>
@@ -899,14 +919,14 @@ export function StudentDetailView() {
       {/* Assign / Edit Curriculum Modal */}
       {assignModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-md">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
                 {editingCurriculum ? 'Edit Curriculum' : 'Assign Curriculum'}
               </h2>
               <button
                 onClick={() => setAssignModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-200 text-xl leading-none"
                 aria-label="Close"
               >
                 ×
@@ -914,16 +934,16 @@ export function StudentDetailView() {
             </div>
             <form onSubmit={handleAssignSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Curriculum</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Curriculum</label>
                 {editingCurriculum ? (
-                  <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  <div className="w-full rounded-lg border border-slate-200 dark:border-gray-600 bg-slate-50 dark:bg-gray-900/50 px-3 py-2 text-sm text-slate-700 dark:text-gray-300">
                     {getCurriculumTitle(editingCurriculum.curriculumId)}
                   </div>
                 ) : (
                   <select
                     value={assignCurriculumId}
                     onChange={(e) => setAssignCurriculumId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     required
                   >
                     <option value="">Pick a curriculum…</option>
@@ -932,35 +952,61 @@ export function StudentDetailView() {
                         {c.title}
                       </option>
                     ))}
+                    <option value={NEW_CURRICULUM_VALUE}>+ New curriculum</option>
                   </select>
                 )}
               </div>
+              {!editingCurriculum && assignCurriculumId === NEW_CURRICULUM_VALUE && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={newCurriculumTitle}
+                      onChange={(e) => setNewCurriculumTitle(e.target.value)}
+                      placeholder="e.g. IELTS Speaking Booster"
+                      className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Subject</label>
+                    <input
+                      type="text"
+                      value={newCurriculumSubject}
+                      onChange={(e) => setNewCurriculumSubject(e.target.value)}
+                      placeholder="e.g. English"
+                      className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </>
+              )}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Current Position</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Current Position</label>
                 <input
                   type="text"
                   value={assignCurrentPosition}
                   onChange={(e) => setAssignCurrentPosition(e.target.value)}
                   placeholder="e.g. Unit 3, Lesson 2"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Next Up</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Next Up</label>
                 <input
                   type="text"
                   value={assignNextUp}
                   onChange={(e) => setAssignNextUp(e.target.value)}
                   placeholder="e.g. Unit 3, Lesson 3"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Status</label>
                 <select
                   value={assignStatus}
                   onChange={(e) => setAssignStatus(e.target.value as CurriculumStatus)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="active">Active</option>
                   <option value="paused">Paused</option>
@@ -977,7 +1023,7 @@ export function StudentDetailView() {
                 <button
                   type="button"
                   onClick={() => setAssignModalOpen(false)}
-                  className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                  className="flex-1 bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-300 border border-slate-300 dark:border-gray-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
@@ -990,12 +1036,12 @@ export function StudentDetailView() {
       {/* Payment Modal */}
       {paymentModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800">Record Payment</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-md">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Record Payment</h2>
               <button
                 onClick={() => setPaymentModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-200 text-xl leading-none"
                 aria-label="Close"
               >
                 ×
@@ -1003,11 +1049,11 @@ export function StudentDetailView() {
             </div>
             <form onSubmit={handleAddPayment} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Enrollment</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Enrollment</label>
                 <select
                   value={paymentEnrollmentId}
                   onChange={(e) => setPaymentEnrollmentId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
                 >
                   {studentEnrollments.map((en) => {
@@ -1021,33 +1067,33 @@ export function StudentDetailView() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Amount</label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Payment Date</label>
                 <input
                   type="date"
                   value={paymentDate}
                   onChange={(e) => setPaymentDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Method</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Method</label>
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {PAYMENT_METHODS.map((m) => (
                     <option key={m} value={m}>
@@ -1057,12 +1103,12 @@ export function StudentDetailView() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Notes</label>
                 <textarea
                   value={paymentNotes}
                   onChange={(e) => setPaymentNotes(e.target.value)}
                   rows={2}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
               </div>
               <div className="flex gap-3 pt-2">
@@ -1075,7 +1121,7 @@ export function StudentDetailView() {
                 <button
                   type="button"
                   onClick={() => setPaymentModalOpen(false)}
-                  className="flex-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                  className="flex-1 bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-300 border border-slate-300 dark:border-gray-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
