@@ -29,9 +29,10 @@ import { ReviewView } from './components/ReviewView';
 import { BillingView } from './components/BillingView';
 import { StudentDetailView } from './components/StudentDetailView';
 import { HomeView } from './components/HomeView';
+import { CoursewareView } from './components/CoursewareView';
 import { RemindersView } from './components/RemindersView';
 
-type TabKey = 'home' | 'students' | 'calendar' | 'proposals' | 'review' | 'billing' | 'settings';
+type TabKey = 'home' | 'students' | 'calendar' | 'proposals' | 'review' | 'billing' | 'courseware' | 'settings';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'home', label: 'Home' },
@@ -40,6 +41,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'proposals', label: 'Proposals' },
   { key: 'review', label: 'Review' },
   { key: 'billing', label: 'Billing' },
+  { key: 'courseware', label: 'Courseware' },
   { key: 'settings', label: 'Settings' },
 ];
 
@@ -60,6 +62,7 @@ function Header({ unreadCount }: HeaderProps) {
     if (path === '/billing') return 'billing';
     if (path === '/calendar') return 'calendar';
     if (path === '/settings') return 'settings';
+    if (path === '/courseware') return 'courseware';
     if (path.startsWith('/students')) return 'students';
     return 'home';
   })();
@@ -443,6 +446,7 @@ function AppContent() {
           <Route path="/proposals/:proposalId" element={<ProposalEditor />} />
           <Route path="/review" element={<ReviewView students={students} classes={classes} enrollments={enrollments} />} />
           <Route path="/billing" element={<BillingView classes={classes} students={students} />} />
+          <Route path="/courseware" element={<CoursewareView />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="/reminders" element={<RemindersView />} />
           <Route path="*" element={<Navigate to="/" replace />} />

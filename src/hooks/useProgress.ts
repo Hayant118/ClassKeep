@@ -150,14 +150,18 @@ export function useProgress() {
 
     const { data, error: sbError } = await supabase
       .from('ck_class_curricula')
-      .insert(payload)
+      .upsert(payload, { onConflict: 'class_id,curriculum_id' })
       .select()
       .single();
 
     if (sbError) throw new Error(sbError.message);
 
     const created = classCurriculumFromDb(data);
-    setClassCurricula(prev => [created, ...prev]);
+    setClassCurricula(prev =>
+      prev.some(c => c.id === created.id)
+        ? prev.map(c => (c.id === created.id ? created : c))
+        : [created, ...prev]
+    );
     return created;
   };
 
@@ -189,14 +193,18 @@ export function useProgress() {
 
     const { data, error: sbError } = await supabase
       .from('ck_student_curricula')
-      .insert(payload)
+      .upsert(payload, { onConflict: 'student_id,curriculum_id' })
       .select()
       .single();
 
     if (sbError) throw new Error(sbError.message);
 
     const created = studentCurriculumFromDb(data);
-    setStudentCurricula(prev => [created, ...prev]);
+    setStudentCurricula(prev =>
+      prev.some(c => c.id === created.id)
+        ? prev.map(c => (c.id === created.id ? created : c))
+        : [created, ...prev]
+    );
     return created;
   };
 
@@ -249,55 +257,50 @@ export function useProgress() {
     const newLog = lessonLogFromDb(logRow);
     setLessonLogs(prev => [newLog, ...prev]);
 
-    // Advance the linked curriculum's position
+    // Advance the linked curriculum's position (upsert so a missing row is
+    // created instead of failing on the unique constraint)
     if (progressType === 'group' && classId) {
-      const { data: rows, error: fetchError } = await supabase
+      const { data: updatedRow, error: updateError } = await supabase
         .from('ck_class_curricula')
-        .select('*')
-        .eq('class_id', classId)
-        .eq('curriculum_id', curriculumId);
-      if (fetchError) throw new Error(fetchError.message);
-
-      const row = rows?.[0];
-      if (row) {
-        const { data: updatedRow, error: updateError } = await supabase
-          .from('ck_class_curricula')
-          .update({ current_position: covered, next_up: nextUp ?? null })
-          .eq('id', row.id)
-          .select()
-          .single();
-        if (updateError) throw new Error(updateError.message);
-        const updated = classCurriculumFromDb(updatedRow);
-        setClassCurricula(prev =>
-          prev.some(c => c.id === updated.id)
-            ? prev.map(c => (c.id === updated.id ? updated : c))
-            : [updated, ...prev]
-        );
-      }
+        .upsert(
+          {
+            class_id: classId,
+            curriculum_id: curriculumId,
+            current_position: covered,
+            next_up: nextUp ?? null,
+          },
+          { onConflict: 'class_id,curriculum_id' }
+        )
+        .select()
+        .single();
+      if (updateError) throw new Error(updateError.message);
+      const updated = classCurriculumFromDb(updatedRow);
+      setClassCurricula(prev =>
+        prev.some(c => c.id === updated.id)
+          ? prev.map(c => (c.id === updated.id ? updated : c))
+          : [updated, ...prev]
+      );
     } else if (progressType === 'individual' && studentId) {
-      const { data: rows, error: fetchError } = await supabase
+      const { data: updatedRow, error: updateError } = await supabase
         .from('ck_student_curricula')
-        .select('*')
-        .eq('student_id', studentId)
-        .eq('curriculum_id', curriculumId);
-      if (fetchError) throw new Error(fetchError.message);
-
-      const row = rows?.[0];
-      if (row) {
-        const { data: updatedRow, error: updateError } = await supabase
-          .from('ck_student_curricula')
-          .update({ current_position: covered, next_up: nextUp ?? null })
-          .eq('id', row.id)
-          .select()
-          .single();
-        if (updateError) throw new Error(updateError.message);
-        const updated = studentCurriculumFromDb(updatedRow);
-        setStudentCurricula(prev =>
-          prev.some(c => c.id === updated.id)
-            ? prev.map(c => (c.id === updated.id ? updated : c))
-            : [updated, ...prev]
-        );
-      }
+        .upsert(
+          {
+            student_id: studentId,
+            curriculum_id: curriculumId,
+            current_position: covered,
+            next_up: nextUp ?? null,
+          },
+          { onConflict: 'student_id,curriculum_id' }
+        )
+        .select()
+        .single();
+      if (updateError) throw new Error(updateError.message);
+      const updated = studentCurriculumFromDb(updatedRow);
+      setStudentCurricula(prev =>
+        prev.some(c => c.id === updated.id)
+          ? prev.map(c => (c.id === updated.id ? updated : c))
+          : [updated, ...prev]
+      );
     }
 
     return newLog;
