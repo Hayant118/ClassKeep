@@ -462,8 +462,15 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
       await fetchSessions();
       dismissFromBanner(session.id);
       if (status === 'completed') {
-        setProgressSession(session);
-        setIsProgressModalOpen(true);
+        // Students with track_progress=false skip curriculum logging.
+        const student = session.studentId
+          ? students.find((s) => s.id === session.studentId)
+          : undefined;
+        const skipProgressLog = Boolean(session.studentId) && student?.trackProgress === false;
+        if (!skipProgressLog) {
+          setProgressSession(session);
+          setIsProgressModalOpen(true);
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update session');
@@ -488,11 +495,13 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
         payload.progressType
       );
 
-      // Group progress also advances every enrolled student's individual position.
+      // Group progress also advances every enrolled student's individual
+      // position (skipping students with track_progress=false).
       if (payload.progressType === 'group' && payload.classId) {
         const memberIds = enrollments
           .filter((e) => e.classId === payload.classId && e.status === 'active')
-          .map((e) => e.studentId);
+          .map((e) => e.studentId)
+          .filter((studentId) => students.find((s) => s.id === studentId)?.trackProgress !== false);
         for (const studentId of memberIds) {
           const existing = studentCurricula.find(
             (sc) => sc.studentId === studentId && sc.curriculumId === payload.curriculumId

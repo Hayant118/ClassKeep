@@ -15,6 +15,7 @@ function fromDb(row: Record<string, unknown>): Student {
     color: (row.color as string | undefined) ?? undefined,
     familyGroup: (row.family_group as string | undefined) ?? undefined,
     isGroupOnly: (row.is_group_only as boolean | undefined) ?? undefined,
+    trackProgress: (row.track_progress as boolean | undefined) ?? true,
     notes: (row.notes as string) ?? '',
     createdAt: row.created_at as string,
   };
@@ -29,6 +30,7 @@ function toDb(student: Partial<Student>): Record<string, unknown> {
   if (student.color !== undefined) map.color = student.color;
   if (student.familyGroup !== undefined) map.family_group = student.familyGroup;
   if (student.isGroupOnly !== undefined) map.is_group_only = student.isGroupOnly;
+  if (student.trackProgress !== undefined) map.track_progress = student.trackProgress;
   if (student.notes !== undefined) map.notes = student.notes;
   return map;
 }

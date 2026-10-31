@@ -257,14 +257,19 @@ export function CoursewareView() {
         // lesson-log fan-out behavior. Status is left untouched per student.
         if (editForm.applyToStudents && editForm.classId) {
           const curriculumId = classCurricula.find((cc) => cc.id === editForm.linkId)?.curriculumId;
+          // Skip students with track_progress=false.
           const studentIds = enrollments
             .filter((en) => en.classId === editForm.classId)
-            .map((en) => en.studentId);
+            .map((en) => en.studentId)
+            .filter((studentId) => students.find((s) => s.id === studentId)?.trackProgress !== false);
           if (curriculumId && studentIds.length > 0) {
+            const { data: userData } = await supabase.auth.getUser();
+            if (!userData.user) throw new Error('Not authenticated');
             const { error: fanOutError } = await supabase
               .from('ck_student_curricula')
               .upsert(
                 studentIds.map((studentId) => ({
+                  user_id: userData.user.id,
                   student_id: studentId,
                   curriculum_id: curriculumId,
                   current_position: updates.currentPosition ?? null,

@@ -10,6 +10,8 @@ export interface Student {
   familyGroup?: string;
   /** Hidden from the 1-on-1 Students list; shown in Group Rosters only. */
   isGroupOnly?: boolean;
+  /** When false, no ck_student_curricula rows are maintained for this student. */
+  trackProgress: boolean;
   notes: string;
   createdAt: string;
 }

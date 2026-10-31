@@ -286,6 +286,7 @@ export function useProgress() {
         .from('ck_class_curricula')
         .upsert(
           {
+            user_id: userData.user.id,
             class_id: classId,
             curriculum_id: curriculumId,
             current_position: covered,
@@ -307,6 +308,7 @@ export function useProgress() {
         .from('ck_student_curricula')
         .upsert(
           {
+            user_id: userData.user.id,
             student_id: studentId,
             curriculum_id: curriculumId,
             current_position: covered,

@@ -74,6 +74,7 @@ export function StudentsView() {
   const [notes, setNotes] = useState('');
   const [color, setColor] = useState('');
   const [familyGroup, setFamilyGroup] = useState('');
+  const [trackProgress, setTrackProgress] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const formRef = useRef<HTMLDivElement>(null);
@@ -123,6 +124,7 @@ export function StudentsView() {
     setNotes('');
     setColor('');
     setFamilyGroup('');
+    setTrackProgress(true);
     setEditingId(null);
   };
 
@@ -141,6 +143,7 @@ export function StudentsView() {
         timezone,
         notes: notes.trim(),
         familyGroup: familyGroup.trim() || undefined,
+        trackProgress,
       };
       if (normalizedColor) updates.color = normalizedColor;
 
@@ -170,6 +173,7 @@ export function StudentsView() {
     setNotes(student.notes);
     setColor(student.color ?? '');
     setFamilyGroup(student.familyGroup ?? '');
+    setTrackProgress(student.trackProgress ?? true);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => nameInputRef.current?.focus(), 300);
   };
@@ -291,6 +295,7 @@ export function StudentsView() {
         timezone: DEFAULT_TIMEZONE,
         notes: '',
         isGroupOnly: true,
+        trackProgress: true,
       } as Omit<Student, 'id' | 'userId' | 'createdAt'>);
 
       await addEnrollment({
@@ -524,6 +529,18 @@ export function StudentsView() {
               <p className="text-xs text-slate-500 dark:text-gray-500 mt-1">
                 Siblings in the same group get shades of the same hue.
               </p>
+            </div>
+
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 pb-2 text-sm font-medium text-slate-600 dark:text-gray-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={trackProgress}
+                  onChange={(e) => setTrackProgress(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                />
+                Track curriculum progress
+              </label>
             </div>
           </div>
 

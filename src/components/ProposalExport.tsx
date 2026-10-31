@@ -296,6 +296,6 @@ export const MOCK_CLASSES: Class[] = [
 ];
 
 export const MOCK_STUDENTS: Student[] = [
-  { id: 'student-1', userId: 'mock-user', name: 'Alice Chen', contact: '', defaultRate: 100, timezone: 'Asia/Shanghai', color: '#a855f7', notes: '', createdAt: '2026-07-01T00:00:00Z' },
-  { id: 'student-2', userId: 'mock-user', name: 'Bob Li', contact: '', defaultRate: 80, timezone: 'Asia/Shanghai', color: '#ec4899', notes: '', createdAt: '2026-07-01T00:00:00Z' },
+  { id: 'student-1', userId: 'mock-user', name: 'Alice Chen', contact: '', defaultRate: 100, timezone: 'Asia/Shanghai', color: '#a855f7', trackProgress: true, notes: '', createdAt: '2026-07-01T00:00:00Z' },
+  { id: 'student-2', userId: 'mock-user', name: 'Bob Li', contact: '', defaultRate: 80, timezone: 'Asia/Shanghai', color: '#ec4899', trackProgress: true, notes: '', createdAt: '2026-07-01T00:00:00Z' },
 ];
