@@ -223,6 +223,28 @@ export function useProgress() {
     return updated;
   };
 
+  const deleteStudentCurriculum = async (id: string) => {
+    const { error: sbError } = await supabase
+      .from('ck_student_curricula')
+      .delete()
+      .eq('id', id);
+
+    if (sbError) throw new Error(sbError.message);
+
+    setStudentCurricula(prev => prev.filter(c => c.id !== id));
+  };
+
+  const deleteClassCurriculum = async (id: string) => {
+    const { error: sbError } = await supabase
+      .from('ck_class_curricula')
+      .delete()
+      .eq('id', id);
+
+    if (sbError) throw new Error(sbError.message);
+
+    setClassCurricula(prev => prev.filter(c => c.id !== id));
+  };
+
   const logLessonProgress = async (
     sessionId: string | undefined,
     classId: string | undefined,
@@ -345,8 +367,10 @@ export function useProgress() {
     fetchAllProgress,
     addClassCurriculum,
     updateClassCurriculum,
+    deleteClassCurriculum,
     addStudentCurriculum,
     updateStudentCurriculum,
+    deleteStudentCurriculum,
     logLessonProgress,
     fetchLessonLogs,
   };

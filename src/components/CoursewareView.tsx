@@ -1,7 +1,8 @@
 // src/components/CoursewareView.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import { useCurricula } from '../hooks/useCurricula';
 import { useProgress } from '../hooks/useProgress';
 import { useStudents } from '../hooks/useStudents';
@@ -50,7 +51,7 @@ function chipPosition(current?: string, next?: string): string {
 }
 
 export function CoursewareView() {
-  const { curricula, loading: curriculaLoading, error: curriculaError, addCurriculum } = useCurricula();
+  const { curricula, loading: curriculaLoading, error: curriculaError, addCurriculum, updateCurriculum, deleteCurriculum } = useCurricula();
   const {
     classCurricula,
     studentCurricula,
@@ -59,8 +60,10 @@ export function CoursewareView() {
     fetchAllProgress,
     addClassCurriculum,
     updateClassCurriculum,
+    deleteClassCurriculum,
     addStudentCurriculum,
     updateStudentCurriculum,
+    deleteStudentCurriculum,
   } = useProgress();
   const { students } = useStudents();
   const { classes } = useClasses();
@@ -80,6 +83,14 @@ export function CoursewareView() {
 
   // Edit modal
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  // Book edit / delete state
+  const [bookEdit, setBookEdit] = useState<{ curriculum: Curriculum; title: string; subject: string; color: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Curriculum | null>(null);
+
+  // Guards every mutation against double-taps
+  const [saving, setSaving] = useState(false);
 
   const studentName = (studentId: string) =>
     students.find((s) => s.id === studentId)?.name ?? 'Unknown student';
@@ -98,6 +109,7 @@ export function CoursewareView() {
   };
 
   function openEditLink(kind: AssignKind, link: ClassCurriculum | StudentCurriculum) {
+    setConfirmRemove(false);
     setEditForm({
       kind,
       linkId: link.id,
@@ -107,6 +119,15 @@ export function CoursewareView() {
       status: link.status,
     });
   }
+
+  const openBookEdit = (curriculum: Curriculum) => {
+    setBookEdit({
+      curriculum,
+      title: curriculum.title,
+      subject: curriculum.subject ?? '',
+      color: curriculum.color || COLOR_OPTIONS[0],
+    });
+  };
 
   const handleCreateCurriculum = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,11 +165,12 @@ export function CoursewareView() {
 
   const handleAssignSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!assignForm) return;
+    if (!assignForm || saving) return;
     if (!assignForm.targetId) {
       toast.error(assignForm.kind === 'class' ? 'Please pick a class' : 'Please pick a student');
       return;
     }
+    setSaving(true);
     try {
       const payload = {
         curriculumId: assignForm.curriculum.id,
@@ -165,12 +187,15 @@ export function CoursewareView() {
       setAssignForm(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to assign');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editForm) return;
+    if (!editForm || saving) return;
+    setSaving(true);
     try {
       const updates = {
         currentPosition: editForm.currentPosition.trim() || undefined,
@@ -186,6 +211,88 @@ export function CoursewareView() {
       setEditForm(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveLink = async () => {
+    if (!editForm || saving) return;
+    setSaving(true);
+    try {
+      if (editForm.kind === 'class') {
+        await deleteClassCurriculum(editForm.linkId);
+      } else {
+        await deleteStudentCurriculum(editForm.linkId);
+      }
+      toast.success(`Unassigned ${editForm.name}`);
+      setEditForm(null);
+      setConfirmRemove(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBookEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bookEdit || saving) return;
+    if (!bookEdit.title.trim()) {
+      toast.error('Please enter a title');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateCurriculum(bookEdit.curriculum.id, {
+        title: bookEdit.title.trim(),
+        subject: bookEdit.subject.trim() || undefined,
+        color: bookEdit.color,
+      });
+      toast.success('Book updated');
+      setBookEdit(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update book');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteBook = async () => {
+    if (!deleteTarget || saving) return;
+    setSaving(true);
+    try {
+      // Keep lesson history: detach logs from this book first. If the column
+      // isn't nullable or an FK blocks it, abort with an explanation.
+      const { error: detachError } = await supabase
+        .from('ck_lesson_logs')
+        .update({ curriculum_id: null })
+        .eq('curriculum_id', deleteTarget.id);
+      if (detachError) {
+        toast.error(
+          `Cannot delete "${deleteTarget.title}": lesson history is linked to this book and cannot be detached (${detachError.message}).`
+        );
+        return;
+      }
+      // Remove all assignments, then the book itself.
+      const { error: scError } = await supabase
+        .from('ck_student_curricula')
+        .delete()
+        .eq('curriculum_id', deleteTarget.id);
+      if (scError) throw new Error(scError.message);
+      const { error: ccError } = await supabase
+        .from('ck_class_curricula')
+        .delete()
+        .eq('curriculum_id', deleteTarget.id);
+      if (ccError) throw new Error(ccError.message);
+      await deleteCurriculum(deleteTarget.id);
+      await fetchAllProgress();
+      toast.success(`"${deleteTarget.title}" deleted`);
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete book');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -283,6 +390,24 @@ export function CoursewareView() {
                       </p>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => openBookEdit(curriculum)}
+                    disabled={saving}
+                    className="p-2 rounded-lg text-slate-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    aria-label={`Edit ${curriculum.title}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(curriculum)}
+                    disabled={saving}
+                    className="p-2 rounded-lg text-slate-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    aria-label={`Delete ${curriculum.title}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
 
                 {/* Assigned group classes (blue chips) */}
@@ -539,10 +664,10 @@ export function CoursewareView() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  disabled={unassignedTargets.length === 0}
+                  disabled={unassignedTargets.length === 0 || saving}
                   className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                 >
-                  Assign
+                  {saving ? 'Assigning…' : 'Assign'}
                 </button>
                 <button
                   type="button"
@@ -618,19 +743,177 @@ export function CoursewareView() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                  disabled={saving}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                 >
                   Save Changes
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditForm(null)}
-                  className="flex-1 bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-300 border border-slate-300 dark:border-gray-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                  disabled={saving}
+                  className="flex-1 bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-300 border border-slate-300 dark:border-gray-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+              <div className="pt-2 border-t border-slate-200 dark:border-gray-700">
+                {confirmRemove ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-500 dark:text-gray-400 flex-1">
+                      Unassign {editForm.name} from this book?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRemoveLink}
+                      disabled={saving}
+                      className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+                    >
+                      {saving ? 'Removing…' : 'Confirm Remove'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmRemove(false)}
+                      disabled={saving}
+                      className="text-xs font-medium text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-gray-200 px-2 py-2 transition-colors disabled:opacity-50"
+                    >
+                      Keep
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmRemove(true)}
+                    disabled={saving}
+                    className="w-full text-left text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Remove assignment
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Book Modal */}
+      {bookEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-md">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Edit Book</h2>
+              <button
+                type="button"
+                onClick={() => setBookEdit(null)}
+                disabled={saving}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-200 text-xl leading-none disabled:opacity-50"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleBookEditSave} className="p-6 space-y-4">
+              <div>
+                <label className={LABEL_CLASS}>Title</label>
+                <input
+                  type="text"
+                  value={bookEdit.title}
+                  onChange={(e) => setBookEdit((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
+                  className={INPUT_CLASS}
+                  required
+                />
+              </div>
+              <div>
+                <label className={LABEL_CLASS}>Subject</label>
+                <input
+                  type="text"
+                  value={bookEdit.subject}
+                  onChange={(e) => setBookEdit((prev) => (prev ? { ...prev, subject: e.target.value } : prev))}
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <div>
+                <label className={LABEL_CLASS}>Color</label>
+                <div className="flex flex-wrap gap-2">
+                  {COLOR_OPTIONS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setBookEdit((prev) => (prev ? { ...prev, color } : prev))}
+                      className={`w-7 h-7 rounded-full border-2 transition-colors ${
+                        bookEdit.color === color
+                          ? 'border-indigo-500 ring-2 ring-indigo-200 dark:ring-indigo-900'
+                          : 'border-white dark:border-gray-700'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      aria-label={`Select color ${color}`}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBookEdit(null)}
+                  disabled={saving}
+                  className="flex-1 bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-300 border border-slate-300 dark:border-gray-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Book Confirm Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-md">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
+                Delete "{deleteTarget.title}"?
+              </h2>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={saving}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-200 text-xl leading-none disabled:opacity-50"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-slate-600 dark:text-gray-300">
+                This removes the book and all assignments. Lesson history is kept.
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleDeleteBook}
+                  disabled={saving}
+                  className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  {saving ? 'Deleting…' : 'Delete Book'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={saving}
+                  className="flex-1 bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-300 border border-slate-300 dark:border-gray-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
