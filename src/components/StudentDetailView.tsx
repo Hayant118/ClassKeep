@@ -314,11 +314,19 @@ export function StudentDetailView() {
             toast.error('Please enter a curriculum title');
             return;
           }
-          const created = await addCurriculum({
-            title: newCurriculumTitle.trim(),
-            subject: newCurriculumSubject.trim() || undefined,
-          });
-          curriculumId = created.id;
+          const existing = curricula.find(
+            (c) => c.title.trim().toLowerCase() === newCurriculumTitle.trim().toLowerCase()
+          );
+          if (existing) {
+            // Title already exists — select that curriculum instead of duplicating it.
+            curriculumId = existing.id;
+          } else {
+            const created = await addCurriculum({
+              title: newCurriculumTitle.trim(),
+              subject: newCurriculumSubject.trim() || undefined,
+            });
+            curriculumId = created.id;
+          }
         }
         await addStudentCurriculum({
           studentId: student!.id,

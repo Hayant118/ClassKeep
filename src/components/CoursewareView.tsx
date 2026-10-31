@@ -114,6 +114,18 @@ export function CoursewareView() {
       toast.error('Please enter a title');
       return;
     }
+    const existing = curricula.find(
+      (c) => c.title.trim().toLowerCase() === newTitle.trim().toLowerCase()
+    );
+    if (existing) {
+      // Reuse the matching curriculum instead of creating a duplicate.
+      toast.info(`"${existing.title}" already exists — nothing to create`);
+      setNewModalOpen(false);
+      setNewTitle('');
+      setNewSubject('');
+      setNewColor(COLOR_OPTIONS[0]);
+      return;
+    }
     try {
       await addCurriculum({
         title: newTitle.trim(),
