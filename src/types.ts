@@ -163,6 +163,7 @@ export interface Curriculum {
   userId: string;
   title: string;
   subject?: string;
+  series?: string;
   color?: string;
   createdAt: string;
 }

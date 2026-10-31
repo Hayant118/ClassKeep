@@ -1,12 +1,13 @@
 // src/components/CoursewareView.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useCurricula } from '../hooks/useCurricula';
 import { useProgress } from '../hooks/useProgress';
 import { useStudents } from '../hooks/useStudents';
 import { useClasses } from '../hooks/useClasses';
+import { useEnrollments } from '../hooks/useEnrollments';
 import type { ClassCurriculum, Curriculum, CurriculumStatus, StudentCurriculum } from '../types';
 
 const COLOR_OPTIONS = [
@@ -20,6 +21,31 @@ const COLOR_OPTIONS = [
   '#14b8a6',
   '#64748b',
 ];
+
+const SERIES_COLLAPSED_STORAGE_KEY = 'ck_courseware_collapsed';
+
+function readSeriesCollapsed(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(SERIES_COLLAPSED_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.series === 'object' && parsed.series !== null) {
+        return parsed.series as Record<string, boolean>;
+      }
+    }
+  } catch {
+    // Malformed or unavailable storage — fall through to defaults.
+  }
+  return {};
+}
+
+function writeSeriesCollapsed(series: Record<string, boolean>) {
+  try {
+    localStorage.setItem(SERIES_COLLAPSED_STORAGE_KEY, JSON.stringify({ series }));
+  } catch {
+    // Storage unavailable — collapse state just won't persist.
+  }
+}
 
 type AssignKind = 'class' | 'student';
 
@@ -36,6 +62,8 @@ interface EditFormState {
   kind: AssignKind;
   linkId: string;
   name: string;
+  classId?: string;
+  applyToStudents: boolean;
   currentPosition: string;
   nextUp: string;
   status: CurriculumStatus;
@@ -67,6 +95,7 @@ export function CoursewareView() {
   } = useProgress();
   const { students } = useStudents();
   const { classes } = useClasses();
+  const { enrollments } = useEnrollments();
 
   useEffect(() => {
     fetchAllProgress();
@@ -76,7 +105,19 @@ export function CoursewareView() {
   const [newModalOpen, setNewModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newSubject, setNewSubject] = useState('');
+  const [newSeries, setNewSeries] = useState('');
   const [newColor, setNewColor] = useState(COLOR_OPTIONS[0]);
+
+  // Series folder collapse state (persisted in localStorage; default = expanded)
+  const [collapsedSeries, setCollapsedSeries] = useState<Record<string, boolean>>(readSeriesCollapsed);
+
+  const toggleSeries = (name: string) => {
+    setCollapsedSeries((prev) => {
+      const next = { ...prev, [name]: !prev[name] };
+      writeSeriesCollapsed(next);
+      return next;
+    });
+  };
 
   // Assign modal
   const [assignForm, setAssignForm] = useState<AssignFormState | null>(null);
@@ -86,7 +127,7 @@ export function CoursewareView() {
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   // Book edit / delete state
-  const [bookEdit, setBookEdit] = useState<{ curriculum: Curriculum; title: string; subject: string; color: string } | null>(null);
+  const [bookEdit, setBookEdit] = useState<{ curriculum: Curriculum; title: string; subject: string; series: string; color: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Curriculum | null>(null);
 
   // Guards every mutation against double-taps
@@ -110,10 +151,14 @@ export function CoursewareView() {
 
   function openEditLink(kind: AssignKind, link: ClassCurriculum | StudentCurriculum) {
     setConfirmRemove(false);
+    const isClass = kind === 'class';
+    const classLink = link as ClassCurriculum;
     setEditForm({
       kind,
       linkId: link.id,
-      name: kind === 'class' ? className((link as ClassCurriculum).classId) : studentName((link as StudentCurriculum).studentId),
+      name: isClass ? className(classLink.classId) : studentName((link as StudentCurriculum).studentId),
+      classId: isClass ? classLink.classId : undefined,
+      applyToStudents: true,
       currentPosition: link.currentPosition ?? '',
       nextUp: link.nextUp ?? '',
       status: link.status,
@@ -125,6 +170,7 @@ export function CoursewareView() {
       curriculum,
       title: curriculum.title,
       subject: curriculum.subject ?? '',
+      series: curriculum.series ?? '',
       color: curriculum.color || COLOR_OPTIONS[0],
     });
   };
@@ -144,6 +190,7 @@ export function CoursewareView() {
       setNewModalOpen(false);
       setNewTitle('');
       setNewSubject('');
+      setNewSeries('');
       setNewColor(COLOR_OPTIONS[0]);
       return;
     }
@@ -151,12 +198,14 @@ export function CoursewareView() {
       await addCurriculum({
         title: newTitle.trim(),
         subject: newSubject.trim() || undefined,
+        series: newSeries.trim() || undefined,
         color: newColor,
       });
       toast.success('Curriculum created');
       setNewModalOpen(false);
       setNewTitle('');
       setNewSubject('');
+      setNewSeries('');
       setNewColor(COLOR_OPTIONS[0]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create curriculum');
@@ -204,6 +253,29 @@ export function CoursewareView() {
       };
       if (editForm.kind === 'class') {
         await updateClassCurriculum(editForm.linkId, updates);
+        // Mirror the class position onto every enrolled student, matching the
+        // lesson-log fan-out behavior. Status is left untouched per student.
+        if (editForm.applyToStudents && editForm.classId) {
+          const curriculumId = classCurricula.find((cc) => cc.id === editForm.linkId)?.curriculumId;
+          const studentIds = enrollments
+            .filter((en) => en.classId === editForm.classId)
+            .map((en) => en.studentId);
+          if (curriculumId && studentIds.length > 0) {
+            const { error: fanOutError } = await supabase
+              .from('ck_student_curricula')
+              .upsert(
+                studentIds.map((studentId) => ({
+                  student_id: studentId,
+                  curriculum_id: curriculumId,
+                  current_position: updates.currentPosition ?? null,
+                  next_up: updates.nextUp ?? null,
+                })),
+                { onConflict: 'student_id,curriculum_id' }
+              );
+            if (fanOutError) throw new Error(fanOutError.message);
+            await fetchAllProgress();
+          }
+        }
       } else {
         await updateStudentCurriculum(editForm.linkId, updates);
       }
@@ -247,6 +319,7 @@ export function CoursewareView() {
       await updateCurriculum(bookEdit.curriculum.id, {
         title: bookEdit.title.trim(),
         subject: bookEdit.subject.trim() || undefined,
+        series: bookEdit.series.trim() || undefined,
         color: bookEdit.color,
       });
       toast.success('Book updated');
@@ -314,8 +387,137 @@ export function CoursewareView() {
     return students.filter((s) => !assigned.has(s.id));
   }, [assignForm, classCurricula, studentCurricula, classes, students]);
 
+  // Books without a series render ungrouped at the top; the rest are folders.
+  const { ungroupedCurricula, seriesGroups } = useMemo(() => {
+    const ungrouped: Curriculum[] = [];
+    const groups = new Map<string, Curriculum[]>();
+    for (const c of curricula) {
+      const series = c.series?.trim();
+      if (!series) {
+        ungrouped.push(c);
+        continue;
+      }
+      const arr = groups.get(series) ?? [];
+      arr.push(c);
+      groups.set(series, arr);
+    }
+    return {
+      ungroupedCurricula: ungrouped,
+      seriesGroups: Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b)),
+    };
+  }, [curricula]);
+
   const isLoading = curriculaLoading || progressLoading;
   const loadError = curriculaError ?? progressError;
+
+  function renderCurriculumCard(curriculum: Curriculum) {
+    const classLinks = classCurricula.filter((cc) => cc.curriculumId === curriculum.id);
+    const studentLinks = studentCurricula.filter((sc) => sc.curriculumId === curriculum.id);
+    return (
+      <div
+        key={curriculum.id}
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-4"
+      >
+        <div className="flex items-center gap-3 mb-3">
+          <span
+            className="w-3.5 h-3.5 rounded-full shrink-0"
+            style={{ backgroundColor: curriculum.color || '#6366f1' }}
+          />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-slate-900 dark:text-gray-100 truncate">
+              {curriculum.title}
+            </h3>
+            {curriculum.subject && (
+              <p className="text-xs text-slate-500 dark:text-gray-400 truncate">
+                {curriculum.subject}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => openBookEdit(curriculum)}
+            disabled={saving}
+            className="p-2 rounded-lg text-slate-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            aria-label={`Edit ${curriculum.title}`}
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setDeleteTarget(curriculum)}
+            disabled={saving}
+            className="p-2 rounded-lg text-slate-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            aria-label={`Delete ${curriculum.title}`}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Assigned group classes (blue chips) */}
+        {classLinks.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {classLinks.map((link) => (
+              <button
+                key={link.id}
+                type="button"
+                onClick={() => openEditLink('class', link)}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors ${
+                  link.status !== 'active' ? 'opacity-60' : ''
+                }`}
+                title="Edit position"
+              >
+                <span className="truncate max-w-[10rem]">{className(link.classId)}</span>
+                <span className="opacity-75">· {chipPosition(link.currentPosition, link.nextUp)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Assigned students (green chips) */}
+        {studentLinks.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {studentLinks.map((link) => (
+              <button
+                key={link.id}
+                type="button"
+                onClick={() => openEditLink('student', link)}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors ${
+                  link.status !== 'active' ? 'opacity-60' : ''
+                }`}
+                title="Edit position"
+              >
+                <span className="truncate max-w-[10rem]">{studentName(link.studentId)}</span>
+                <span className="opacity-75">· {chipPosition(link.currentPosition, link.nextUp)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {classLinks.length === 0 && studentLinks.length === 0 && (
+          <p className="text-xs text-slate-500 dark:text-gray-400 mb-2">Not assigned yet.</p>
+        )}
+
+        <div className="flex gap-2 mt-3">
+          <button
+            type="button"
+            onClick={() => openAssign(curriculum, 'class')}
+            className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 px-2 py-1.5 rounded-lg transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Assign class
+          </button>
+          <button
+            type="button"
+            onClick={() => openAssign(curriculum, 'student')}
+            className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 px-2 py-1.5 rounded-lg transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Assign student
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -366,112 +568,41 @@ export function CoursewareView() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {curricula.map((curriculum) => {
-            const classLinks = classCurricula.filter((cc) => cc.curriculumId === curriculum.id);
-            const studentLinks = studentCurricula.filter((sc) => sc.curriculumId === curriculum.id);
+        <div className="space-y-4">
+          {ungroupedCurricula.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {ungroupedCurricula.map((curriculum) => renderCurriculumCard(curriculum))}
+            </div>
+          )}
+
+          {seriesGroups.map(([series, books]) => {
+            const isCollapsed = !!collapsedSeries[series];
             return (
               <div
-                key={curriculum.id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-4"
+                key={series}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 overflow-hidden"
               >
-                <div className="flex items-center gap-3 mb-3">
-                  <span
-                    className="w-3.5 h-3.5 rounded-full shrink-0"
-                    style={{ backgroundColor: curriculum.color || '#6366f1' }}
+                <button
+                  type="button"
+                  onClick={() => toggleSeries(series)}
+                  aria-expanded={!isCollapsed}
+                  className="w-full min-h-[44px] flex items-center gap-3 px-4 py-2 bg-slate-50 dark:bg-gray-900/50 text-sm font-semibold text-slate-600 dark:text-gray-400 text-left"
+                >
+                  <ChevronDown
+                    className={`w-4 h-4 shrink-0 transition-transform ${
+                      isCollapsed ? '-rotate-90' : ''
+                    }`}
                   />
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold text-slate-900 dark:text-gray-100 truncate">
-                      {curriculum.title}
-                    </h3>
-                    {curriculum.subject && (
-                      <p className="text-xs text-slate-500 dark:text-gray-400 truncate">
-                        {curriculum.subject}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openBookEdit(curriculum)}
-                    disabled={saving}
-                    className="p-2 rounded-lg text-slate-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-                    aria-label={`Edit ${curriculum.title}`}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(curriculum)}
-                    disabled={saving}
-                    className="p-2 rounded-lg text-slate-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-                    aria-label={`Delete ${curriculum.title}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Assigned group classes (blue chips) */}
-                {classLinks.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {classLinks.map((link) => (
-                      <button
-                        key={link.id}
-                        type="button"
-                        onClick={() => openEditLink('class', link)}
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors ${
-                          link.status !== 'active' ? 'opacity-60' : ''
-                        }`}
-                        title="Edit position"
-                      >
-                        <span className="truncate max-w-[10rem]">{className(link.classId)}</span>
-                        <span className="opacity-75">· {chipPosition(link.currentPosition, link.nextUp)}</span>
-                      </button>
-                    ))}
+                  <span className="flex-1 truncate">{series}</span>
+                  <span className="text-xs bg-slate-200 dark:bg-gray-700 text-slate-600 dark:text-gray-300 px-2 py-0.5 rounded-full shrink-0">
+                    {books.length} {books.length === 1 ? 'book' : 'books'}
+                  </span>
+                </button>
+                {!isCollapsed && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                    {books.map((curriculum) => renderCurriculumCard(curriculum))}
                   </div>
                 )}
-
-                {/* Assigned students (green chips) */}
-                {studentLinks.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {studentLinks.map((link) => (
-                      <button
-                        key={link.id}
-                        type="button"
-                        onClick={() => openEditLink('student', link)}
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors ${
-                          link.status !== 'active' ? 'opacity-60' : ''
-                        }`}
-                        title="Edit position"
-                      >
-                        <span className="truncate max-w-[10rem]">{studentName(link.studentId)}</span>
-                        <span className="opacity-75">· {chipPosition(link.currentPosition, link.nextUp)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {classLinks.length === 0 && studentLinks.length === 0 && (
-                  <p className="text-xs text-slate-500 dark:text-gray-400 mb-2">Not assigned yet.</p>
-                )}
-
-                <div className="flex gap-2 mt-3">
-                  <button
-                    type="button"
-                    onClick={() => openAssign(curriculum, 'class')}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 px-2 py-1.5 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Assign class
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openAssign(curriculum, 'student')}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 px-2 py-1.5 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Assign student
-                  </button>
-                </div>
               </div>
             );
           })}
@@ -512,6 +643,16 @@ export function CoursewareView() {
                   value={newSubject}
                   onChange={(e) => setNewSubject(e.target.value)}
                   placeholder="e.g. English"
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <div>
+                <label className={LABEL_CLASS}>Series <span className="text-xs font-normal text-slate-500 dark:text-gray-500">(optional — groups the book into a folder)</span></label>
+                <input
+                  type="text"
+                  value={newSeries}
+                  onChange={(e) => setNewSeries(e.target.value)}
+                  placeholder="e.g. Reading Explorer"
                   className={INPUT_CLASS}
                 />
               </div>
@@ -740,6 +881,21 @@ export function CoursewareView() {
                   <option value="completed">Completed</option>
                 </select>
               </div>
+              {editForm.kind === 'class' && (
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-gray-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={editForm.applyToStudents}
+                    onChange={(e) =>
+                      setEditForm((prev) =>
+                        prev ? { ...prev, applyToStudents: e.target.checked } : prev
+                      )
+                    }
+                    className="w-4 h-4 rounded border-slate-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  Apply to all enrolled students
+                </label>
+              )}
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
@@ -829,6 +985,16 @@ export function CoursewareView() {
                   type="text"
                   value={bookEdit.subject}
                   onChange={(e) => setBookEdit((prev) => (prev ? { ...prev, subject: e.target.value } : prev))}
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <div>
+                <label className={LABEL_CLASS}>Series <span className="text-xs font-normal text-slate-500 dark:text-gray-500">(optional)</span></label>
+                <input
+                  type="text"
+                  value={bookEdit.series}
+                  onChange={(e) => setBookEdit((prev) => (prev ? { ...prev, series: e.target.value } : prev))}
+                  placeholder="e.g. Reading Explorer"
                   className={INPUT_CLASS}
                 />
               </div>

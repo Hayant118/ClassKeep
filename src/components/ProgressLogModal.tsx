@@ -45,6 +45,11 @@ export function ProgressLogModal({
   const [covered, setCovered] = useState('');
   const [nextUp, setNextUp] = useState('');
 
+  // Multi-book state for 1-on-1 sessions with several active curricula:
+  // one entry (covered / next_up) per selected book.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [entries, setEntries] = useState<Record<string, { covered: string; nextUp: string }>>({});
+
   // Load curriculum links for this class/student so the dropdown can be
   // limited to active curricula and "Next up" can be auto-suggested.
   useEffect(() => {
@@ -62,6 +67,8 @@ export function ProgressLogModal({
       setCurriculumId('');
       setCovered('');
       setNextUp('');
+      setSelectedIds([]);
+      setEntries({});
     }
   }, [isOpen, session.id]);
 
@@ -77,6 +84,32 @@ export function ProgressLogModal({
     return filtered.length > 0 ? filtered : curricula;
   }, [links, curricula]);
 
+  // 1-on-1 with several active books → checkbox flow (one log row per book).
+  const activeLinks = useMemo(() => links.filter((l) => l.status === 'active'), [links]);
+  const multiMode = !isGroup && activeLinks.length > 1;
+
+  const toggleCurriculum = (id: string) => {
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      const link = activeLinks.find((l) => l.curriculumId === id);
+      setEntries((e) => ({
+        ...e,
+        [id]: { covered: e[id]?.covered ?? '', nextUp: e[id]?.nextUp ?? link?.nextUp ?? '' },
+      }));
+      return [...prev, id];
+    });
+  };
+
+  const updateEntry = (id: string, field: 'covered' | 'nextUp', value: string) => {
+    setEntries((prev) => ({
+      ...prev,
+      [id]: { covered: prev[id]?.covered ?? '', nextUp: prev[id]?.nextUp ?? '', [field]: value },
+    }));
+  };
+
+  const multiCanSubmit =
+    selectedIds.length > 0 && selectedIds.every((id) => entries[id]?.covered.trim());
+
   const handleCurriculumChange = (id: string) => {
     setCurriculumId(id);
     const link = links.find((l) => l.curriculumId === id && l.status === 'active');
@@ -85,6 +118,21 @@ export function ProgressLogModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (multiMode) {
+      if (!multiCanSubmit) return;
+      for (const id of selectedIds) {
+        onSave({
+          sessionId: session.id,
+          classId: session.classId,
+          studentId: session.studentId,
+          curriculumId: id,
+          covered: entries[id].covered.trim(),
+          nextUp: entries[id].nextUp.trim() || undefined,
+          progressType: 'individual',
+        });
+      }
+      return;
+    }
     if (!curriculumId || !covered.trim()) return;
     onSave({
       sessionId: session.id,
@@ -136,6 +184,53 @@ export function ProgressLogModal({
               <p className="text-sm text-slate-400 dark:text-gray-500">
                 No curricula available. Add one in Curricula settings first.
               </p>
+            ) : multiMode ? (
+              <div className="space-y-2">
+                {availableCurricula.map((c) => {
+                  const checked = selectedIds.includes(c.id);
+                  return (
+                    <div
+                      key={c.id}
+                      className={`rounded-lg border transition-colors ${
+                        checked
+                          ? 'border-indigo-300 dark:border-indigo-700 bg-indigo-50/50 dark:bg-indigo-950/30'
+                          : 'border-slate-200 dark:border-gray-700'
+                      }`}
+                    >
+                      <label className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCurriculum(c.id)}
+                          className="w-4 h-4 rounded border-slate-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm font-medium text-slate-900 dark:text-gray-100">
+                          {c.title}
+                          {c.subject ? ` (${c.subject})` : ''}
+                        </span>
+                      </label>
+                      {checked && (
+                        <div className="px-3 pb-3 pt-1 space-y-2">
+                          <input
+                            type="text"
+                            value={entries[c.id]?.covered ?? ''}
+                            onChange={(e) => updateEntry(c.id, 'covered', e.target.value)}
+                            placeholder="Covered — e.g., Unit 3B, p.45-48"
+                            className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <input
+                            type="text"
+                            value={entries[c.id]?.nextUp ?? ''}
+                            onChange={(e) => updateEntry(c.id, 'nextUp', e.target.value)}
+                            placeholder="Next up — e.g., Unit 3C, p.49-52"
+                            className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <select
                 value={curriculumId}
@@ -153,34 +248,38 @@ export function ProgressLogModal({
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
-              Covered
-            </label>
-            <input
-              type="text"
-              value={covered}
-              onChange={(e) => setCovered(e.target.value)}
-              placeholder="e.g., Unit 3B, p.45-48"
-              className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+          {!multiMode && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
+                  Covered
+                </label>
+                <input
+                  type="text"
+                  value={covered}
+                  onChange={(e) => setCovered(e.target.value)}
+                  placeholder="e.g., Unit 3B, p.45-48"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
-              Next up
-            </label>
-            <input
-              type="text"
-              value={nextUp}
-              onChange={(e) => setNextUp(e.target.value)}
-              placeholder="e.g., Unit 3C, p.49-52"
-              className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
+                  Next up
+                </label>
+                <input
+                  type="text"
+                  value={nextUp}
+                  onChange={(e) => setNextUp(e.target.value)}
+                  placeholder="e.g., Unit 3C, p.49-52"
+                  className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </>
+          )}
 
           <div className="flex gap-3 pt-2">
-            <Button type="submit" className="flex-1" disabled={!curriculumId || !covered.trim()}>
+            <Button type="submit" className="flex-1" disabled={multiMode ? !multiCanSubmit : !curriculumId || !covered.trim()}>
               Save Progress
             </Button>
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>

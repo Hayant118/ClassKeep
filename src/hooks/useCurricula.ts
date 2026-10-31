@@ -9,6 +9,7 @@ function fromDb(row: Record<string, unknown>): Curriculum {
     userId: row.user_id as string,
     title: row.title as string,
     subject: (row.subject as string | undefined) ?? undefined,
+    series: (row.series as string | undefined) ?? undefined,
     color: (row.color as string | undefined) ?? undefined,
     createdAt: row.created_at as string,
   };
@@ -18,6 +19,7 @@ function toDb(curriculum: Partial<Curriculum>): Record<string, unknown> {
   const map: Record<string, unknown> = {};
   if (curriculum.title !== undefined) map.title = curriculum.title;
   if (curriculum.subject !== undefined) map.subject = curriculum.subject;
+  if (curriculum.series !== undefined) map.series = curriculum.series;
   if (curriculum.color !== undefined) map.color = curriculum.color;
   return map;
 }
