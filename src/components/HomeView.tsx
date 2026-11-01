@@ -258,6 +258,9 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
       const list = map.get(session.plannedDate);
       if (list) list.push({ session });
     }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.session.plannedTime.localeCompare(b.session.plannedTime));
+    }
     return map;
   }, [filteredSessions, weekDays]);
 

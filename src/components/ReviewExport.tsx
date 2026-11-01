@@ -291,6 +291,13 @@ export function ReviewExport({
       }
     }
 
+    for (const list of sessionsByDay.values()) {
+      list.sort((a, b) => a.plannedTime.localeCompare(b.plannedTime));
+    }
+    for (const list of sourceDays.values()) {
+      list.sort((a, b) => a.plannedTime.localeCompare(b.plannedTime));
+    }
+
     const completedCount = monthSessions.filter(s => classifySession(s) === 'completed').length;
     const cancelledCount = monthSessions.filter(s => s.status === 'cancelled').length;
     const noShowCount = monthSessions.filter(s => s.status === 'no-show').length;

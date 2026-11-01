@@ -470,10 +470,10 @@ export function SessionModal({
       if (session) {
         await onUpdate(session.id, payload);
       } else {
-        await onSave(payloads);
-        for (const weekPayloads of weeklyPayloadGroups) {
-          await onSave(weekPayloads);
-        }
+        // Single batched call: some onSave implementations (draft proposals)
+        // rewrite the full draft list from their captured state, so calling
+        // once per week group would make each call overwrite the previous.
+        await onSave([...payloads, ...weeklyPayloadGroups.flat()]);
       }
 
       if (!isDraft) {
