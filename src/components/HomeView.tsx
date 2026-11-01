@@ -180,6 +180,59 @@ function useGroupedStudents(students: Student[]) {
   }, [students]);
 }
 
+interface ProgressPreview {
+  title: string;
+  color?: string;
+  currentPosition?: string;
+  nextUp?: string;
+}
+
+/**
+ * Curriculum line on a session card: the book title is demoted (small, muted,
+ * color dot) and the next-up segment leads, since that's the actionable part
+ * and the last thing that should get clipped. Tapping expands the row inline
+ * to show the full untruncated text.
+ */
+function CurriculumProgressRow({ preview }: { preview: ProgressPreview }) {
+  const [expanded, setExpanded] = useState(false);
+  const { title, color, currentPosition, nextUp } = preview;
+  const fullText = `${title}\n${nextUp ? `Next: ${nextUp}` : ''}${
+    nextUp && currentPosition ? ' · ' : ''
+  }${currentPosition ? `covered ${currentPosition}` : ''}`.trim();
+
+  return (
+    <button
+      type="button"
+      onClick={() => setExpanded((v) => !v)}
+      title={expanded ? undefined : fullText}
+      className="mt-2 flex w-full items-start gap-1.5 rounded-md px-1 py-1 text-left hover:bg-slate-100 dark:hover:bg-gray-700/50"
+    >
+      <span
+        className="mt-[3px] h-2 w-2 shrink-0 rounded-full"
+        style={{ backgroundColor: color || '#6366f1' }}
+      />
+      <span className="min-w-0">
+        <span className="block text-[10px] leading-tight text-slate-400 dark:text-gray-500 truncate">
+          {title}
+        </span>
+        <span
+          className={`block text-[11px] leading-snug text-indigo-600 dark:text-indigo-400 ${
+            expanded ? '' : 'line-clamp-2'
+          }`}
+        >
+          {nextUp && <span className="font-medium">Next: {nextUp}</span>}
+          {nextUp && currentPosition && (
+            <span className="text-slate-400 dark:text-gray-500"> · </span>
+          )}
+          {currentPosition && (
+            <span className="text-slate-500 dark:text-gray-400">covered {currentPosition}</span>
+          )}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const navigate = useNavigate();
   const { sessions, loading: sessionsLoading, updateSession, fetchSessions } = useSessions();
@@ -419,31 +472,35 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     fetchAllProgress();
   }, [fetchAllProgress]);
 
-  // Curriculum progress previews shown on session cards, e.g. "RE3: Unit 3B → 3C".
+  // Curriculum progress previews shown on session cards, e.g. "Next: Unit 3C".
   const classProgressPreview = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, ProgressPreview>();
     for (const cc of classCurricula) {
       if (cc.status !== 'active' || map.has(cc.classId)) continue;
       if (!cc.currentPosition && !cc.nextUp) continue;
-      const title = curricula.find((c) => c.id === cc.curriculumId)?.title ?? 'Curriculum';
-      map.set(
-        cc.classId,
-        `${title}: ${cc.currentPosition ?? '—'}${cc.nextUp ? ` → ${cc.nextUp}` : ''}`
-      );
+      const curriculum = curricula.find((c) => c.id === cc.curriculumId);
+      map.set(cc.classId, {
+        title: curriculum?.title ?? 'Curriculum',
+        color: curriculum?.color,
+        currentPosition: cc.currentPosition,
+        nextUp: cc.nextUp,
+      });
     }
     return map;
   }, [classCurricula, curricula]);
 
   const studentProgressPreview = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, ProgressPreview>();
     for (const sc of studentCurricula) {
       if (sc.status !== 'active' || map.has(sc.studentId)) continue;
       if (!sc.currentPosition && !sc.nextUp) continue;
-      const title = curricula.find((c) => c.id === sc.curriculumId)?.title ?? 'Curriculum';
-      map.set(
-        sc.studentId,
-        `${title}: ${sc.currentPosition ?? '—'}${sc.nextUp ? ` → ${sc.nextUp}` : ''}`
-      );
+      const curriculum = curricula.find((c) => c.id === sc.curriculumId);
+      map.set(sc.studentId, {
+        title: curriculum?.title ?? 'Curriculum',
+        color: curriculum?.color,
+        currentPosition: sc.currentPosition,
+        nextUp: sc.nextUp,
+      });
     }
     return map;
   }, [studentCurricula, curricula]);
@@ -854,8 +911,9 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
               return (
               <div
                 key={session.id}
-                className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-700/30 hover:shadow-sm transition-shadow"
+                className="p-3 rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-700/30 hover:shadow-sm transition-shadow"
               >
+                <div className="flex items-start gap-3">
                 <div className="flex flex-col items-center justify-center min-w-[52px] py-1 px-2 bg-white dark:bg-gray-800 rounded-md border border-slate-200 dark:border-gray-600">
                   <span className="text-xs text-slate-500 dark:text-gray-400">{session.plannedTime.slice(0, 5)}</span>
                   <span className="text-xs font-semibold text-slate-500 dark:text-gray-500">{session.durationMinutes}m</span>
@@ -867,14 +925,6 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                   <p className="text-xs text-slate-500 dark:text-gray-400 truncate">
                     {getStudentNames(session, enrollments, students)}
                   </p>
-                  {progressPreview && (
-                    <p
-                      className="text-[11px] text-indigo-600 dark:text-indigo-400 mt-1 truncate"
-                      title={progressPreview}
-                    >
-                      {progressPreview}
-                    </p>
-                  )}
                   <span className={`inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full capitalize ${
                     session.status === 'completed'
                       ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
@@ -919,6 +969,8 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                       </button>
                   </div>
                 </div>
+                </div>
+                {progressPreview && <CurriculumProgressRow preview={progressPreview} />}
               </div>
               );
             })}
