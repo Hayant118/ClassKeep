@@ -21,7 +21,7 @@ interface ProgressLogModalProps {
   students: Student[];
   classes: Class[];
   curricula: Curriculum[];
-  onSave: (payload: ProgressLogPayload) => void;
+  onSave: (payloads: ProgressLogPayload[]) => Promise<void>;
 }
 
 export function ProgressLogModal({
@@ -44,6 +44,7 @@ export function ProgressLogModal({
   const [curriculumId, setCurriculumId] = useState('');
   const [covered, setCovered] = useState('');
   const [nextUp, setNextUp] = useState('');
+  const [saving, setSaving] = useState(false);
 
   // Multi-book state for 1-on-1 sessions with several active curricula:
   // one entry (covered / next_up) per selected book.
@@ -69,6 +70,7 @@ export function ProgressLogModal({
       setNextUp('');
       setSelectedIds([]);
       setEntries({});
+      setSaving(false);
     }
   }, [isOpen, session.id]);
 
@@ -116,33 +118,47 @@ export function ProgressLogModal({
     setNextUp(link?.nextUp ?? '');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+
+    let payloads: ProgressLogPayload[];
     if (multiMode) {
       if (!multiCanSubmit) return;
-      for (const id of selectedIds) {
-        onSave({
+      payloads = selectedIds.map((id) => ({
+        sessionId: session.id,
+        classId: session.classId,
+        studentId: session.studentId,
+        curriculumId: id,
+        covered: entries[id].covered.trim(),
+        nextUp: entries[id].nextUp.trim() || undefined,
+        progressType: 'individual',
+      }));
+    } else {
+      if (!curriculumId || !covered.trim()) return;
+      payloads = [
+        {
           sessionId: session.id,
           classId: session.classId,
           studentId: session.studentId,
-          curriculumId: id,
-          covered: entries[id].covered.trim(),
-          nextUp: entries[id].nextUp.trim() || undefined,
-          progressType: 'individual',
-        });
-      }
-      return;
+          curriculumId,
+          covered: covered.trim(),
+          nextUp: nextUp.trim() || undefined,
+          progressType: isGroup ? 'group' : 'individual',
+        },
+      ];
     }
-    if (!curriculumId || !covered.trim()) return;
-    onSave({
-      sessionId: session.id,
-      classId: session.classId,
-      studentId: session.studentId,
-      curriculumId,
-      covered: covered.trim(),
-      nextUp: nextUp.trim() || undefined,
-      progressType: isGroup ? 'group' : 'individual',
-    });
+
+    // Show the saving state immediately, before any network round trip.
+    setSaving(true);
+    try {
+      await onSave(payloads);
+      // On success the parent closes the modal.
+    } catch {
+      // The handler already toasted the error; keep the modal open so the
+      // user can retry without re-entering anything.
+      setSaving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -164,7 +180,8 @@ export function ProgressLogModal({
           </h2>
           <button
             onClick={onClose}
-            className="text-slate-400 dark:text-gray-500 hover:text-slate-600 dark:hover:text-gray-300 text-xl leading-none"
+            disabled={saving}
+            className="text-slate-400 dark:text-gray-500 hover:text-slate-600 dark:hover:text-gray-300 text-xl leading-none disabled:opacity-50"
             aria-label="Close"
           >
             ×
@@ -279,10 +296,20 @@ export function ProgressLogModal({
           )}
 
           <div className="flex gap-3 pt-2">
-            <Button type="submit" className="flex-1" disabled={multiMode ? !multiCanSubmit : !curriculumId || !covered.trim()}>
-              Save Progress
+            <Button
+              type="submit"
+              className="flex-1 disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={saving || (multiMode ? !multiCanSubmit : !curriculumId || !covered.trim())}
+            >
+              {saving ? 'Saving…' : 'Save Progress'}
             </Button>
-            <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1 disabled:opacity-60"
+              onClick={onClose}
+              disabled={saving}
+            >
               Skip
             </Button>
           </div>

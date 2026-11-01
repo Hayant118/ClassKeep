@@ -245,7 +245,7 @@ export function useProgress() {
     setClassCurricula(prev => prev.filter(c => c.id !== id));
   };
 
-  const logLessonProgress = async (
+  const insertLessonLog = async (
     sessionId: string | undefined,
     classId: string | undefined,
     studentId: string | undefined,
@@ -278,9 +278,23 @@ export function useProgress() {
 
     const newLog = lessonLogFromDb(logRow);
     setLessonLogs(prev => [newLog, ...prev]);
+    return newLog;
+  };
 
-    // Advance the linked curriculum's position (upsert so a missing row is
-    // created instead of failing on the unique constraint)
+  // Advance the linked curriculum's position (upsert so a missing row is
+  // created instead of failing on the unique constraint). Kept separate from
+  // the log insert so a failure here can't discard an already-saved log.
+  const advanceCurriculumPosition = async (
+    progressType: 'group' | 'individual',
+    classId: string | undefined,
+    studentId: string | undefined,
+    curriculumId: string,
+    covered: string,
+    nextUp: string | undefined
+  ) => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) throw new Error('Not authenticated');
+
     if (progressType === 'group' && classId) {
       const { data: updatedRow, error: updateError } = await supabase
         .from('ck_class_curricula')
@@ -326,8 +340,6 @@ export function useProgress() {
           : [updated, ...prev]
       );
     }
-
-    return newLog;
   };
 
   const fetchLessonLogs = useCallback(
@@ -373,7 +385,8 @@ export function useProgress() {
     addStudentCurriculum,
     updateStudentCurriculum,
     deleteStudentCurriculum,
-    logLessonProgress,
+    insertLessonLog,
+    advanceCurriculumPosition,
     fetchLessonLogs,
   };
 }

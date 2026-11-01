@@ -189,7 +189,8 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const {
     classCurricula,
     studentCurricula,
-    logLessonProgress,
+    insertLessonLog,
+    advanceCurriculumPosition,
     addStudentCurriculum,
     updateStudentCurriculum,
     fetchAllProgress,
@@ -485,56 +486,106 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     setProgressSession(undefined);
   };
 
-  const handleProgressSave = async (payload: ProgressLogPayload) => {
+  const handleProgressSave = async (payloads: ProgressLogPayload[]) => {
+    const first = payloads[0];
+    const errorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Unknown error');
+
+    // Step 1: mark the session completed. This is the one write that must not
+    // be lost, so nothing else runs until it succeeds.
     try {
-      await updateSession(payload.sessionId, { status: 'completed' });
-      await logLessonProgress(
-        payload.sessionId,
-        payload.classId,
-        payload.studentId,
-        payload.curriculumId,
-        payload.covered,
-        payload.nextUp,
-        payload.progressType
-      );
-
-      // Group progress also advances every enrolled student's individual
-      // position (skipping students with track_progress=false).
-      if (payload.progressType === 'group' && payload.classId) {
-        const memberIds = enrollments
-          .filter((e) => e.classId === payload.classId && e.status === 'active')
-          .map((e) => e.studentId)
-          .filter((studentId) => students.find((s) => s.id === studentId)?.trackProgress !== false);
-        for (const studentId of memberIds) {
-          const existing = studentCurricula.find(
-            (sc) => sc.studentId === studentId && sc.curriculumId === payload.curriculumId
-          );
-          if (existing) {
-            await updateStudentCurriculum(existing.id, {
-              currentPosition: payload.covered,
-              nextUp: payload.nextUp,
-            });
-          } else {
-            await addStudentCurriculum({
-              studentId,
-              curriculumId: payload.curriculumId,
-              currentPosition: payload.covered,
-              nextUp: payload.nextUp,
-              status: 'active',
-            });
-          }
-        }
-      }
-
-      dismissFromBanner(payload.sessionId);
-      await fetchSessions();
-      await fetchAllProgress();
-      toast.success('Progress logged');
+      await updateSession(first.sessionId, { status: 'completed' });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to log progress');
-    } finally {
-      closeProgressModal();
+      toast.error(`Failed to mark session completed: ${errorMessage(err)}`);
+      throw err; // keep the modal open so the user can retry
     }
+
+    // Step 2: all remaining writes are independent of each other — run them
+    // in parallel to cut round trips on slow networks.
+    const logTasks = payloads.map((p) =>
+      insertLessonLog(
+        p.sessionId,
+        p.classId,
+        p.studentId,
+        p.curriculumId,
+        p.covered,
+        p.nextUp,
+        p.progressType
+      )
+    );
+
+    const positionTasks: Promise<unknown>[] = payloads.map((p) =>
+      advanceCurriculumPosition(
+        p.progressType,
+        p.classId,
+        p.studentId,
+        p.curriculumId,
+        p.covered,
+        p.nextUp
+      )
+    );
+
+    // Group progress also advances every enrolled student's individual
+    // position (skipping students with track_progress=false).
+    for (const p of payloads) {
+      if (p.progressType !== 'group' || !p.classId) continue;
+      const memberIds = enrollments
+        .filter((e) => e.classId === p.classId && e.status === 'active')
+        .map((e) => e.studentId)
+        .filter((studentId) => students.find((s) => s.id === studentId)?.trackProgress !== false);
+      for (const studentId of memberIds) {
+        const existing = studentCurricula.find(
+          (sc) => sc.studentId === studentId && sc.curriculumId === p.curriculumId
+        );
+        positionTasks.push(
+          existing
+            ? updateStudentCurriculum(existing.id, {
+                currentPosition: p.covered,
+                nextUp: p.nextUp,
+              })
+            : addStudentCurriculum({
+                studentId,
+                curriculumId: p.curriculumId,
+                currentPosition: p.covered,
+                nextUp: p.nextUp,
+                status: 'active',
+              })
+        );
+      }
+    }
+
+    const [logResults, positionResults] = await Promise.all([
+      Promise.allSettled(logTasks),
+      Promise.allSettled(positionTasks),
+    ]);
+
+    const logFailures = logResults
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map((r) => errorMessage(r.reason));
+    const positionFailures = positionResults
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map((r) => errorMessage(r.reason));
+
+    // A failed curriculum upsert must not lose the taught status: the session
+    // is already completed and the lesson logs are saved, so surface the
+    // error but still close out the flow.
+    for (const message of positionFailures) {
+      toast.error(`Progress logged, but updating the curriculum position failed: ${message}`);
+    }
+
+    dismissFromBanner(first.sessionId);
+    closeProgressModal();
+    void Promise.all([fetchSessions(), fetchAllProgress()]);
+
+    if (logFailures.length > 0) {
+      for (const message of logFailures) {
+        toast.error(`Failed to save the lesson log: ${message}`);
+      }
+      // Keep the modal open so the log can be retried; re-marking the
+      // session completed on retry is harmless.
+      throw new Error(logFailures[0]);
+    }
+
+    toast.success('Progress logged');
   };
 
   const openEditModal = (session: Session) => {

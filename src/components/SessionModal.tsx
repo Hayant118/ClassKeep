@@ -43,7 +43,7 @@ interface SessionModalProps {
   guests?: Guest[];
   isDraft?: boolean;
   curricula?: Curriculum[];
-  onLogProgress?: (payload: ProgressLogPayload) => void;
+  onLogProgress?: (payloads: ProgressLogPayload[]) => Promise<void>;
   onSave: (session: SessionPayload | SessionPayload[]) => void;
   onUpdate: (id: string, updates: Partial<Session>) => void;
   onDelete: (id: string) => void;
@@ -754,9 +754,14 @@ export function SessionModal({
           students={students}
           classes={classes}
           curricula={curricula}
-          onSave={(payload) => {
-            setIsProgressLogOpen(false);
-            onLogProgress?.(payload);
+          onSave={async (payloads) => {
+            try {
+              await onLogProgress?.(payloads);
+              setIsProgressLogOpen(false);
+            } catch {
+              // The handler already toasted the error; keep the modal open
+              // so the user can retry.
+            }
           }}
         />
       )}
