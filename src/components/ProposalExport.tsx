@@ -32,7 +32,6 @@ const WEEKDAYS = {
   en: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
   zh: ['日', '一', '二', '三', '四', '五', '六'],
 };
-
 function getDraftColor(draft: ReturnType<typeof draftSessionsToSessions>[number], classes: Class[], students: Student[]): string {
   const cls = classes.find(c => c.id === draft.classId);
   if (cls?.color) return cls.color;

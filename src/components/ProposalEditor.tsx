@@ -20,20 +20,222 @@ import { ProposalExport } from './ProposalExport';
 import { draftSessionsToSessions, sessionPayloadToDraftSession } from '../utils/draftSessionAdapter';
 import { checkOverlap } from '../utils/calendar';
 import { timeToMinutes } from '../utils/date';
-import { startOfMonthInTz, startOfWeekInTz, addMonthsInTz, addDaysInTz, getDayIndexInWeek, formatDateKeyInTz, formatWeekRangeInTz } from '../utils/timezone';
+import { startOfMonthInTz, startOfWeekInTz, addMonthsInTz, addDaysInTz, getDayIndexInWeek, formatDateKeyInTz } from '../utils/timezone';
 import type { Proposal, Session, Guest } from '../types';
 
 const TIMEZONE = 'Asia/Shanghai';
 
-const WEEKDAY_CHIPS = [
-  { label: 'Mon', value: 0 },
-  { label: 'Tue', value: 1 },
-  { label: 'Wed', value: 2 },
-  { label: 'Thu', value: 3 },
-  { label: 'Fri', value: 4 },
-  { label: 'Sat', value: 5 },
-  { label: 'Sun', value: 6 },
-];
+const LOCALE_STORAGE_KEY = 'classkeep.proposalLocale';
+
+const LABELS = {
+  en: {
+    back: '← Back',
+    commit: 'Commit',
+    committing: 'Committing...',
+    archive: 'Archive',
+    archiving: 'Archiving...',
+    archived: 'Archived',
+    delete: 'Delete',
+    deleting: 'Deleting...',
+    export: 'Export',
+    exporting: 'Exporting...',
+    titleLabel: 'Title',
+    statusLabel: 'Status',
+    created: 'Created',
+    updated: 'Updated',
+    committedOn: 'Committed',
+    notSavedYet: 'Not saved yet',
+    guestsHeading: 'Guest students',
+    guestNamePlaceholder: 'Guest name',
+    guestRatePlaceholder: 'Hourly rate',
+    addGuest: 'Add guest',
+    remove: 'Remove',
+    perHour: '/hr',
+    guestSuffix: '(guest)',
+    billingHeading: 'Billing',
+    billingEmpty: 'Add draft sessions to see the calculated total.',
+    session: 'session',
+    sessions: 'sessions',
+    calculatedTotal: 'Calculated total',
+    quotedLabel: 'Quoted amount',
+    quotedHint: '(manual override)',
+    resetQuoted: 'Reset to calculated',
+    quotedHelp: 'Prefilled from the calculated total — edit for discounts or carried-over classes.',
+    conflictSingular: 'draft session conflicts with the existing schedule.',
+    conflictPlural: 'draft sessions conflict with the existing schedule.',
+    draftSessions: (n: number) => `Draft sessions (${n})`,
+    day: 'Day',
+    week: 'Week',
+    month: 'Month',
+    repeatWeekly: 'Repeat weekly',
+    repeatTarget: 'Student / Guest',
+    selectStudentOrGuest: 'Select a student or guest',
+    studentsGroup: 'Students (1-on-1)',
+    guestsGroup: 'Guests',
+    guestPrefix: 'Guest: ',
+    days: 'Days',
+    start: 'Start',
+    end: 'End',
+    endCondition: 'End condition',
+    numberOfWeeks: 'Number of weeks',
+    untilDate: 'Until date',
+    generate: 'Generate',
+    prev: '← Prev',
+    today: 'Today',
+    next: 'Next →',
+    unknown: 'Unknown',
+    status: {
+      draft: 'Draft',
+      committed: 'Committed',
+      sent: 'Sent',
+      accepted: 'Accepted',
+      rejected: 'Rejected',
+      archived: 'Archived',
+    },
+    toast: {
+      guestConversionUnsupported: 'Guest conversion not yet supported',
+      committed: 'Proposal committed to calendar',
+      commitFailed: 'Commit failed',
+      deleteConfirm: 'Delete this proposal and all its draft sessions? This cannot be undone.',
+      deleteFailed: 'Delete failed',
+      guestNameRequired: 'Guest name is required',
+      invalidRate: 'Enter a valid hourly rate',
+      guestExists: 'A guest with this name already exists',
+      guestAdded: 'Guest added',
+      guestRemoved: 'Guest removed',
+      currencySaveFailed: 'Failed to save currency',
+      quotedSaveFailed: 'Failed to save quoted amount',
+      quotedResetFailed: 'Failed to reset quoted amount',
+      selectStudentOrGuest: 'Select a student or guest',
+      selectDay: 'Select at least one day of the week',
+      invalidTime: 'Enter a valid start and end time',
+      invalidUntilDate: 'Enter a valid until date',
+      endDatePast: 'End date must be today or later',
+      noNewDrafts: 'No new draft sessions to create',
+      createdDrafts: (n: number) => `Created ${n} draft sessions`,
+      exportFailed: 'Export failed',
+    },
+  },
+  zh: {
+    back: '← 返回',
+    commit: '提交',
+    committing: '提交中...',
+    archive: '归档',
+    archiving: '归档中...',
+    archived: '已归档',
+    delete: '删除',
+    deleting: '删除中...',
+    export: '导出',
+    exporting: '导出中...',
+    titleLabel: '标题',
+    statusLabel: '状态',
+    created: '创建于',
+    updated: '更新于',
+    committedOn: '提交于',
+    notSavedYet: '尚未保存',
+    guestsHeading: '学生（访客）',
+    guestNamePlaceholder: '访客姓名',
+    guestRatePlaceholder: '时薪',
+    addGuest: '添加访客',
+    remove: '移除',
+    perHour: '/小时',
+    guestSuffix: '（访客）',
+    billingHeading: '费用',
+    billingEmpty: '添加 draft 课程后可查看计算总价。',
+    session: '节课',
+    sessions: '节课',
+    calculatedTotal: '计算总价',
+    quotedLabel: '报价金额',
+    quotedHint: '（手动覆盖）',
+    resetQuoted: '重置为计算总价',
+    quotedHelp: '预填自计算总价 — 可为折扣或结转课程修改。',
+    conflictSingular: '个 draft 课程与现有日程冲突。',
+    conflictPlural: '个 draft 课程与现有日程冲突。',
+    draftSessions: (n: number) => `Draft 课程（${n}）`,
+    day: '日',
+    week: '周',
+    month: '月',
+    repeatWeekly: '每周重复',
+    repeatTarget: '学生 / 访客',
+    selectStudentOrGuest: '选择学生或访客',
+    studentsGroup: '学生（1对1）',
+    guestsGroup: '访客',
+    guestPrefix: '访客：',
+    days: '星期',
+    start: '开始',
+    end: '结束',
+    endCondition: '结束条件',
+    numberOfWeeks: '周数',
+    untilDate: '截止日期',
+    generate: '生成',
+    prev: '← 上一周',
+    today: '今天',
+    next: '下一周 →',
+    unknown: '未知',
+    status: {
+      draft: '草稿',
+      committed: '已提交',
+      sent: '已发送',
+      accepted: '已接受',
+      rejected: '已拒绝',
+      archived: '已归档',
+    },
+    toast: {
+      guestConversionUnsupported: '暂不支持访客转换',
+      committed: '方案已提交到日历',
+      commitFailed: '提交失败',
+      deleteConfirm: '删除此方案及其所有 draft 课程？此操作无法撤销。',
+      deleteFailed: '删除失败',
+      guestNameRequired: '请填写访客姓名',
+      invalidRate: '请输入有效的时薪',
+      guestExists: '已存在同名访客',
+      guestAdded: '已添加访客',
+      guestRemoved: '已移除访客',
+      currencySaveFailed: '保存币种失败',
+      quotedSaveFailed: '保存报价金额失败',
+      quotedResetFailed: '重置报价金额失败',
+      selectStudentOrGuest: '请选择学生或访客',
+      selectDay: '请至少选择一周中的一天',
+      invalidTime: '请输入有效的开始和结束时间',
+      invalidUntilDate: '请输入有效的截止日期',
+      endDatePast: '结束日期不能早于今天',
+      noNewDrafts: '没有可创建的新 draft 课程',
+      createdDrafts: (n: number) => `已创建 ${n} 个 draft 课程`,
+      exportFailed: '导出失败',
+    },
+  },
+};
+
+export type ProposalLocale = keyof typeof LABELS;
+
+function readStoredLocale(): ProposalLocale {
+  try {
+    return localStorage.getItem(LOCALE_STORAGE_KEY) === 'zh' ? 'zh' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+const WEEKDAY_CHIPS: Record<ProposalLocale, { label: string; value: number }[]> = {
+  en: [
+    { label: 'Mon', value: 0 },
+    { label: 'Tue', value: 1 },
+    { label: 'Wed', value: 2 },
+    { label: 'Thu', value: 3 },
+    { label: 'Fri', value: 4 },
+    { label: 'Sat', value: 5 },
+    { label: 'Sun', value: 6 },
+  ],
+  zh: [
+    { label: '一', value: 0 },
+    { label: '二', value: 1 },
+    { label: '三', value: 2 },
+    { label: '四', value: 3 },
+    { label: '五', value: 4 },
+    { label: '六', value: 5 },
+    { label: '日', value: 6 },
+  ],
+};
 
 const STATUS_STYLES: Record<Proposal['status'], string> = {
   draft: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-gray-300 dark:border-gray-600',
@@ -44,25 +246,43 @@ const STATUS_STYLES: Record<Proposal['status'], string> = {
   archived: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-gray-400 dark:border-gray-600',
 };
 
-function StatusBadge({ status }: { status: Proposal['status'] }) {
+function StatusBadge({ status, locale }: { status: Proposal['status']; locale: ProposalLocale }) {
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border capitalize ${STATUS_STYLES[status]}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_STYLES[status]}`}
     >
-      {status}
+      {LABELS[locale].status[status]}
     </span>
   );
 }
 
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return 'Not saved yet';
+function formatDate(iso: string | null | undefined, locale: ProposalLocale): string {
+  if (!iso) return LABELS[locale].notSavedYet;
   const date = new Date(iso);
-  if (isNaN(date.getTime())) return 'Not saved yet';
-  return date.toLocaleDateString('en-US', {
+  if (isNaN(date.getTime())) return LABELS[locale].notSavedYet;
+  return date.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   });
+}
+
+/** Week range label in the active locale, on the display timezone's calendar. */
+function formatWeekRange(weekStartUtc: Date, locale: ProposalLocale): string {
+  const end = new Date(weekStartUtc.getTime() + 6 * 24 * 60 * 60 * 1000);
+  const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US';
+  const startStr = new Intl.DateTimeFormat(dateLocale, {
+    timeZone: TIMEZONE,
+    month: 'short',
+    day: 'numeric',
+  }).format(weekStartUtc);
+  const endStr = new Intl.DateTimeFormat(dateLocale, {
+    timeZone: TIMEZONE,
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(end);
+  return `${startStr} - ${endStr}`;
 }
 
 function generateDraftId(): string {
@@ -147,6 +367,16 @@ export function ProposalEditor() {
 
   const [title, setTitle] = useState('');
   const [calendarView, setCalendarView] = useState<'day' | 'week' | 'month'>('day');
+  const [locale, setLocale] = useState<ProposalLocale>(readStoredLocale);
+  const t = LABELS[locale];
+  const handleLocaleChange = (value: ProposalLocale) => {
+    setLocale(value);
+    try {
+      localStorage.setItem(LOCALE_STORAGE_KEY, value);
+    } catch {
+      // Private mode etc. — the choice just won't persist.
+    }
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | undefined>(undefined);
@@ -229,12 +459,12 @@ export function ProposalEditor() {
 
       if (s.guestName) {
         key = `guest:${s.guestName}`;
-        name = `${s.guestName} (guest)`;
+        name = `${s.guestName} ${t.guestSuffix}`;
         charge = (s.guestRate ?? 0) * hours;
       } else {
         const student = s.studentId ? students.find((st) => st.id === s.studentId) : undefined;
         key = student ? student.id : s.classId ?? 'unknown';
-        name = student?.name ?? classes.find((c) => c.id === s.classId)?.name ?? 'Unknown';
+        name = student?.name ?? classes.find((c) => c.id === s.classId)?.name ?? t.unknown;
 
         if (s.rateMode === 'flat' && s.rateValue != null) {
           charge = s.rateValue;
@@ -263,7 +493,7 @@ export function ProposalEditor() {
     const list = Array.from(rows.values()).sort((a, b) => a.name.localeCompare(b.name));
     const total = Math.round(list.reduce((sum, r) => sum + r.subtotal, 0) * 100) / 100;
     return { rows: list, total };
-  }, [calendarSessions, students, classes, enrollments]);
+  }, [calendarSessions, students, classes, enrollments, t]);
 
   const billingRows = billing.rows;
   const calculatedTotal = billing.total;
@@ -397,7 +627,7 @@ export function ProposalEditor() {
   const handleCommit = async () => {
     if (!proposal || proposal.draftSessions.length === 0) return;
     if (proposal.guests.length > 0) {
-      toast.error('Guest conversion not yet supported');
+      toast.error(t.toast.guestConversionUnsupported);
       return;
     }
     setCommitting(true);
@@ -436,10 +666,10 @@ export function ProposalEditor() {
       if (insertError) throw new Error(insertError.message);
 
       await commitProposal(proposal.id);
-      toast.success('Proposal committed to calendar');
+      toast.success(t.toast.committed);
       navigate('/calendar');
     } catch (err) {
-      setCommitError(err instanceof Error ? err.message : 'Commit failed');
+      setCommitError(err instanceof Error ? err.message : t.toast.commitFailed);
     } finally {
       setCommitting(false);
     }
@@ -455,13 +685,13 @@ export function ProposalEditor() {
 
   const handleDelete = async () => {
     if (!proposal) return;
-    if (!window.confirm('Delete this proposal and all its draft sessions? This cannot be undone.')) return;
+    if (!window.confirm(t.toast.deleteConfirm)) return;
     setDeleting(true);
     try {
       await deleteProposal(proposal.id);
       navigate('/proposals');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed');
+      toast.error(err instanceof Error ? err.message : t.toast.deleteFailed);
     } finally {
       setDeleting(false);
     }
@@ -473,15 +703,15 @@ export function ProposalEditor() {
     const name = guestNameInput.trim();
     const rate = parseFloat(guestRateInput);
     if (!name) {
-      toast.error('Guest name is required');
+      toast.error(t.toast.guestNameRequired);
       return;
     }
     if (isNaN(rate) || rate < 0) {
-      toast.error('Enter a valid hourly rate');
+      toast.error(t.toast.invalidRate);
       return;
     }
     if (proposal.guests.some((g) => g.name === name)) {
-      toast.error('A guest with this name already exists');
+      toast.error(t.toast.guestExists);
       return;
     }
 
@@ -489,14 +719,14 @@ export function ProposalEditor() {
     await updateProposal(proposal.id, { guests: nextGuests });
     setGuestNameInput('');
     setGuestRateInput('');
-    toast.success('Guest added');
+    toast.success(t.toast.guestAdded);
   };
 
   const handleRemoveGuest = async (name: string) => {
     if (!proposal) return;
     const nextGuests = proposal.guests.filter((g) => g.name !== name);
     await updateProposal(proposal.id, { guests: nextGuests });
-    toast.success('Guest removed');
+    toast.success(t.toast.guestRemoved);
   };
 
   const handleCurrencyChange = async (value: string) => {
@@ -505,7 +735,7 @@ export function ProposalEditor() {
     try {
       await updateProposal(proposal.id, { currency: value });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save currency');
+      toast.error(err instanceof Error ? err.message : t.toast.currencySaveFailed);
     }
   };
 
@@ -528,7 +758,7 @@ export function ProposalEditor() {
         setQuotedInput(value.toFixed(2));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save quoted amount');
+      toast.error(err instanceof Error ? err.message : t.toast.quotedSaveFailed);
     }
   };
 
@@ -539,7 +769,7 @@ export function ProposalEditor() {
       try {
         await updateProposal(proposal.id, { quotedAmount: null });
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Failed to reset quoted amount');
+        toast.error(err instanceof Error ? err.message : t.toast.quotedResetFailed);
       }
     }
   };
@@ -557,18 +787,18 @@ export function ProposalEditor() {
     if (!proposal) return;
 
     if (!repeatTarget) {
-      toast.error('Select a student or guest');
+      toast.error(t.toast.selectStudentOrGuest);
       return;
     }
     if (repeatDays.size === 0) {
-      toast.error('Select at least one day of the week');
+      toast.error(t.toast.selectDay);
       return;
     }
 
     const startMinutes = timeToMinutes(repeatStartTime);
     const endMinutes = timeToMinutes(repeatEndTime);
     if (isNaN(startMinutes) || isNaN(endMinutes) || endMinutes <= startMinutes) {
-      toast.error('Enter a valid start and end time');
+      toast.error(t.toast.invalidTime);
       return;
     }
     const durationMinutes = endMinutes - startMinutes;
@@ -582,14 +812,14 @@ export function ProposalEditor() {
       endKey = formatDateKeyInTz(endDate.toISOString(), TIMEZONE);
     } else {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(repeatUntilDate)) {
-        toast.error('Enter a valid until date');
+        toast.error(t.toast.invalidUntilDate);
         return;
       }
       endKey = repeatUntilDate;
     }
 
     if (endKey < todayKey) {
-      toast.error('End date must be today or later');
+      toast.error(t.toast.endDatePast);
       return;
     }
 
@@ -653,12 +883,12 @@ export function ProposalEditor() {
     }
 
     if (newDrafts.length === 0) {
-      toast.error('No new draft sessions to create');
+      toast.error(t.toast.noNewDrafts);
       return;
     }
 
     await updateDraftSessions(proposal.id, [...proposal.draftSessions, ...newDrafts]);
-    toast.success(`Created ${newDrafts.length} draft sessions`);
+    toast.success(t.toast.createdDrafts(newDrafts.length));
   };
 
   const handleExport = async () => {
@@ -680,7 +910,7 @@ export function ProposalEditor() {
             proposal={proposal}
             classes={classes}
             students={students}
-            locale="en"
+            locale={locale}
             currency={currency}
             calculatedTotal={calculatedTotal}
           />
@@ -705,7 +935,7 @@ export function ProposalEditor() {
       link.click();
       link.remove();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Export failed');
+      toast.error(err instanceof Error ? err.message : t.toast.exportFailed);
     } finally {
       root.unmount();
       container.remove();
@@ -734,14 +964,14 @@ export function ProposalEditor() {
   if (!proposal) {
     return (
       <div className="p-8 text-center text-slate-500 dark:text-gray-400">
-        Proposal not found.
+        {locale === 'zh' ? '未找到方案。' : 'Proposal not found.'}
         <div className="mt-4">
           <button
             type="button"
             onClick={() => navigate('/proposals')}
             className="px-4 py-2 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700"
           >
-            Back to proposals
+            {locale === 'zh' ? '返回方案列表' : 'Back to proposals'}
           </button>
         </div>
       </div>
@@ -763,16 +993,25 @@ export function ProposalEditor() {
             onClick={() => navigate('/proposals')}
             className="min-h-[44px] px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700"
           >
-            ← Back
+            {t.back}
           </button>
           <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={locale}
+              onChange={(e) => handleLocaleChange(e.target.value as ProposalLocale)}
+              aria-label="Language / 语言"
+              className="min-h-[44px] rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="en">EN</option>
+              <option value="zh">中文</option>
+            </select>
             <button
               type="button"
               onClick={handleCommit}
               disabled={!canCommit || committing}
               className="min-h-[44px] px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {committing ? 'Committing...' : 'Commit'}
+              {committing ? t.committing : t.commit}
             </button>
             <button
               type="button"
@@ -780,7 +1019,7 @@ export function ProposalEditor() {
               disabled={archiving || proposal.status === 'archived'}
               className="min-h-[44px] px-4 py-2 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {archiving ? 'Archiving...' : proposal.status === 'archived' ? 'Archived' : 'Archive'}
+              {archiving ? t.archiving : proposal.status === 'archived' ? t.archived : t.archive}
             </button>
             <button
               type="button"
@@ -788,7 +1027,7 @@ export function ProposalEditor() {
               disabled={deleting}
               className="min-h-[44px] px-4 py-2 rounded-lg border border-red-300 dark:border-red-800 bg-white dark:bg-gray-800 text-red-700 dark:text-red-300 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {deleting ? 'Deleting...' : 'Delete'}
+              {deleting ? t.deleting : t.delete}
             </button>
             <button
               type="button"
@@ -796,21 +1035,21 @@ export function ProposalEditor() {
               disabled={exporting || proposal.draftSessions.length === 0 || proposal.status === 'archived'}
               className="min-h-[44px] px-4 py-2 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {exporting ? 'Exporting...' : 'Export'}
+              {exporting ? t.exporting : t.export}
             </button>
           </div>
         </div>
 
         {commitError && (
           <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-300 text-sm">
-            Commit failed: {commitError}
+            {t.toast.commitFailed}: {commitError}
           </div>
         )}
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-6 shadow-sm space-y-4 mt-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1 min-w-0">
-              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Title</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">{t.titleLabel}</label>
               <input
                 type="text"
                 value={title}
@@ -820,31 +1059,31 @@ export function ProposalEditor() {
               />
             </div>
             <div className="w-full sm:w-auto">
-              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Status</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">{t.statusLabel}</label>
               <select
                 value={proposal.status}
                 onChange={(e) => handleStatusChange(e.target.value as Proposal['status'])}
                 className="w-full sm:w-auto rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="draft">Draft</option>
-                <option value="committed">Committed</option>
-                <option value="sent">Sent</option>
-                <option value="accepted">Accepted</option>
-                <option value="rejected">Rejected</option>
-                <option value="archived">Archived</option>
+                <option value="draft">{t.status.draft}</option>
+                <option value="committed">{t.status.committed}</option>
+                <option value="sent">{t.status.sent}</option>
+                <option value="accepted">{t.status.accepted}</option>
+                <option value="rejected">{t.status.rejected}</option>
+                <option value="archived">{t.status.archived}</option>
               </select>
             </div>
           </div>
 
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-gray-400 pt-2 border-t border-slate-100 dark:border-gray-700">
-            <StatusBadge status={proposal.status} />
-            <span>Created {formatDate(proposal.createdAt)}</span>
+            <StatusBadge status={proposal.status} locale={locale} />
+            <span>{t.created} {formatDate(proposal.createdAt, locale)}</span>
             <span>·</span>
-            <span>Updated {formatDate(proposal.updatedAt)}</span>
+            <span>{t.updated} {formatDate(proposal.updatedAt, locale)}</span>
             {proposal.committedAt && (
               <>
                 <span>·</span>
-                <span>Committed {formatDate(proposal.committedAt)}</span>
+                <span>{t.committedOn} {formatDate(proposal.committedAt, locale)}</span>
               </>
             )}
           </div>
@@ -852,14 +1091,14 @@ export function ProposalEditor() {
       </div>
 
       <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-6 shadow-sm space-y-4">
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300">Guest students</h3>
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300">{t.guestsHeading}</h3>
 
         <form onSubmit={handleAddGuest} className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
             value={guestNameInput}
             onChange={(e) => setGuestNameInput(e.target.value)}
-            placeholder="Guest name"
+            placeholder={t.guestNamePlaceholder}
             className="flex-1 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <input
@@ -868,14 +1107,14 @@ export function ProposalEditor() {
             step="0.01"
             value={guestRateInput}
             onChange={(e) => setGuestRateInput(e.target.value)}
-            placeholder="Hourly rate"
+            placeholder={t.guestRatePlaceholder}
             className="w-full sm:w-40 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <button
             type="submit"
             className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
           >
-            Add guest
+            {t.addGuest}
           </button>
         </form>
 
@@ -887,14 +1126,14 @@ export function ProposalEditor() {
                 className="flex items-center justify-between gap-3 text-sm text-slate-700 dark:text-gray-300 bg-slate-50 dark:bg-gray-900/50 rounded-lg px-3 py-2"
               >
                 <span>
-                  {guest.name} — {formatMoney(guest.hourlyRate, currency)}/hr
+                  {guest.name} — {formatMoney(guest.hourlyRate, currency)}{t.perHour}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleRemoveGuest(guest.name)}
                   className="text-xs font-medium text-red-600 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-950/50"
                 >
-                  Remove
+                  {t.remove}
                 </button>
               </li>
             ))}
@@ -904,7 +1143,7 @@ export function ProposalEditor() {
 
       <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between gap-4">
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300">Billing</h3>
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300">{t.billingHeading}</h3>
           <select
             value={currency}
             onChange={(e) => handleCurrencyChange(e.target.value)}
@@ -919,7 +1158,7 @@ export function ProposalEditor() {
         </div>
 
         {billingRows.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-gray-400">Add draft sessions to see the calculated total.</p>
+          <p className="text-sm text-slate-500 dark:text-gray-400">{t.billingEmpty}</p>
         ) : (
           <>
             <ul className="space-y-1">
@@ -928,7 +1167,7 @@ export function ProposalEditor() {
                   <span className="min-w-0">
                     {row.name}{' '}
                     <span className="text-slate-400 dark:text-gray-500">
-                      · {row.sessions} {row.sessions === 1 ? 'session' : 'sessions'}
+                      · {row.sessions} {row.sessions === 1 ? t.session : t.sessions}
                     </span>
                   </span>
                   <span className="font-medium whitespace-nowrap">{formatMoney(row.subtotal, currency)}</span>
@@ -936,7 +1175,7 @@ export function ProposalEditor() {
               ))}
             </ul>
             <div className="flex items-center justify-between border-t border-slate-100 dark:border-gray-700 pt-2 text-sm">
-              <span className="font-medium text-slate-700 dark:text-gray-300">Calculated total</span>
+              <span className="font-medium text-slate-700 dark:text-gray-300">{t.calculatedTotal}</span>
               <span className="font-semibold text-slate-900 dark:text-gray-100">{formatMoney(calculatedTotal, currency)}</span>
             </div>
           </>
@@ -944,7 +1183,7 @@ export function ProposalEditor() {
 
         <div>
           <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">
-            Quoted amount <span className="font-normal text-slate-500 dark:text-gray-400">(manual override)</span>
+            {t.quotedLabel} <span className="font-normal text-slate-500 dark:text-gray-400">{t.quotedHint}</span>
           </label>
           <div className="flex items-center gap-3">
             <input
@@ -963,12 +1202,12 @@ export function ProposalEditor() {
                 onClick={handleResetQuoted}
                 className="text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:hover:text-indigo-300 whitespace-nowrap"
               >
-                Reset to calculated
+                {t.resetQuoted}
               </button>
             )}
           </div>
           <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
-            Prefilled from the calculated total — edit for discounts or carried-over classes.
+            {t.quotedHelp}
           </p>
         </div>
       </div>
@@ -982,14 +1221,14 @@ export function ProposalEditor() {
             color: preferences.colorConflict,
           }}
         >
-          {conflictCount} draft {conflictCount === 1 ? 'session' : 'sessions'} conflict with the existing schedule.
+          {conflictCount} {conflictCount === 1 ? t.conflictSingular : t.conflictPlural}
         </div>
       )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-slate-700 dark:text-gray-300">
-            Draft sessions ({proposal.draftSessions.length})
+            {t.draftSessions(proposal.draftSessions.length)}
           </h3>
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-gray-800 p-1 rounded-lg">
             <button
@@ -1001,7 +1240,7 @@ export function ProposalEditor() {
                   : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'
               }`}
             >
-              Day
+              {t.day}
             </button>
             <button
               type="button"
@@ -1012,7 +1251,7 @@ export function ProposalEditor() {
                   : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'
               }`}
             >
-              Week
+              {t.week}
             </button>
             <button
               type="button"
@@ -1023,7 +1262,7 @@ export function ProposalEditor() {
                   : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'
               }`}
             >
-              Month
+              {t.month}
             </button>
           </div>
         </div>
@@ -1035,20 +1274,20 @@ export function ProposalEditor() {
             className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400"
           >
             <span>{repeatExpanded ? '▾' : '▸'}</span>
-            Repeat weekly
+            {t.repeatWeekly}
           </button>
 
           {repeatExpanded && (
             <div className="mt-3 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">Student / Guest</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">{t.repeatTarget}</label>
                 <select
                   value={repeatTarget}
                   onChange={(e) => setRepeatTarget(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Select a student or guest</option>
-                  <optgroup label="Students (1-on-1)">
+                  <option value="">{t.selectStudentOrGuest}</option>
+                  <optgroup label={t.studentsGroup}>
                     {students.map((student) => (
                       <option key={student.id} value={`student:${student.id}`}>
                         {student.name}
@@ -1056,10 +1295,10 @@ export function ProposalEditor() {
                     ))}
                   </optgroup>
                   {proposal.guests.length > 0 && (
-                    <optgroup label="Guests">
+                    <optgroup label={t.guestsGroup}>
                       {proposal.guests.map((guest) => (
                         <option key={guest.name} value={`guest:${guest.name}`}>
-                          Guest: {guest.name}
+                          {t.guestPrefix}{guest.name}
                         </option>
                       ))}
                     </optgroup>
@@ -1068,9 +1307,9 @@ export function ProposalEditor() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">Days</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">{t.days}</label>
                 <div className="flex flex-wrap gap-2">
-                  {WEEKDAY_CHIPS.map(({ label, value }) => (
+                  {WEEKDAY_CHIPS[locale].map(({ label, value }) => (
                     <button
                       key={value}
                       type="button"
@@ -1089,7 +1328,7 @@ export function ProposalEditor() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">Start</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">{t.start}</label>
                   <input
                     type="time"
                     value={repeatStartTime}
@@ -1098,7 +1337,7 @@ export function ProposalEditor() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">End</label>
+                  <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">{t.end}</label>
                   <input
                     type="time"
                     value={repeatEndTime}
@@ -1109,7 +1348,7 @@ export function ProposalEditor() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">End condition</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">{t.endCondition}</label>
                 <div className="flex items-center gap-2 mb-2">
                   <button
                     type="button"
@@ -1120,7 +1359,7 @@ export function ProposalEditor() {
                         : 'bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-600 text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-700'
                     }`}
                   >
-                    Number of weeks
+                    {t.numberOfWeeks}
                   </button>
                   <button
                     type="button"
@@ -1131,7 +1370,7 @@ export function ProposalEditor() {
                         : 'bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-600 text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-700'
                     }`}
                   >
-                    Until date
+                    {t.untilDate}
                   </button>
                 </div>
 
@@ -1158,7 +1397,7 @@ export function ProposalEditor() {
                 onClick={handleGenerateRepeat}
                 className="w-full px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
               >
-                Generate
+                {t.generate}
               </button>
             </div>
           )}
@@ -1173,25 +1412,25 @@ export function ProposalEditor() {
                   onClick={handleWeekPrev}
                   className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
                 >
-                  ← Prev
+                  {t.prev}
                 </button>
                 <button
                   type="button"
                   onClick={handleWeekToday}
                   className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
                 >
-                  Today
+                  {t.today}
                 </button>
                 <button
                   type="button"
                   onClick={handleWeekNext}
                   className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700"
                 >
-                  Next →
+                  {t.next}
                 </button>
               </div>
               <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">
-                {formatWeekRangeInTz(weekStart, TIMEZONE)}
+                {formatWeekRange(weekStart, locale)}
               </h2>
             </div>
             <WeekView
