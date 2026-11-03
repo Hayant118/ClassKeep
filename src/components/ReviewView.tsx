@@ -208,8 +208,10 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
 
     const container = document.createElement('div');
     container.style.position = 'fixed';
-    container.style.left = '-9999px';
+       container.style.left = '0';
     container.style.top = '0';
+    container.style.zIndex = '-1';
+    container.style.pointerEvents = 'none';
     document.body.appendChild(container);
 
     const root = createRoot(container);
@@ -235,7 +237,8 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
       const target = container.firstElementChild as HTMLElement | null;
       if (!target) throw new Error('Export target not rendered');
 
-      const canvas = await html2canvas(target, { scale: 2, backgroundColor: null });
+           await document.fonts.ready;
+      const canvas = await html2canvas(target, { scale: 2, backgroundColor: '#0b1120' });
       const dataUrl = canvas.toDataURL('image/png');
 
       const first = selectedMonths[0];

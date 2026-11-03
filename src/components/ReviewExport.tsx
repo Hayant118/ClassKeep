@@ -1,5 +1,5 @@
 // src/components/ReviewExport.tsx
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { Session, Class, Student, Enrollment } from '../types';
 
 interface ReviewExportProps {
@@ -29,6 +29,9 @@ const LABELS = {
     noShow: 'No-show',
     moved: 'Rescheduled',
     totalCharge: 'Total charge',
+    summary: 'Monthly summary',
+    legend: 'Legend',
+    allMonths: 'Total for all months',
     changeNote: (moved: number, cancelled: number, additional: number) => {
       const parts: string[] = [];
       if (moved > 0) parts.push(`${moved} session${moved === 1 ? '' : 's'} rescheduled`);
@@ -36,7 +39,7 @@ const LABELS = {
       if (additional > 0) parts.push(`${additional} additional`);
       return parts.length > 0 ? parts.join(', ') : 'No changes this month.';
     },
-    weekday: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+    weekday: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   },
   zh: {
     titleSuffix: '回顾',
@@ -49,6 +52,9 @@ const LABELS = {
     noShow: '缺课',
     moved: '改期',
     totalCharge: '总费用',
+    summary: '月度摘要',
+    legend: '图例',
+    allMonths: '所有月份合计',
     changeNote: (moved: number, cancelled: number, additional: number) => {
       const parts: string[] = [];
       if (moved > 0) parts.push(`${moved}节课改期`);
@@ -60,23 +66,36 @@ const LABELS = {
   },
 };
 
+// Theme: matches the dark ClassKeep screens and the proposal card.
+const C = {
+  page: '#0b1120',
+  card: '#1e293b',
+  cardDeep: '#111827',
+  border: '#334155',
+  text: '#f1f5f9',
+  muted: '#94a3b8',
+  faint: '#64748b',
+  accent: '#6366f1',
+};
+
+const FONT =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif';
+
 const SYMBOLS: Record<
   SymbolType,
   {
     score: number;
-    color: string;
     labelEn: string;
     labelZh: string;
-    render: () => ReactNode;
+    render: (size?: number) => ReactNode;
   }
 > = {
   cancelled: {
     score: 5,
-    color: '#ef4444',
     labelEn: 'Cancelled / No-show',
     labelZh: '取消 / 缺课',
-    render: () => (
-      <svg width="16" height="16" viewBox="0 0 16 16" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" fill="none">
+    render: (size = 16) => (
+      <svg width={size} height={size} viewBox="0 0 16 16" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" fill="none">
         <line x1="4" y1="4" x2="12" y2="12" />
         <line x1="12" y1="4" x2="4" y2="12" />
       </svg>
@@ -84,22 +103,20 @@ const SYMBOLS: Record<
   },
   'completed-moved': {
     score: 4,
-    color: '#f97316',
-    labelEn: 'Completed (moved from another day)',
+    labelEn: 'Completed (moved)',
     labelZh: '已完成（改期）',
-    render: () => (
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="6" fill="#f97316" />
+    render: (size = 16) => (
+      <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="6" fill="#fb923c" />
       </svg>
     ),
   },
   'moved-time': {
     score: 4,
-    color: '#f97316',
-    labelEn: 'Moved (class didn’t happen this day)',
+    labelEn: 'Moved away',
     labelZh: '改期',
-    render: () => (
-      <svg width="16" height="16" viewBox="0 0 16 16" stroke="#f97316" strokeWidth="2" strokeLinecap="round" fill="none">
+    render: (size = 16) => (
+      <svg width={size} height={size} viewBox="0 0 16 16" stroke="#fb923c" strokeWidth="2" strokeLinecap="round" fill="none">
         <circle cx="8" cy="8" r="6" />
         <line x1="8" y1="8" x2="8" y2="5" />
         <line x1="8" y1="8" x2="11" y2="8" />
@@ -108,11 +125,10 @@ const SYMBOLS: Record<
   },
   additional: {
     score: 2,
-    color: '#22c55e',
     labelEn: 'Additional',
     labelZh: '加课',
-    render: () => (
-      <svg width="16" height="16" viewBox="0 0 16 16" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" fill="none">
+    render: (size = 16) => (
+      <svg width={size} height={size} viewBox="0 0 16 16" stroke="#4ade80" strokeWidth="2.2" strokeLinecap="round" fill="none">
         <line x1="8" y1="4" x2="8" y2="12" />
         <line x1="4" y1="8" x2="12" y2="8" />
       </svg>
@@ -120,12 +136,11 @@ const SYMBOLS: Record<
   },
   completed: {
     score: 1,
-    color: '#22c55e',
     labelEn: 'Completed as planned',
     labelZh: '按计划完成',
-    render: () => (
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="6" fill="#22c55e" />
+    render: (size = 16) => (
+      <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="6" fill="#4ade80" />
       </svg>
     ),
   },
@@ -154,7 +169,7 @@ function getDaySymbol(sessions: Session[]): SymbolType | null {
 }
 
 function getClassName(session: Session, classes: Class[]): string {
-  const cls = classes.find(c => c.id === session.classId);
+  const cls = classes.find((c) => c.id === session.classId);
   return cls?.name ?? '';
 }
 
@@ -225,7 +240,7 @@ export function ReviewExport({
   familyGroup,
   familyGroupStudents,
   classGroup,
-  locale = 'en'
+  locale = 'en',
 }: ReviewExportProps) {
   const t = LABELS[locale];
   const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US';
@@ -242,7 +257,7 @@ export function ReviewExport({
   // Header: student name > family group > class group > fallback
   const headerName = student?.name ?? familyGroup ?? classGroup?.name ?? getHeaderName(sessions, classes, locale);
 
-  // Family mode: attribute each session to a group student for color-coding
+  // Family mode: attribute each session to a group student for colour-coding
   const resolveOwner = (session: Session): Student | undefined => {
     if (!familyGroupStudents?.length) return undefined;
     if (session.studentId) {
@@ -272,9 +287,7 @@ export function ReviewExport({
 
     for (const session of monthSessions) {
       // Bucket by the date that falls in this month (planned, else actual for moved-in sessions)
-      const dateStr = session.plannedDate.startsWith(prefix)
-        ? session.plannedDate
-        : session.actualDate!;
+      const dateStr = session.plannedDate.startsWith(prefix) ? session.plannedDate : session.actualDate!;
       const day = parseInt(dateStr.slice(8, 10), 10);
       if (day >= 1 && day <= daysInMonth) {
         const list = sessionsByDay.get(day) ?? [];
@@ -298,48 +311,47 @@ export function ReviewExport({
       list.sort((a, b) => a.plannedTime.localeCompare(b.plannedTime));
     }
 
-    const completedCount = monthSessions.filter(s => classifySession(s) === 'completed').length;
-    const cancelledCount = monthSessions.filter(s => s.status === 'cancelled').length;
-    const noShowCount = monthSessions.filter(s => s.status === 'no-show').length;
-    const movedCount = monthSessions.filter(s => {
+    const completedCount = monthSessions.filter((s) => classifySession(s) === 'completed').length;
+    const cancelledCount = monthSessions.filter((s) => s.status === 'cancelled').length;
+    const noShowCount = monthSessions.filter((s) => s.status === 'no-show').length;
+    const movedCount = monthSessions.filter((s) => {
       const type = classifySession(s);
       return type === 'completed-moved' || type === 'moved-time';
     }).length;
-    const additionalCount = monthSessions.filter(s => s.isAdditional).length;
+    const additionalCount = monthSessions.filter((s) => s.isAdditional).length;
 
-    const plannedCount = monthSessions.filter(s => !s.isAdditional).length;
-    const actualCount = monthSessions.filter(s => s.status !== 'cancelled' && s.status !== 'no-show').length;
+    const plannedCount = monthSessions.filter((s) => !s.isAdditional).length;
+    const actualCount = monthSessions.filter((s) => s.status !== 'cancelled' && s.status !== 'no-show').length;
 
-    // Calculate total charge based on mode
-    const totalCharge = Math.round(
-      monthSessions.reduce((sum, s) => {
-        if (s.status !== 'completed' && !s.isAdditional) return sum;
+    const totalCharge =
+      Math.round(
+        monthSessions.reduce((sum, s) => {
+          if (s.status !== 'completed' && !s.isAdditional) return sum;
 
-        // Class group mode: use class rate for all sessions
-        if (classGroup) {
-          const hours = s.durationMinutes / 60;
-          if (s.rateMode === 'flat' && s.rateValue != null) {
-            return sum + s.rateValue;
+          // Class group mode: use class rate for all sessions
+          if (classGroup) {
+            const hours = s.durationMinutes / 60;
+            if (s.rateMode === 'flat' && s.rateValue != null) {
+              return sum + s.rateValue;
+            }
+            if (s.rateMode === 'override' && s.rateValue != null) {
+              return sum + s.rateValue * hours;
+            }
+            const rate = classGroup.defaultRate ?? 0;
+            return sum + rate * hours;
           }
-          if (s.rateMode === 'override' && s.rateValue != null) {
-            return sum + s.rateValue * hours;
-          }
-          // Auto mode: use class defaultRate
-          const rate = classGroup.defaultRate ?? 0;
-          return sum + rate * hours;
-        }
 
-        // Family mode: attribute to specific student
-        if (student) {
-          return sum + computeSessionCharge(s, student, enrollments);
-        }
-        const owner = resolveOwner(s);
-        if (owner) {
-          return sum + computeSessionCharge(s, owner, enrollments);
-        }
-        return sum + (s.totalCharge ?? 0);
-      }, 0) * 100
-    ) / 100;
+          // Single student / family mode
+          if (student) {
+            return sum + computeSessionCharge(s, student, enrollments);
+          }
+          const owner = resolveOwner(s);
+          if (owner) {
+            return sum + computeSessionCharge(s, owner, enrollments);
+          }
+          return sum + (s.totalCharge ?? 0);
+        }, 0) * 100
+      ) / 100;
 
     return {
       month,
@@ -360,147 +372,279 @@ export function ReviewExport({
     };
   });
 
+  const grandTotal = Math.round(monthSections.reduce((sum, m) => sum + m.totalCharge, 0) * 100) / 100;
+
+  const panel: CSSProperties = {
+    background: C.card,
+    border: `1px solid ${C.border}`,
+    borderRadius: 16,
+    padding: 16,
+  };
+
+  const sectionLabel: CSSProperties = {
+    fontSize: 11,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: C.muted,
+    marginBottom: 10,
+  };
+
+  const iconWrap = (ring?: string): CSSProperties => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 16,
+    height: 16,
+    borderRadius: 999,
+    boxShadow: ring ? `0 0 0 2px ${ring}` : undefined,
+    margin: ring ? 2 : 0,
+  });
+
+  const Tile = ({ label, value }: { label: string; value: string | number }) => (
+    <div
+      style={{
+        background: C.cardDeep,
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        padding: '10px 6px',
+        textAlign: 'center',
+      }}
+    >
+      <div style={{ fontSize: 20, fontWeight: 700, color: C.text, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{label}</div>
+    </div>
+  );
+
   return (
     <div
-      className="border shadow-md rounded-xl overflow-hidden"
-      style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', width: '375px' }}
+      style={{
+        width: 375,
+        boxSizing: 'border-box',
+        background: C.page,
+        color: C.text,
+        fontFamily: FONT,
+        padding: 16,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}
     >
-      <div className="p-5 text-center" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
-        <div className="text-xs uppercase tracking-widest opacity-80">{title}</div>
-        <div className="text-xl font-bold mt-1">{headerName}</div>
+      {/* Header */}
+      <div
+        style={{
+          background: `linear-gradient(135deg, ${C.accent} 0%, #4338ca 100%)`,
+          borderRadius: 16,
+          textAlign: 'center',
+          padding: '20px 16px',
+        }}
+      >
+        <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', opacity: 0.85 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: '#ffffff' }}>{headerName}</div>
       </div>
 
-      <div className="p-5 space-y-6">
-        {monthSections.map((section) => (
-          <div key={`${section.year}-${section.month}`} className="space-y-5">
-            <div className="text-sm font-semibold text-center" style={{ color: '#334155' }}>
-              {section.label}
-            </div>
-
-            <div className="text-xs text-center rounded-lg py-2" style={{ color: '#64748b', backgroundColor: '#f8fafc' }}>
+      {monthSections.map((section) => (
+        <div key={`${section.year}-${section.month}`} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Calendar */}
+          <div style={panel}>
+            <div style={{ fontSize: 16, fontWeight: 600, textAlign: 'center' }}>{section.label}</div>
+            <div
+              style={{
+                fontSize: 12,
+                color: C.muted,
+                textAlign: 'center',
+                background: C.cardDeep,
+                borderRadius: 8,
+                padding: '6px 8px',
+                margin: '10px 0 14px',
+              }}
+            >
               {t.planned}: {section.plannedCount} {t.sessions} · {t.actual}: {section.actualCount} {t.sessions}
               {section.additionalCount > 0 && ` (+${section.additionalCount} ${t.additional})`}
               {section.cancelledCount > 0 && ` (${section.cancelledCount} ${t.cancelled})`}
             </div>
 
-            <div>
-              <div className="grid grid-cols-7 gap-1 text-center text-xs mb-1" style={{ color: '#64748b' }}>
-                {t.weekday.map((d, i) => (
-                  <div key={i}>{d}</div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: section.firstDay }).map((_, i) => (
-                  <div key={`empty-${i}`} className="w-10 h-10" />
-                ))}
-                {Array.from({ length: section.daysInMonth }).map((_, i) => {
-                  const day = i + 1;
-                  const daySessions = section.sessionsByDay.get(day) ?? [];
-                  const srcSessions = section.sourceDays.get(day) ?? [];
-                  const symbol = getDaySymbol(daySessions);
-                  const hasSource = srcSessions.length > 0;
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
+              {t.weekday.map((d) => (
+                <div key={d} style={{ textAlign: 'center', fontSize: 11, color: C.faint }}>
+                  {d}
+                </div>
+              ))}
+            </div>
 
-                  return (
-                    <div
-                      key={day}
-                      className="w-10 h-10 flex flex-col items-center justify-center rounded-lg border"
-                      style={{ borderColor: '#f1f5f9' }}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+              {Array.from({ length: section.firstDay }).map((_, i) => (
+                <div key={`empty-${i}`} style={{ minHeight: 44 }} />
+              ))}
+              {Array.from({ length: section.daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const daySessions = section.sessionsByDay.get(day) ?? [];
+                const srcSessions = section.sourceDays.get(day) ?? [];
+                const symbol = getDaySymbol(daySessions);
+                const hasSource = srcSessions.length > 0;
+                const active = daySessions.length > 0 || hasSource;
+
+                return (
+                  <div
+                    key={day}
+                    style={{
+                      minHeight: 44,
+                      boxSizing: 'border-box',
+                      borderRadius: 8,
+                      background: active ? '#273449' : C.cardDeep,
+                      border: `1px solid ${active ? '#475569' : C.border}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 2,
+                      padding: '3px 0',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 11,
+                        lineHeight: 1,
+                        color: active ? '#ffffff' : C.faint,
+                        fontWeight: active ? 600 : 400,
+                      }}
                     >
-                      <span className="text-xs" style={{ color: '#475569' }}>{day}</span>
-                      <div className="mt-0.5 flex items-center gap-0.5 flex-wrap justify-center">
+                      {day}
+                    </span>
+                    {active && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexWrap: 'wrap',
+                          gap: 1,
+                        }}
+                      >
                         {familyGroup
                           ? daySessions.map((s) => {
                               const type = classifySession(s);
                               if (!type) return null;
-                              const color = resolveOwner(s)?.color;
+                              const ring = resolveOwner(s)?.color;
                               return (
-                                <span
-                                  key={s.id}
-                                  className="inline-flex items-center justify-center rounded-full"
-                                  style={
-                                    color
-                                      ? { boxShadow: `0 0 0 2px ${color}`, borderRadius: '9999px' }
-                                      : undefined
-                                  }
-                                >
-                                  {SYMBOLS[type].render()}
+                                <span key={s.id} style={iconWrap(ring)}>
+                                  {SYMBOLS[type].render(12)}
                                 </span>
                               );
                             })
-                          : symbol && SYMBOLS[symbol].render()}
-                        {hasSource && SYMBOLS['moved-time'].render()}
+                          : symbol && <span style={iconWrap()}>{SYMBOLS[symbol].render(14)}</span>}
+                        {hasSource && <span style={iconWrap()}>{SYMBOLS['moved-time'].render(familyGroup ? 12 : 14)}</span>}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="border-t pt-4 space-y-2" style={{ borderColor: '#e2e8f0' }}>
-              <div className="text-sm font-semibold" style={{ color: '#334155' }}>
-                {locale === 'zh' ? '月度摘要' : 'Monthly summary'}
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
-                  <span className="text-xs" style={{ color: '#64748b' }}>{t.completed}</span>
-                  <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{section.completedCount}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
-                  <span className="text-xs" style={{ color: '#64748b' }}>{t.cancelled}</span>
-                  <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{section.cancelledCount}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
-                  <span className="text-xs" style={{ color: '#64748b' }}>{t.noShow}</span>
-                  <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{section.noShowCount}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
-                  <span className="text-xs" style={{ color: '#64748b' }}>{t.moved}</span>
-                  <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{section.movedCount}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
-                  <span className="text-xs" style={{ color: '#64748b' }}>{t.additional}</span>
-                  <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{section.additionalCount}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: '#f8fafc' }}>
-                  <span className="text-xs" style={{ color: '#64748b' }}>{t.totalCharge}</span>
-                  <span className="text-xs font-semibold" style={{ color: '#0f172a' }}>{formatCurrency(section.totalCharge, locale)}</span>
-                </div>
-              </div>
-              <div className="text-xs pt-1" style={{ color: '#64748b' }}>
-                {t.changeNote(section.movedCount, section.cancelledCount, section.additionalCount)}
-              </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-        ))}
 
-        <div className="border-t pt-3" style={{ borderColor: '#e2e8f0' }}>
-          <div className="text-xs font-semibold mb-2" style={{ color: '#334155' }}>
-            {locale === 'zh' ? '图例' : 'Legend'}
+          {/* Summary */}
+          <div style={panel}>
+            <div style={sectionLabel}>{t.summary}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              <Tile label={t.completed} value={section.completedCount} />
+              <Tile label={t.cancelled} value={section.cancelledCount} />
+              <Tile label={t.noShow} value={section.noShowCount} />
+              <Tile label={t.moved} value={section.movedCount} />
+              <Tile label={t.additional} value={section.additionalCount} />
+              <Tile label={t.actual} value={section.actualCount} />
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 12, textAlign: 'center' }}>
+              {t.changeNote(section.movedCount, section.cancelledCount, section.additionalCount)}
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+                borderTop: `1px solid ${C.border}`,
+                marginTop: 12,
+                paddingTop: 12,
+              }}
+            >
+              <span style={{ fontSize: 14, color: C.muted }}>{t.totalCharge}</span>
+              <span style={{ fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
+                {formatCurrency(section.totalCharge, locale)}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {legendItems.map((type) => (
-              <div key={type} className="flex items-center gap-1 rounded-full px-2 py-1" style={{ backgroundColor: '#f8fafc' }}>
-                {SYMBOLS[type].render()}
-                <span className="text-xs" style={{ color: '#64748b' }}>
-                  {locale === 'zh' ? SYMBOLS[type].labelZh : SYMBOLS[type].labelEn}
-                </span>
+        </div>
+      ))}
+
+      {/* Combined total when several months are selected */}
+      {monthSections.length > 1 && (
+        <div
+          style={{
+            ...panel,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+          }}
+        >
+          <span style={{ fontSize: 14, color: C.muted }}>{t.allMonths}</span>
+          <span style={{ fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
+            {formatCurrency(grandTotal, locale)}
+          </span>
+        </div>
+      )}
+
+      {/* Legend */}
+      <div style={panel}>
+        <div style={sectionLabel}>{t.legend}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {legendItems.map((type) => (
+            <div
+              key={type}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: C.cardDeep,
+                borderRadius: 999,
+                padding: '4px 10px',
+              }}
+            >
+              {SYMBOLS[type].render(14)}
+              <span style={{ fontSize: 12, color: C.muted }}>
+                {locale === 'zh' ? SYMBOLS[type].labelZh : SYMBOLS[type].labelEn}
+              </span>
+            </div>
+          ))}
+        </div>
+        {familyGroupStudents && familyGroupStudents.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+            {familyGroupStudents.map((s) => (
+              <div
+                key={s.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: C.cardDeep,
+                  borderRadius: 999,
+                  padding: '4px 10px',
+                }}
+              >
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 999,
+                    border: `2px solid ${s.color || '#818cf8'}`,
+                    display: 'inline-block',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <span style={{ fontSize: 12, color: C.text }}>{s.name}</span>
               </div>
             ))}
           </div>
-          {familyGroupStudents && familyGroupStudents.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {familyGroupStudents.map((s) => (
-                <div key={s.id} className="flex items-center gap-1 rounded-full px-2 py-1" style={{ backgroundColor: '#f8fafc' }}>
-                  <span
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: s.color || '#6366f1' }}
-                  />
-                  <span className="text-xs" style={{ color: '#64748b' }}>{s.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );
