@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabase';
 import { useProposals } from '../hooks/useProposals';
@@ -757,20 +757,20 @@ export function ProposalEditor() {
   return (
     <div className="space-y-6">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => navigate('/proposals')}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700"
+            className="min-h-[44px] px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700"
           >
             ← Back
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={handleCommit}
               disabled={!canCommit || committing}
-              className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[44px] px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {committing ? 'Committing...' : 'Commit'}
             </button>
@@ -778,7 +778,7 @@ export function ProposalEditor() {
               type="button"
               onClick={handleArchive}
               disabled={archiving || proposal.status === 'archived'}
-              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[44px] px-4 py-2 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {archiving ? 'Archiving...' : proposal.status === 'archived' ? 'Archived' : 'Archive'}
             </button>
@@ -786,7 +786,7 @@ export function ProposalEditor() {
               type="button"
               onClick={handleDelete}
               disabled={deleting}
-              className="px-4 py-2 rounded-lg border border-red-300 dark:border-red-800 bg-white dark:bg-gray-800 text-red-700 dark:text-red-300 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[44px] px-4 py-2 rounded-lg border border-red-300 dark:border-red-800 bg-white dark:bg-gray-800 text-red-700 dark:text-red-300 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {deleting ? 'Deleting...' : 'Delete'}
             </button>
@@ -794,7 +794,7 @@ export function ProposalEditor() {
               type="button"
               onClick={handleExport}
               disabled={exporting || proposal.draftSessions.length === 0 || proposal.status === 'archived'}
-              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="min-h-[44px] px-4 py-2 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {exporting ? 'Exporting...' : 'Export'}
             </button>
@@ -808,7 +808,7 @@ export function ProposalEditor() {
         )}
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-6 shadow-sm space-y-4 mt-6">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1 min-w-0">
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Title</label>
               <input
@@ -819,12 +819,12 @@ export function ProposalEditor() {
                 className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-lg font-semibold text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
-            <div>
+            <div className="w-full sm:w-auto">
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Status</label>
               <select
                 value={proposal.status}
                 onChange={(e) => handleStatusChange(e.target.value as Proposal['status'])}
-                className="rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full sm:w-auto rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="draft">Draft</option>
                 <option value="committed">Committed</option>
