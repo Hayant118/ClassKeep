@@ -1,4 +1,5 @@
 // src/components/ProposalExport.tsx
+import type { CSSProperties } from 'react';
 import { draftSessionsToSessions } from '../utils/draftSessionAdapter';
 import type { Proposal, Class, Student, Session } from '../types';
 
@@ -24,8 +25,8 @@ const LABELS = {
     title: 'Schedule Proposal',
     sessionsWord: 'sessions',
     sessionWord: 'session',
-    sessions: 'Total Sessions',
-    cost: 'Total Cost',
+    sessions: 'Total sessions',
+    cost: 'Total',
     standard: 'Standard price',
     quoted: 'Quoted price',
     schedule: 'Session details',
@@ -52,11 +53,11 @@ const LABELS = {
 
 // Monday-first, to match the app's calendar.
 const WEEKDAYS = {
-  en: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   zh: ['一', '二', '三', '四', '五', '六', '日'],
 };
 
-const FALLBACK_COLORS = ['#6366f1', '#f59e0b', '#14b8a6', '#ef4444', '#8b5cf6', '#0ea5e9'];
+const FALLBACK_COLORS = ['#818cf8', '#fbbf24', '#2dd4bf', '#f87171', '#a78bfa', '#38bdf8'];
 
 const CURRENCY_LOCALES: Record<string, string> = {
   CNY: 'zh-CN',
@@ -64,6 +65,22 @@ const CURRENCY_LOCALES: Record<string, string> = {
   GBP: 'en-GB',
   USD: 'en-US',
 };
+
+// Theme: matches the dark ClassKeep screens.
+const C = {
+  page: '#0b1120',
+  card: '#1e293b',
+  cardDeep: '#111827',
+  border: '#334155',
+  text: '#f1f5f9',
+  muted: '#94a3b8',
+  faint: '#64748b',
+  accent: '#6366f1',
+  accentSoft: '#312e81',
+};
+
+const FONT =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif';
 
 interface Person {
   key: string;
@@ -81,11 +98,7 @@ function addMinutes(time: string, minutes: number): string {
   return `${pad(Math.floor(total / 60) % 24)}:${pad(total % 60)}`;
 }
 
-function getSessionCost(
-  draft: Session,
-  students: Student[],
-  enrollments: EnrollmentLike[]
-): number {
+function getSessionCost(draft: Session, students: Student[], enrollments: EnrollmentLike[]): number {
   const hours = draft.durationMinutes / 60;
 
   if (draft.guestName) {
@@ -95,14 +108,14 @@ function getSessionCost(
     return draft.rateValue;
   }
 
-  const student = draft.studentId ? students.find(s => s.id === draft.studentId) : undefined;
+  const student = draft.studentId ? students.find((s) => s.id === draft.studentId) : undefined;
   let hourly = 0;
   if (draft.rateMode === 'override' && draft.rateValue != null) {
     hourly = draft.rateValue;
   } else if (student) {
     const enrollment = draft.classId
       ? enrollments.find(
-          e => e.studentId === student.id && e.classId === draft.classId && e.status === 'active'
+          (e) => e.studentId === student.id && e.classId === draft.classId && e.status === 'active'
         )
       : undefined;
     hourly = enrollment?.customRate ?? student.defaultRate ?? 0;
@@ -150,9 +163,8 @@ export function ProposalExport({
     return a.plannedTime.localeCompare(b.plannedTime);
   });
 
-  // Guests get a fallback colour in order of first appearance.
   const guestNames = Array.from(
-    new Set(drafts.filter(d => d.guestName).map(d => d.guestName as string))
+    new Set(drafts.filter((d) => d.guestName).map((d) => d.guestName as string))
   );
 
   const personFor = (d: Session): Person => {
@@ -164,11 +176,11 @@ export function ProposalExport({
         color: FALLBACK_COLORS[idx % FALLBACK_COLORS.length],
       };
     }
-    const student = d.studentId ? students.find(s => s.id === d.studentId) : undefined;
+    const student = d.studentId ? students.find((s) => s.id === d.studentId) : undefined;
     if (student) {
       return { key: student.id, name: student.name, color: student.color ?? FALLBACK_COLORS[0] };
     }
-    const cls = d.classId ? classes.find(c => c.id === d.classId) : undefined;
+    const cls = d.classId ? classes.find((c) => c.id === d.classId) : undefined;
     return {
       key: d.classId ?? 'unknown',
       name: cls?.name ?? t.unknown,
@@ -176,8 +188,7 @@ export function ProposalExport({
     };
   };
 
-  // Per-session rows plus per-person summary.
-  const rows = drafts.map(d => ({
+  const rows = drafts.map((d) => ({
     draft: d,
     person: personFor(d),
     cost: getSessionCost(d, students, enrollments),
@@ -209,164 +220,255 @@ export function ProposalExport({
   });
 
   const heading =
-    proposal.title?.trim() || summaryList.map(s => s.person.name).join(' & ') || t.unknown;
+    proposal.title?.trim() || summaryList.map((s) => s.person.name).join(' & ') || t.unknown;
 
   const months = groupByMonth(drafts);
   const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US';
 
+  const panel: CSSProperties = {
+    background: C.card,
+    border: `1px solid ${C.border}`,
+    borderRadius: 16,
+    padding: 16,
+  };
+
+  const sectionLabel: CSSProperties = {
+    fontSize: 11,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: C.muted,
+    marginBottom: 12,
+  };
+
   return (
     <div
-      className="bg-white border border-slate-200 rounded-xl overflow-hidden text-slate-800"
-      style={{ width: '375px' }}
+      style={{
+        width: 375,
+        boxSizing: 'border-box',
+        background: C.page,
+        color: C.text,
+        fontFamily: FONT,
+        padding: 16,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}
     >
-      <div className="bg-slate-900 text-white p-5 text-center">
-        <div className="text-xs uppercase tracking-widest opacity-80">{t.title}</div>
-        <div className="text-xl font-bold mt-1">{heading}</div>
+      {/* Header */}
+      <div
+        style={{
+          ...panel,
+          background: `linear-gradient(135deg, ${C.accent} 0%, #4338ca 100%)`,
+          border: 'none',
+          textAlign: 'center',
+          padding: '20px 16px',
+        }}
+      >
+        <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', opacity: 0.85 }}>
+          {t.title}
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 700, marginTop: 6, color: '#ffffff' }}>{heading}</div>
       </div>
 
-      <div className="p-5 space-y-6">
-        {drafts.length === 0 ? (
-          <div className="text-center text-sm text-slate-500 py-8">{t.noSessions}</div>
-        ) : (
-          <>
-            {/* Per-student summary / legend */}
-            <div className="space-y-2">
-              {summaryList.map(({ person, sessions, subtotal }) => (
-                <div key={person.key} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: person.color }}
-                    />
-                    <span className="font-medium text-slate-900">{person.name}</span>
-                    <span className="text-slate-400">
-                      · {sessions} {sessions === 1 ? t.sessionWord : t.sessionsWord}
-                    </span>
-                  </div>
-                  <span className="text-slate-700 whitespace-nowrap">{formatter.format(subtotal)}</span>
+      {drafts.length === 0 ? (
+        <div style={{ ...panel, textAlign: 'center', color: C.muted, fontSize: 14, padding: 32 }}>
+          {t.noSessions}
+        </div>
+      ) : (
+        <>
+          {/* Per-student summary */}
+          <div style={{ ...panel, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {summaryList.map(({ person, sessions, subtotal }) => (
+              <div
+                key={person.key}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 14 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 999,
+                      background: person.color,
+                      display: 'inline-block',
+                    }}
+                  />
+                  <span style={{ fontWeight: 600 }}>{person.name}</span>
+                  <span style={{ color: C.faint, fontSize: 13 }}>
+                    · {sessions} {sessions === 1 ? t.sessionWord : t.sessionsWord}
+                  </span>
                 </div>
-              ))}
-            </div>
+                <span style={{ fontWeight: 600 }}>{formatter.format(subtotal)}</span>
+              </div>
+            ))}
+          </div>
 
-            {/* Month grids */}
-            <div className="space-y-4">
-              {Array.from(months.entries()).map(([yearMonth, monthDrafts]) => {
-                const [year, month] = yearMonth.split('-').map(Number);
-                const firstDay = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
-                const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-                const byDay = new Map<number, Session[]>();
-                for (const d of monthDrafts) {
-                  const day = parseInt(d.plannedDate.slice(8, 10), 10);
-                  const list = byDay.get(day) ?? [];
-                  list.push(d);
-                  byDay.set(day, list);
-                }
+          {/* Month grids */}
+          {Array.from(months.entries()).map(([yearMonth, monthDrafts]) => {
+            const [year, month] = yearMonth.split('-').map(Number);
+            const firstDay = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
+            const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+            const byDay = new Map<number, Session[]>();
+            for (const d of monthDrafts) {
+              const day = parseInt(d.plannedDate.slice(8, 10), 10);
+              const list = byDay.get(day) ?? [];
+              list.push(d);
+              byDay.set(day, list);
+            }
 
-                return (
-                  <div key={yearMonth}>
-                    <div className="text-sm font-semibold text-slate-700 mb-2">
-                      {monthName(yearMonth, locale)}
+            const cells: (number | null)[] = [
+              ...Array.from({ length: firstDay }, () => null),
+              ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+            ];
+
+            return (
+              <div key={yearMonth} style={panel}>
+                <div style={{ fontSize: 16, fontWeight: 600, textAlign: 'center', marginBottom: 12 }}>
+                  {monthName(yearMonth, locale)}
+                </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 1fr)',
+                    gap: 4,
+                    marginBottom: 4,
+                  }}
+                >
+                  {WEEKDAYS[locale].map((d) => (
+                    <div key={d} style={{ textAlign: 'center', fontSize: 11, color: C.faint }}>
+                      {d}
                     </div>
-                    <div className="grid grid-cols-7 gap-1 text-center text-xs text-slate-500 mb-1">
-                      {WEEKDAYS[locale].map((d, i) => (
-                        <div key={i}>{d}</div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-7 gap-1">
-                      {Array.from({ length: firstDay }).map((_, i) => (
-                        <div key={`empty-${i}`} className="w-10 h-10" />
-                      ))}
-                      {Array.from({ length: daysInMonth }).map((_, i) => {
-                        const day = i + 1;
-                        const dayDrafts = byDay.get(day) ?? [];
-                        const hasSessions = dayDrafts.length > 0;
-                        return (
-                          <div
-                            key={day}
-                            className={`w-10 h-10 flex flex-col items-center justify-center rounded-lg border ${
-                              hasSessions ? 'border-slate-300 bg-slate-50' : 'border-slate-100'
-                            }`}
-                          >
-                            <span
-                              className={`text-xs ${
-                                hasSessions ? 'font-semibold text-slate-900' : 'text-slate-500'
-                              }`}
-                            >
-                              {day}
-                            </span>
-                            {hasSessions && (
-                              <div className="flex items-center gap-0.5 mt-0.5">
-                                {dayDrafts.slice(0, 3).map((d, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="w-1.5 h-1.5 rounded-full"
-                                    style={{ backgroundColor: personFor(d).color }}
-                                  />
-                                ))}
-                              </div>
-                            )}
+                  ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+                  {cells.map((day, i) => {
+                    if (day === null) return <div key={`e-${i}`} style={{ height: 40 }} />;
+                    const dayDrafts = byDay.get(day) ?? [];
+                    const has = dayDrafts.length > 0;
+                    const colors = Array.from(new Set(dayDrafts.map((d) => personFor(d).color)));
+                    return (
+                      <div
+                        key={day}
+                        style={{
+                          height: 40,
+                          borderRadius: 8,
+                          background: has ? C.accentSoft : C.cardDeep,
+                          border: `1px solid ${has ? C.accent : C.border}`,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 3,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 12,
+                            lineHeight: 1,
+                            fontWeight: has ? 700 : 400,
+                            color: has ? '#ffffff' : C.faint,
+                          }}
+                        >
+                          {day}
+                        </span>
+                        {has && (
+                          <div style={{ display: 'flex', gap: 3 }}>
+                            {colors.slice(0, 3).map((color) => (
+                              <span
+                                key={color}
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: 999,
+                                  background: color,
+                                  display: 'inline-block',
+                                }}
+                              />
+                            ))}
                           </div>
-                        );
-                      })}
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Session list */}
+          <div style={panel}>
+            <div style={sectionLabel}>{t.schedule}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {rows.map(({ draft, person, cost }) => {
+                const date = new Date(`${draft.plannedDate}T00:00:00Z`).toLocaleDateString(dateLocale, {
+                  month: 'short',
+                  day: 'numeric',
+                  weekday: 'short',
+                  timeZone: 'UTC',
+                });
+                const start = draft.plannedTime.slice(0, 5);
+                const end = addMinutes(start, draft.durationMinutes);
+                return (
+                  <div key={draft.id} style={{ display: 'flex', alignItems: 'stretch', gap: 12 }}>
+                    <span
+                      style={{
+                        width: 4,
+                        borderRadius: 999,
+                        background: person.color,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>
+                        {date} · {start}–{end}
+                      </div>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                        {person.name} · {draft.durationMinutes} {t.min}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 500,
+                        alignSelf: 'center',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {formatter.format(cost)}
                     </div>
                   </div>
                 );
               })}
             </div>
+          </div>
+        </>
+      )}
 
-            {/* Session list */}
-            <div className="border-t border-slate-200 pt-4">
-              <div className="text-xs uppercase tracking-wider text-slate-500 mb-3">{t.schedule}</div>
-              <div className="space-y-3">
-                {rows.map(({ draft, person, cost }) => {
-                  const date = new Date(`${draft.plannedDate}T00:00:00Z`).toLocaleDateString(dateLocale, {
-                    month: 'short',
-                    day: 'numeric',
-                    weekday: 'short',
-                    timeZone: 'UTC',
-                  });
-                  const start = draft.plannedTime.slice(0, 5);
-                  const end = addMinutes(start, draft.durationMinutes);
-                  return (
-                    <div key={draft.id} className="flex items-stretch gap-3">
-                      <span
-                        className="w-1 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: person.color }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-slate-900">
-                          {date} · {start}–{end}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {person.name} · {draft.durationMinutes} {t.min}
-                        </div>
-                      </div>
-                      <div className="text-sm text-slate-700 whitespace-nowrap self-center">
-                        {formatter.format(cost)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="bg-slate-50 p-4 border-t border-slate-200 space-y-1">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-600">{t.sessions}</span>
-          <span className="font-semibold text-slate-900">{drafts.length}</span>
+      {/* Totals */}
+      <div style={{ ...panel, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: C.muted }}>
+          <span>{t.sessions}</span>
+          <span style={{ color: C.text, fontWeight: 600 }}>{drafts.length}</span>
         </div>
         {hasDiscount && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-600">{t.standard}</span>
-            <span className="text-slate-500 line-through">{formatter.format(standardTotal)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: C.muted }}>
+            <span>{t.standard}</span>
+            <span style={{ textDecoration: 'line-through' }}>{formatter.format(standardTotal)}</span>
           </div>
         )}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-600">{hasDiscount ? t.quoted : t.cost}</span>
-          <span className="font-bold text-slate-900 text-base">{formatter.format(finalTotal)}</span>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            borderTop: `1px solid ${C.border}`,
+            paddingTop: 10,
+          }}
+        >
+          <span style={{ fontSize: 14, color: C.muted }}>{hasDiscount ? t.quoted : t.cost}</span>
+          <span style={{ fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
+            {formatter.format(finalTotal)}
+          </span>
         </div>
       </div>
     </div>
