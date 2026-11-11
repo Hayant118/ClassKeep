@@ -203,6 +203,7 @@ export function SessionModal({
   const [isAdditional, setIsAdditional] = useState(false);
   const [repeatWeekly, setRepeatWeekly] = useState(false);
   const [repeatWeeks, setRepeatWeeks] = useState(4);
+  const [weeksText, setWeeksText] = useState('4');
   const [studentSearch, setStudentSearch] = useState('');
   const [isProgressLogOpen, setIsProgressLogOpen] = useState(false);
 
@@ -264,6 +265,7 @@ export function SessionModal({
       setIsAdditional(session.isAdditional ?? false);
       setRepeatWeekly(false);
       setRepeatWeeks(4);
+      setWeeksText('4');
       setStudentSearch('');
     } else {
       setClassId('');
@@ -283,9 +285,19 @@ export function SessionModal({
       setIsAdditional(false);
       setRepeatWeekly(false);
       setRepeatWeeks(4);
+      setWeeksText('4');
       setStudentSearch('');
     }
   }, [isOpen, session, initialDate, initialTime, classes, students]);
+
+  // Weeks is edited as free text and only parsed/clamped into repeatWeeks on
+  // blur or Enter, so intermediate keystrokes are never mangled mid-edit.
+  const commitWeeks = () => {
+    const parsed = parseInt(weeksText, 10);
+    const clamped = Math.min(52, Math.max(1, Number.isNaN(parsed) ? 2 : parsed));
+    setRepeatWeeks(clamped);
+    setWeeksText(String(clamped));
+  };
 
   // Multi-student selection is only available for new draft sessions with
   // rateMode 'auto' (each student is billed at their own default rate).
@@ -659,12 +671,18 @@ export function SessionModal({
                   <label className="text-sm text-slate-600 dark:text-gray-400">Weeks</label>
                   <input
                     type="number"
-                    min={2}
-                    max={12}
-                    value={repeatWeeks}
-                    onChange={(e) =>
-                      setRepeatWeeks(Math.min(12, Math.max(2, parseInt(e.target.value, 10) || 2)))
-                    }
+                    inputMode="numeric"
+                    min={1}
+                    max={52}
+                    value={weeksText}
+                    onChange={(e) => setWeeksText(e.target.value)}
+                    onBlur={commitWeeks}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitWeeks();
+                      }
+                    }}
                     className="w-20 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <span className="text-xs text-slate-500 dark:text-gray-400">

@@ -97,7 +97,7 @@ function Wheel({
           scrollbarWidth: 'none',
           paddingTop: ROW * 2,
           paddingBottom: ROW * 2,
-          boxSizing: 'content-box',
+          boxSizing: 'border-box',
         }}
       >
         {items.map((n) => (
