@@ -9,6 +9,7 @@ import { useStudents } from '../hooks/useStudents';
 import { useClasses } from '../hooks/useClasses';
 import { getSessionColor, type SessionWithOverlap } from '../utils/calendar';
 import { CURATED_PALETTE, normalizeColor } from '../utils/colors';
+import { TimePicker } from './TimePicker';
 
 const SLOT_OPTIONS = [15, 30, 60];
 
@@ -488,21 +489,21 @@ export function SettingsView() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
-            <input
-              type="time"
+            <TimePicker
               value={preferences.calendarStartTime.slice(0, 5)}
-              onChange={(e) => updateTimeScale('calendarStartTime', e.target.value + ':00')}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              onChange={(v) => updateTimeScale('calendarStartTime', v + ':00')}
+              className="w-full"
+              aria-label="Start time"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">End time</label>
-            <input
-              type="time"
+            <TimePicker
               value={preferences.calendarEndTime.slice(0, 5)}
-              onChange={(e) => updateTimeScale('calendarEndTime', e.target.value + ':00')}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              onChange={(v) => updateTimeScale('calendarEndTime', v + ':00')}
+              className="w-full"
+              aria-label="End time"
             />
           </div>
 
@@ -622,11 +623,11 @@ export function SettingsView() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-200 mb-1">Daily digest time</label>
-              <input
-                type="time"
+              <TimePicker
                 value={settings.dailyDigestTime}
-                onChange={(e) => updateSettings({ dailyDigestTime: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onChange={(v) => updateSettings({ dailyDigestTime: v })}
+                className="w-full"
+                aria-label="Daily digest time"
               />
             </div>
           </div>

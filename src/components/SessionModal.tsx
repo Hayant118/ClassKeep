@@ -8,6 +8,7 @@ import type { Session, Student, Class, Enrollment, Guest, CalendarEvent, Curricu
 import { Button } from './Button';
 import { ProgressLogModal } from './ProgressLogModal';
 import type { ProgressLogPayload } from './ProgressLogModal';
+import { TimePicker } from './TimePicker';
 
 function isValidDateString(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -629,7 +630,7 @@ export function SessionModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">Time</label>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" required />
+              <TimePicker value={time} onChange={setTime} className="w-full" aria-label="Time" />
             </div>
           </div>
 

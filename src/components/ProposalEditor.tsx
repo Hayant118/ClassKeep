@@ -17,6 +17,7 @@ import { DayView } from './DayView';
 import { MonthView } from './MonthView';
 import { SessionModal } from './SessionModal';
 import { ProposalExport } from './ProposalExport';
+import { TimePicker } from './TimePicker';
 import { draftSessionsToSessions, sessionPayloadToDraftSession } from '../utils/draftSessionAdapter';
 import { checkOverlap } from '../utils/calendar';
 import { timeToMinutes } from '../utils/date';
@@ -1333,20 +1334,20 @@ export function ProposalEditor() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">{t.start}</label>
-                  <input
-                    type="time"
+                  <TimePicker
                     value={repeatStartTime}
-                    onChange={(e) => setRepeatStartTime(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onChange={setRepeatStartTime}
+                    className="w-full"
+                    aria-label={t.start}
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 dark:text-gray-300 mb-1">{t.end}</label>
-                  <input
-                    type="time"
+                  <TimePicker
                     value={repeatEndTime}
-                    onChange={(e) => setRepeatEndTime(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onChange={setRepeatEndTime}
+                    className="w-full"
+                    aria-label={t.end}
                   />
                 </div>
               </div>
