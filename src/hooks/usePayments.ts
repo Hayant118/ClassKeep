@@ -42,13 +42,17 @@ export function usePayments() {
       .order('payment_date', { ascending: false });
 
     // Student-level payments (enrollment_id null, e.g. prepaid top-ups) need a
-    // separate filter branch; an OR combines both scopes.
+    // separate filter branch; an OR combines both scopes. Guard empty arrays
+    // and blank ids first — an empty .in() or malformed .or() silently
+    // matches zero rows.
+    const enrollmentFilter = (enrollmentIds ?? []).filter((enrollmentId) => Boolean(enrollmentId));
+    const studentFilter = studentId?.trim();
     const filters: string[] = [];
-    if (enrollmentIds && enrollmentIds.length > 0) {
-      filters.push(`enrollment_id.in.(${enrollmentIds.join(',')})`);
+    if (enrollmentFilter.length > 0) {
+      filters.push(`enrollment_id.in.(${enrollmentFilter.join(',')})`);
     }
-    if (studentId) {
-      filters.push(`student_id.eq.${studentId}`);
+    if (studentFilter) {
+      filters.push(`student_id.eq.${studentFilter}`);
     }
     if (filters.length > 0) {
       query = query.or(filters.join(','));

@@ -54,3 +54,34 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* ---------------------------------------------------------------------------
+   Dark-mode legibility catch-alls.
+   Unlayered on purpose: unlayered CSS beats Tailwind's layered utilities, so
+   components stop needing per-element dark: text fixes. Every rule is scoped
+   to .dark (the class toggled on <html>) — light mode is untouched.
+--------------------------------------------------------------------------- */
+.dark {
+  /* Dark-native form control canvases, scrollbars, date/select popups — also
+     what makes the near-white input text below legible on inputs that don't
+     set their own dark background. */
+  color-scheme: dark;
+}
+
+/* Form controls: near-white text. */
+.dark input,
+.dark textarea,
+.dark select {
+  color: #f1f5f9;
+}
+
+/* Placeholders: readable muted slate at full opacity (UA default ~0.5). */
+.dark ::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+/* Muted text utilities remap to a light slate in dark mode. */
+.dark :is(.text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700, .text-slate-600, .text-slate-700) {
+  color: #94a3b8;
+}

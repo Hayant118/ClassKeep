@@ -327,6 +327,13 @@ export function StudentDetailView() {
     return [...topUps, ...deductions].sort((a, b) => b.date.localeCompare(a.date));
   }, [student, payments, studentSessions]);
 
+  // 1-on-1 payments link via student_id with no enrollment; enrollment-linked
+  // payments are listed under their class card in the Payments tab.
+  const soloPayments = useMemo(
+    () => payments.filter((p) => p.studentId === student?.id && !p.enrollmentId),
+    [payments, student]
+  );
+
   const openSessionModal = (session?: Session) => {
     setSelectedSession(session);
     setIsSessionModalOpen(true);
@@ -948,7 +955,7 @@ export function StudentDetailView() {
         </div>
       )}
 
-      {visibleTab === 'payments' && (
+      {visibleTab === 'payments' && student && (
         <div className="space-y-6">
           {studentEnrollments.map((enrollment) => {
             const cls = getClass(enrollment.classId);
@@ -1060,6 +1067,46 @@ export function StudentDetailView() {
               </div>
             );
           })}
+
+          {/* 1-on-1 payments link via student_id and have no enrollment. */}
+          {soloPayments.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-100">1-on-1 Payments</h3>
+                <div className="text-sm text-slate-500 dark:text-gray-400">Not tied to a group class</div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 dark:bg-gray-900/50 text-slate-600 dark:text-gray-400">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Date</th>
+                      <th className="px-3 py-2 text-left font-medium">Method</th>
+                      <th className="px-3 py-2 text-left font-medium">Notes</th>
+                      <th className="px-3 py-2 text-right font-medium">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-gray-700 text-slate-900 dark:text-gray-100">
+                    {soloPayments.map((payment) => (
+                      <tr key={payment.id}>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatDate(payment.paymentDate)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{payment.paymentMethod}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-slate-500 dark:text-gray-400">{payment.notes || '—'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-right font-medium">
+                          {formatCurrency(payment.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {studentEnrollments.length === 0 && soloPayments.length === 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
+              <p className="text-sm text-slate-500 dark:text-gray-400">No payments recorded yet.</p>
+            </div>
+          )}
         </div>
       )}
 

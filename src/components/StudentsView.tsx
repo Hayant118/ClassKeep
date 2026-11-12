@@ -503,7 +503,7 @@ export function StudentsView() {
                   type="button"
                   onClick={() => setColor('')}
                   className={`w-7 h-7 rounded-full border flex items-center justify-center text-[10px] font-medium text-slate-500 dark:text-gray-500 ${
-                    !color ? 'border-slate-900 ring-2 ring-offset-1 ring-slate-400' : 'border-slate-200 bg-white'
+                    !color ? 'border-slate-900 ring-2 ring-offset-1 ring-slate-400' : 'border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-800'
                   }`}
                   title="Auto-assign"
                   aria-label="Auto-assign color"
@@ -618,7 +618,7 @@ export function StudentsView() {
               <button
                 type="button"
                 onClick={resetStudentForm}
-                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                className="bg-white hover:bg-slate-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-slate-700 border border-slate-300 dark:border-gray-600 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -740,7 +740,7 @@ export function StudentsView() {
                         <button
                           type="button"
                           onClick={cancelEditClass}
-                          className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium px-3 py-2 rounded transition-colors"
+                          className="bg-white hover:bg-slate-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-slate-700 border border-slate-300 dark:border-gray-600 text-xs font-medium px-3 py-2 rounded transition-colors"
                         >
                           Cancel
                         </button>
@@ -965,7 +965,7 @@ export function StudentsView() {
                                   return cls ? (
                                     <span
                                       key={en.id}
-                                      className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded"
+                                      className="px-2 py-0.5 bg-slate-100 dark:bg-gray-700 text-slate-600 text-xs rounded"
                                     >
                                       {cls.name}
                                       {en.customRate != null && ` · ${en.customRate.toFixed(2)}/hr`}

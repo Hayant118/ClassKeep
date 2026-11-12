@@ -228,7 +228,7 @@ function DisclosureSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 ${className}`}>
+    <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 ${className}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -237,14 +237,14 @@ function DisclosureSection({
       >
         <div className="flex items-center gap-3">
           {icon}
-          <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">{title}</h2>
         </div>
         <ChevronDown
-          className={`w-5 h-5 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-slate-500 dark:text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </button>
       {open && (
-        <div className={`p-6 pt-0 border-t border-slate-100 ${contentClassName}`}>
+        <div className={`p-6 pt-0 border-t border-slate-100 dark:border-gray-700 ${contentClassName}`}>
           {children}
         </div>
       )}
@@ -368,7 +368,7 @@ export function SettingsView() {
           <button
             type="button"
             onClick={resetColors}
-            className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors"
+            className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:hover:text-slate-100 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors"
           >
             Reset colors
           </button>
@@ -441,7 +441,7 @@ export function SettingsView() {
                         <span className="text-sm text-slate-700 truncate">{student.name}</span>
                       </div>
                       {student.familyGroup && (
-                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full truncate max-w-[120px]">
+                        <span className="text-xs text-slate-500 bg-slate-100 dark:bg-gray-700 px-2 py-0.5 rounded-full truncate max-w-[120px]">
                           {student.familyGroup}
                         </span>
                       )}
@@ -485,7 +485,7 @@ export function SettingsView() {
           <button
             type="button"
             onClick={resetTimeScale}
-            className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors"
+            className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:hover:text-slate-100 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-gray-600 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors"
           >
             Reset time scale
           </button>
