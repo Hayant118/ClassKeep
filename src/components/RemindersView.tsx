@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, Clock, AlertTriangle, ClipboardCheck, Sun, X } from 'lucide-react';
 import { useReminders } from '../hooks/useReminders';
 import { useSessions } from '../hooks/useSessions';
-import { useEnrollments } from '../hooks/useEnrollments';
+import { useStudents } from '../hooks/useStudents';
 import type { Reminder } from '../types';
 
 type TabKey = 'active' | 'history';
@@ -41,7 +41,7 @@ export function RemindersView() {
   const navigate = useNavigate();
   const { reminders, history, loading, dismissReminder, dismissAll, clearHistory } = useReminders();
   const { sessions } = useSessions();
-  const { enrollments } = useEnrollments();
+  const { students } = useStudents();
   const [activeTab, setActiveTab] = useState<TabKey>('active');
 
   const items = activeTab === 'active' ? reminders : history;
@@ -59,9 +59,10 @@ export function RemindersView() {
         break;
       }
       case 'low_balance': {
-        const enrollment = enrollments.find((e) => e.id === reminder.reference_id);
-        if (enrollment) {
-          navigate(`/students/${enrollment.studentId}`);
+        // Student-level prepaid reminders key reference_id by student id.
+        const student = students.find((s) => s.id === reminder.reference_id);
+        if (student) {
+          navigate(`/students/${student.id}`);
         }
         break;
       }

@@ -7,13 +7,16 @@ import { useClasses } from '../hooks/useClasses';
 import { useEnrollments } from '../hooks/useEnrollments';
 import { useSessions } from '../hooks/useSessions';
 import { usePayments } from '../hooks/usePayments';
+import { usePreferences } from '../hooks/usePreferences';
 import { useCurricula } from '../hooks/useCurricula';
 import { useProgress } from '../hooks/useProgress';
 import { SessionModal } from './SessionModal';
+import { syncStudentLowBalanceReminder, PREPAID_TOP_UP_NOTE } from '../utils/prepaid';
 import type { Student, Class, Enrollment, Session, StudentCurriculum, CurriculumStatus } from '../types';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
+  { key: 'prepaid', label: 'Prepaid' },
   { key: 'courseware', label: 'Courseware' },
   { key: 'progress', label: 'Progress' },
   { key: 'schedule', label: 'Schedule' },
@@ -101,6 +104,7 @@ export function StudentDetailView() {
   const { enrollments, loading: enrollmentsLoading, updateEnrollment, fetchEnrollments } = useEnrollments();
   const { sessions, loading: sessionsLoading, updateSession, deleteSession, addSession } = useSessions();
   const { payments, loading: paymentsLoading, fetchPayments, insertPayment } = usePayments();
+  const { preferences } = usePreferences();
   const { curricula, addCurriculum } = useCurricula();
   const { studentCurricula, classCurricula, lessonLogs, fetchStudentCurricula, fetchLessonLogs, addStudentCurriculum, updateStudentCurriculum } =
     useProgress();
@@ -131,7 +135,16 @@ export function StudentDetailView() {
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0]);
   const [paymentNotes, setPaymentNotes] = useState('');
 
+  // Prepaid top-up state
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [topUpPending, setTopUpPending] = useState(false);
+
   const student = useMemo(() => students.find((s) => s.id === id), [students, id]);
+  const isPrepaidTracked = student ? student.prepaidBalance != null : false;
+  const prepaidThreshold = student?.prepaidThreshold ?? preferences.lowBalanceThreshold;
+  // The Prepaid tab only exists for tracked students; if tracking was removed
+  // elsewhere while the tab was active, fall back to Overview.
+  const visibleTab = activeTab === 'prepaid' && !isPrepaidTracked ? 'overview' : activeTab;
   const studentEnrollments = useMemo(
     () => enrollments.filter((e) => e.studentId === id),
     [enrollments, id]
@@ -143,10 +156,11 @@ export function StudentDetailView() {
   const enrollmentIdsKey = enrollmentIds.join(',');
 
   useEffect(() => {
-    if (enrollmentIds.length > 0) {
-      fetchPayments(enrollmentIds);
-    }
-  }, [enrollmentIdsKey, enrollmentIds.length, enrollmentIds, fetchPayments]);
+    if (!id) return;
+    // The studentId branch pulls student-level payments (prepaid top-ups have
+    // no enrollment); the enrollment branch covers class-based payments.
+    fetchPayments(enrollmentIds.length > 0 ? enrollmentIds : undefined, id);
+  }, [enrollmentIdsKey, enrollmentIds.length, enrollmentIds, id, fetchPayments]);
 
   const studentSessions = useMemo(() => {
     const classIds = new Set(studentEnrollments.map((e) => e.classId));
@@ -242,6 +256,7 @@ export function StudentDetailView() {
     try {
       await insertPayment({
         enrollmentId: paymentEnrollmentId,
+        studentId: student?.id ?? null,
         amount,
         paymentDate,
         paymentMethod,
@@ -261,6 +276,56 @@ export function StudentDetailView() {
       toast.error(err instanceof Error ? err.message : 'Failed to record payment');
     }
   };
+
+  const handlePrepaidTopUp = async () => {
+    if (!student) return;
+    const amount = parseFloat(topUpAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Enter a valid top-up amount');
+      return;
+    }
+
+    setTopUpPending(true);
+    try {
+      const newBalance = (student.prepaidBalance ?? 0) + amount;
+      await updateStudent(student.id, { prepaidBalance: newBalance });
+      await insertPayment({
+        enrollmentId: '',
+        studentId: student.id,
+        amount,
+        paymentDate: todayStr(),
+        paymentMethod: 'Other',
+        notes: PREPAID_TOP_UP_NOTE,
+      });
+      await syncStudentLowBalanceReminder({ ...student, prepaidBalance: newBalance }, newBalance);
+      setTopUpAmount('');
+      toast.success(`Prepaid balance topped up by ¥${amount.toFixed(2)}`);
+      await fetchPayments(enrollmentIds.length > 0 ? enrollmentIds : undefined, student.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to top up prepaid balance');
+    } finally {
+      setTopUpPending(false);
+    }
+  };
+
+  // Compact ledger: top-ups from ck_payments, deductions from completed
+  // sessions flagged prepaid_deducted. Newest first.
+  const prepaidHistory = useMemo(() => {
+    if (!student) return [];
+    const topUps = payments
+      .filter((p) => p.studentId === student.id && p.notes === PREPAID_TOP_UP_NOTE)
+      .map((p) => ({ date: p.paymentDate, amount: p.amount, label: 'Top-up' }));
+    const deductions = studentSessions
+      .filter(
+        (s) => s.studentId === student.id && s.prepaidDeducted && s.status === 'completed' && s.totalCharge != null
+      )
+      .map((s) => ({
+        date: s.actualDate ?? s.plannedDate,
+        amount: -(s.totalCharge ?? 0),
+        label: 'Session deduction',
+      }));
+    return [...topUps, ...deductions].sort((a, b) => b.date.localeCompare(a.date));
+  }, [student, payments, studentSessions]);
 
   const openSessionModal = (session?: Session) => {
     setSelectedSession(session);
@@ -451,12 +516,12 @@ export function StudentDetailView() {
         </div>
 
         <div className="flex gap-2 overflow-x-auto whitespace-nowrap pb-1">
-          {TABS.map((tab) => (
+          {TABS.filter((tab) => tab.key !== 'prepaid' || isPrepaidTracked).map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
-                activeTab === tab.key
+                visibleTab === tab.key
                   ? 'bg-indigo-600 text-white'
                   : 'bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-700 border border-slate-200 dark:border-gray-700'
               }`}
@@ -468,7 +533,7 @@ export function StudentDetailView() {
       </div>
 
       {/* Overview */}
-      {activeTab === 'overview' && (
+      {visibleTab === 'overview' && (
         <div className="space-y-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-4">Profile</h2>
@@ -606,7 +671,7 @@ export function StudentDetailView() {
       )}
 
       {/* Courseware */}
-      {activeTab === 'courseware' && (
+      {visibleTab === 'courseware' && (
         <div className="space-y-6">
           {studentEnrollments.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6 text-slate-500 dark:text-gray-400">
@@ -650,7 +715,7 @@ export function StudentDetailView() {
       )}
 
       {/* Progress */}
-      {activeTab === 'progress' && (
+      {visibleTab === 'progress' && (
         <div className="space-y-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between mb-4">
@@ -762,7 +827,7 @@ export function StudentDetailView() {
       )}
 
       {/* Schedule */}
-      {activeTab === 'schedule' && (
+      {visibleTab === 'schedule' && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Schedule</h2>
@@ -814,15 +879,89 @@ export function StudentDetailView() {
       )}
 
       {/* Payments */}
-      {activeTab === 'payments' && (
+      {/* Prepaid */}
+      {visibleTab === 'prepaid' && student && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100">Prepaid Balance</h2>
+                <p
+                  className={`text-3xl font-bold mt-2 ${
+                    (student.prepaidBalance ?? 0) <= prepaidThreshold
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-slate-900 dark:text-white'
+                  }`}
+                >
+                  ¥{(student.prepaidBalance ?? 0).toFixed(2)}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
+                  Alert threshold: ¥{prepaidThreshold.toFixed(2)}
+                  {student.prepaidThreshold == null && ' (global default)'}
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(e.target.value)}
+                  placeholder="Amount (¥)"
+                  className="w-full sm:w-36 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={handlePrepaidTopUp}
+                  disabled={topUpPending}
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+                >
+                  {topUpPending ? 'Saving…' : '+ Top up'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-slate-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-3">History</h2>
+            {prepaidHistory.length === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-gray-400">No top-ups or deductions yet.</p>
+            ) : (
+              <ul className="divide-y divide-slate-200 dark:divide-gray-700">
+                {prepaidHistory.map((entry, index) => (
+                  <li key={`${entry.date}-${index}`} className="flex items-center justify-between gap-3 py-2 text-sm">
+                    <span className="text-slate-600 dark:text-gray-400">
+                      {entry.date} · {entry.label}
+                    </span>
+                    <span
+                      className={`font-medium ${
+                        entry.amount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                      }`}
+                    >
+                      {entry.amount >= 0 ? '+' : '−'}¥{Math.abs(entry.amount).toFixed(2)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {visibleTab === 'payments' && (
         <div className="space-y-6">
           {studentEnrollments.map((enrollment) => {
             const cls = getClass(enrollment.classId);
             const rate = getEnrollmentRate(enrollment, student);
             const enrollmentPayments = payments.filter((p) => p.enrollmentId === enrollment.id);
-            const totalPaid = enrollmentPayments.reduce((sum, p) => sum + p.amount, 0);
+            // Prepaid top-ups move balance, they don't settle an invoice:
+            // keep them out of the paid offset (they stay in the history list).
+            const totalPaid = enrollmentPayments
+              .filter((p) => p.notes !== PREPAID_TOP_UP_NOTE)
+              .reduce((sum, p) => sum + p.amount, 0);
+            // Sessions already paid via a tracked prepaid balance are not owed.
             const completedSessions = studentSessions.filter(
-              (s) => s.classId === enrollment.classId && s.status === 'completed'
+              (s) => s.classId === enrollment.classId && s.status === 'completed' && !s.prepaidDeducted
             );
             const totalCompletedCharge = completedSessions.reduce((sum, s) => sum + getSessionCharge(s), 0);
             const owed = totalCompletedCharge - totalPaid;

@@ -10,6 +10,10 @@ export interface Student {
   familyGroup?: string;
   /** Hidden from the 1-on-1 Students list; shown in Group Rosters only. */
   isGroupOnly?: boolean;
+  /** Student-level prepaid balance (null = not tracked). */
+  prepaidBalance?: number | null;
+  /** Low-balance alert threshold; meaningful only when prepaidBalance is tracked. */
+  prepaidThreshold?: number | null;
   /** When false, no ck_student_curricula rows are maintained for this student. */
   trackProgress: boolean;
   notes: string;
@@ -58,6 +62,8 @@ export interface Session {
   rateMode: 'auto' | 'override' | 'flat';
   rateValue: number | null;
   totalCharge: number | null;
+  /** True once the stored totalCharge has been deducted from a tracked student's prepaid balance. */
+  prepaidDeducted: boolean;
   status: 'scheduled' | 'completed' | 'moved' | 'cancelled' | 'holiday' | 'no-show';
   movedFromDate: string | null;
   movedFromTime: string | null;
@@ -80,6 +86,8 @@ export interface CalendarPreferences {
   calendarStartTime: string;   // was timeScale.startTime
   calendarEndTime: string;     // was timeScale.endTime
   calendarSlotMinutes: number; // was timeScale.slotMinutes
+  /** Global low-balance alert threshold for tracked prepaid balances. */
+  lowBalanceThreshold: number;
   defaultCalendarView?: 'day' | 'week' | 'month';
   updatedAt: string;
 }
@@ -115,6 +123,8 @@ export interface Proposal {
 export interface Payment {
   id: string;
   enrollmentId: string;
+  /** Student-level link for payments not tied to an enrollment (e.g. prepaid top-ups). */
+  studentId?: string | null;
   amount: number;
   paymentDate: string;
   paymentMethod: string;
@@ -139,8 +149,6 @@ export interface ReminderSettings {
   userId: string;
   preClassEnabled: boolean;
   preClassMinutes: number;
-  lowBalanceEnabled: boolean;
-  lowBalanceThreshold: number;
   unreviewedEnabled: boolean;
   dailyDigestEnabled: boolean;
   dailyDigestTime: string;

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Session, Enrollment, Student } from '../types';
 import { DEFAULT_TIMEZONE, toUtcIso } from '../utils/timezone';
+import { planStudentPrepaidAdjustment, syncStudentLowBalanceReminder } from '../utils/prepaid';
 
 function fromDb(row: Record<string, unknown>): Session {
   return {
@@ -18,6 +19,7 @@ function fromDb(row: Record<string, unknown>): Session {
     rateMode: (row.rate_mode as 'auto' | 'override' | 'flat') ?? 'auto',
     rateValue: (row.rate_value as number | null) ?? null,
     totalCharge: (row.total_charge as number | null) ?? null,
+    prepaidDeducted: (row.prepaid_deducted as boolean | undefined) ?? false,
     status: row.status as Session['status'],
     movedFromDate: (row.moved_from_date as string | null) ?? null,
     movedFromTime: (row.moved_from_time as string | null) ?? null,
@@ -38,6 +40,7 @@ function toDb(s: Partial<Session>): Record<string, unknown> {
   if (s.rateMode !== undefined) map.rate_mode = s.rateMode;
   if (s.rateValue !== undefined) map.rate_value = s.rateValue;
   if (s.totalCharge !== undefined) map.total_charge = s.totalCharge;
+  if (s.prepaidDeducted !== undefined) map.prepaid_deducted = s.prepaidDeducted;
   if (s.status !== undefined) map.status = s.status;
   if (s.movedFromDate !== undefined) map.moved_from_date = s.movedFromDate;
   if (s.movedFromTime !== undefined) map.moved_from_time = s.movedFromTime;
@@ -155,6 +158,8 @@ export async function checkAndAutoCompleteSessions(
   const now = new Date();
   const sessionsToComplete: Session[] = [];
   const enrollmentBalanceUpdates = new Map<string, number>();
+  const studentBalanceChanges: { student: Student; balance: number }[] = [];
+  const prepaidDeductedIds = new Set<string>();
 
   for (const session of sessions) {
     if (session.status !== 'scheduled') continue;
@@ -174,6 +179,15 @@ export async function checkAndAutoCompleteSessions(
       if (enrollment && enrollment.paymentType === 'prepaid') {
         enrollmentBalanceUpdates.set(enrollment.id, enrollment.prepaidBalance - charge);
       }
+    } else {
+      const adjustment = planStudentPrepaidAdjustment(session, students, 'completed', charge);
+      if (adjustment) {
+        studentBalanceChanges.push({
+          student: adjustment.student,
+          balance: (adjustment.student.prepaidBalance ?? 0) + adjustment.delta,
+        });
+        prepaidDeductedIds.add(session.id);
+      }
     }
   }
 
@@ -183,6 +197,7 @@ export async function checkAndAutoCompleteSessions(
     id: s.id,
     status: 'completed' as const,
     total_charge: s.totalCharge,
+    prepaid_deducted: prepaidDeductedIds.has(s.id),
   }));
 
   const { error: sessionError } = await supabase
@@ -199,6 +214,21 @@ export async function checkAndAutoCompleteSessions(
       .from('ck_enrollments')
       .upsert(enrollmentRows, { onConflict: 'id' });
     if (enrollmentError) throw new Error(enrollmentError.message);
+  }
+
+  if (studentBalanceChanges.length > 0) {
+    const studentRows = studentBalanceChanges.map(({ student, balance }) => ({
+      id: student.id,
+      prepaid_balance: balance,
+    }));
+    const { error: studentError } = await supabase
+      .from('ck_students')
+      .upsert(studentRows, { onConflict: 'id' });
+    if (studentError) throw new Error(studentError.message);
+
+    for (const { student, balance } of studentBalanceChanges) {
+      await syncStudentLowBalanceReminder(student, balance);
+    }
   }
 
   markAutoCompletedSessions(sessionsToComplete.map((s) => s.id));

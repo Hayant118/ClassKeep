@@ -8,8 +8,6 @@ const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
   userId: '',
   preClassEnabled: true,
   preClassMinutes: 30,
-  lowBalanceEnabled: true,
-  lowBalanceThreshold: 400,
   unreviewedEnabled: false,
   dailyDigestEnabled: true,
   dailyDigestTime: '08:00',
@@ -23,8 +21,6 @@ function fromDb(row: Record<string, unknown>): ReminderSettings {
     userId: row.user_id as string,
     preClassEnabled: (row.pre_class_enabled as boolean) ?? true,
     preClassMinutes: (row.pre_class_minutes as number) ?? 30,
-    lowBalanceEnabled: (row.low_balance_enabled as boolean) ?? true,
-    lowBalanceThreshold: (row.low_balance_threshold as number) ?? 400,
     unreviewedEnabled: (row.unreviewed_enabled as boolean) ?? true,
     dailyDigestEnabled: (row.daily_digest_enabled as boolean) ?? true,
     dailyDigestTime: (row.daily_digest_time as string) ?? '08:00',
@@ -37,8 +33,6 @@ function toDb(settings: Partial<ReminderSettings>): Record<string, unknown> {
   const map: Record<string, unknown> = {};
   if (settings.preClassEnabled !== undefined) map.pre_class_enabled = settings.preClassEnabled;
   if (settings.preClassMinutes !== undefined) map.pre_class_minutes = settings.preClassMinutes;
-  if (settings.lowBalanceEnabled !== undefined) map.low_balance_enabled = settings.lowBalanceEnabled;
-  if (settings.lowBalanceThreshold !== undefined) map.low_balance_threshold = settings.lowBalanceThreshold;
   if (settings.unreviewedEnabled !== undefined) map.unreviewed_enabled = settings.unreviewedEnabled;
   if (settings.dailyDigestEnabled !== undefined) map.daily_digest_enabled = settings.dailyDigestEnabled;
   if (settings.dailyDigestTime !== undefined) map.daily_digest_time = settings.dailyDigestTime;
@@ -75,8 +69,6 @@ export function useReminderSettings() {
         user_id: userData.user.id,
         pre_class_enabled: DEFAULT_REMINDER_SETTINGS.preClassEnabled,
         pre_class_minutes: DEFAULT_REMINDER_SETTINGS.preClassMinutes,
-        low_balance_enabled: DEFAULT_REMINDER_SETTINGS.lowBalanceEnabled,
-        low_balance_threshold: DEFAULT_REMINDER_SETTINGS.lowBalanceThreshold,
         unreviewed_enabled: DEFAULT_REMINDER_SETTINGS.unreviewedEnabled,
         daily_digest_enabled: DEFAULT_REMINDER_SETTINGS.dailyDigestEnabled,
         daily_digest_time: DEFAULT_REMINDER_SETTINGS.dailyDigestTime,

@@ -33,6 +33,7 @@ import {
   isDateInPeriod,
   resolveSessionCharge,
 } from '../utils/billing';
+import { PREPAID_TOP_UP_NOTE } from '../utils/prepaid';
 
 interface BillingViewProps {
   sessions?: Session[];
@@ -443,6 +444,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
       .filter(
         (p) =>
           studentEnrollmentIds.includes(p.enrollmentId) &&
+          p.notes !== PREPAID_TOP_UP_NOTE &&
           isDateInPeriod(p.paymentDate, period)
       )
       .reduce((sum, p) => sum + p.amount, 0);

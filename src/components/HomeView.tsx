@@ -16,6 +16,7 @@ import { CURATED_PALETTE, DEFAULT_COLOR, normalizeColor } from '../utils/colors'
 import { SessionSymbol } from '../utils/sessionSymbols';
 import { getNowInDisplayTz } from '../utils/timezone';
 import { isPreClassReminderStale } from '../utils/reminders';
+import { planStudentPrepaidAdjustment, applyStudentPrepaidAdjustment } from '../utils/prepaid';
 import { Button } from './Button';
 
 interface HomeViewProps {
@@ -116,6 +117,21 @@ function getSessionDisplayName(classes: Class[], students: Student[], session: S
     return students?.find((s) => s.id === session.studentId)?.name ?? 'Student';
   }
   return 'Untitled';
+}
+
+/**
+ * Banner text for a reminder. Student-level low_balance reminders are rendered
+ * from the live student row (reference_id = student id) so the balance shown
+ * is current; everything else uses the stored title.
+ */
+function getReminderBannerText(reminder: Reminder, students: Student[]): string {
+  if (reminder.type === 'low_balance' && reminder.reference_id) {
+    const student = students.find((s) => s.id === reminder.reference_id);
+    if (student) {
+      return `${student.name}'s prepaid balance is low — ¥${(student.prepaidBalance ?? 0).toFixed(2)} remaining`;
+    }
+  }
+  return reminder.title;
 }
 
 function getStudentNames(session: Session, enrollments: Enrollment[], students: Student[]): string {
@@ -519,7 +535,15 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
 
   const handleQuickStatus = async (session: Session, status: Session['status']) => {
     try {
-      await updateSession(session.id, { status });
+      // Student-level prepaid balance: deduct on completion, restore on revert.
+      // The prepaid_deducted flag is written together with the status so the
+      // local session row stays in sync; the balance write follows.
+      const adjustment = planStudentPrepaidAdjustment(session, students, status);
+      await updateSession(session.id, {
+        status,
+        ...(adjustment ? { prepaidDeducted: adjustment.direction === 'deduct' } : {}),
+      });
+      if (adjustment) await applyStudentPrepaidAdjustment(adjustment);
       await fetchSessions();
       dismissFromBanner(session.id);
       if (status === 'completed') {
@@ -549,12 +573,22 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
 
     // Step 1: mark the session completed. This is the one write that must not
     // be lost, so nothing else runs until it succeeds.
+    const target = sessions.find((s) => s.id === first.sessionId);
+    const adjustment = target
+      ? planStudentPrepaidAdjustment(target, students, 'completed')
+      : null;
     try {
-      await updateSession(first.sessionId, { status: 'completed' });
+      await updateSession(first.sessionId, {
+        status: 'completed',
+        ...(adjustment ? { prepaidDeducted: true } : {}),
+      });
     } catch (err) {
       toast.error(`Failed to mark session completed: ${errorMessage(err)}`);
       throw err; // keep the modal open so the user can retry
     }
+
+    // Balance write is independent of the lesson-log writes below.
+    if (adjustment) await applyStudentPrepaidAdjustment(adjustment);
 
     // Step 2: all remaining writes are independent of each other — run them
     // in parallel to cut round trips on slow networks.
@@ -768,7 +802,7 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                 className="flex items-center gap-1.5 min-w-0 flex-1 text-left"
               >
                 <span className={TYPE_ACCENTS[reminder.type].icon}>{TYPE_CHIP_ICONS[reminder.type]}</span>
-                <span className="truncate text-sm text-slate-100">{reminder.title}</span>
+                <span className="truncate text-sm text-slate-100">{getReminderBannerText(reminder, students)}</span>
               </button>
               <button
                 type="button"

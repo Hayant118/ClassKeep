@@ -75,6 +75,8 @@ export function StudentsView() {
   const [color, setColor] = useState('');
   const [familyGroup, setFamilyGroup] = useState('');
   const [trackProgress, setTrackProgress] = useState(true);
+  const [prepaidTracked, setPrepaidTracked] = useState(false);
+  const [prepaidThreshold, setPrepaidThreshold] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const formRef = useRef<HTMLDivElement>(null);
@@ -125,7 +127,19 @@ export function StudentsView() {
     setColor('');
     setFamilyGroup('');
     setTrackProgress(true);
+    setPrepaidTracked(false);
+    setPrepaidThreshold('');
     setEditingId(null);
+  };
+
+  // Disabling tracking wipes the stored balance, so require an explicit
+  // two-step confirm before letting the toggle flip off.
+  const handlePrepaidTrackingChange = (checked: boolean) => {
+    if (!checked) {
+      if (!confirm('Stop tracking the prepaid balance for this student?')) return;
+      if (!confirm('The current balance will be cleared. Continue?')) return;
+    }
+    setPrepaidTracked(checked);
   };
 
   const handleStudentSubmit = async (e: React.FormEvent) => {
@@ -146,6 +160,21 @@ export function StudentsView() {
         trackProgress,
       };
       if (normalizedColor) updates.color = normalizedColor;
+
+      const existing = editingId ? students.find((s) => s.id === editingId) : undefined;
+      if (prepaidTracked) {
+        // Enabling tracking starts at ¥0; students already tracked keep their
+        // current balance across unrelated edits.
+        if (!existing || existing.prepaidBalance == null) {
+          updates.prepaidBalance = 0;
+        }
+        const threshold = parseFloat(prepaidThreshold);
+        updates.prepaidThreshold =
+          prepaidThreshold.trim() === '' || isNaN(threshold) ? null : threshold;
+      } else if (existing && existing.prepaidBalance != null) {
+        updates.prepaidBalance = null;
+        updates.prepaidThreshold = null;
+      }
 
       if (editingId) {
         await updateStudent(editingId, updates);
@@ -174,6 +203,8 @@ export function StudentsView() {
     setColor(student.color ?? '');
     setFamilyGroup(student.familyGroup ?? '');
     setTrackProgress(student.trackProgress ?? true);
+    setPrepaidTracked(student.prepaidBalance != null);
+    setPrepaidThreshold(student.prepaidThreshold != null ? String(student.prepaidThreshold) : '');
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => nameInputRef.current?.focus(), 300);
   };
@@ -544,6 +575,37 @@ export function StudentsView() {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 pb-2 text-sm font-medium text-slate-600 dark:text-gray-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={prepaidTracked}
+                  onChange={(e) => handlePrepaidTrackingChange(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                />
+                Prepaid balance tracking
+              </label>
+            </div>
+
+            {prepaidTracked && (
+              <div>
+                <label className="block text-sm font-medium text-slate-600 dark:text-gray-400 mb-1">
+                  Low-balance alert threshold <span className="text-xs font-normal text-slate-500 dark:text-gray-500">(blank = use global default)</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={prepaidThreshold}
+                  onChange={(e) => setPrepaidThreshold(e.target.value)}
+                  placeholder="Use global default"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
@@ -879,8 +941,13 @@ export function StudentsView() {
                                 className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: student.color || '#6366f1' }}
                               />
-                              <p className="font-medium text-slate-900 dark:text-white">
+                              <p className="font-medium text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
                                 {student.name}
+                                {student.prepaidBalance != null && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                    Prepaid: ¥{student.prepaidBalance.toFixed(2)}
+                                  </span>
+                                )}
                               </p>
                             </div>
                             {detailParts.length > 0 && (

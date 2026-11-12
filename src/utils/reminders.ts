@@ -1,6 +1,6 @@
 // src/utils/reminders.ts
 import { supabase } from '../lib/supabase';
-import type { Class, Enrollment, Reminder, Session, Student } from '../types';
+import type { Class, Reminder, Session, Student } from '../types';
 import { getNowInDisplayTz } from './timezone';
 
 export const PRE_CLASS_STALE_MINUTES = 30;
@@ -169,36 +169,6 @@ export async function checkPreClassReminders(
       title: `Upcoming: ${className} in ${minutesUntil} min`,
       body: `${studentNames} — ${session.plannedTime} (${session.durationMinutes} min)`,
       scheduled_at: sessionTime.toISOString(),
-    });
-  }
-}
-
-export async function checkLowBalanceReminders(
-  enrollments: Enrollment[],
-  students: Student[],
-  existingReminders: Reminder[],
-  lowBalanceThreshold: number = 400
-) {
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return;
-
-  const lowBalanceEnrollments = enrollments.filter(
-    (e) => e.paymentType === 'prepaid' && e.prepaidBalance < lowBalanceThreshold
-  );
-
-  for (const enrollment of lowBalanceEnrollments) {
-    if (reminderExists(existingReminders, 'low_balance', enrollment.id)) continue;
-
-    const student = students.find((s) => s.id === enrollment.studentId);
-    const studentName = student?.name ?? 'Student';
-    const sessionsLeft = Math.max(0, Math.floor(enrollment.prepaidBalance / 200));
-
-    await createReminder({
-      user_id: userData.user.id,
-      type: 'low_balance',
-      reference_id: enrollment.id,
-      title: `Low balance: ${studentName}`,
-      body: `¥${enrollment.prepaidBalance.toFixed(2)} remaining — about ${sessionsLeft} sessions`,
     });
   }
 }

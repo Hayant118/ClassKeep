@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { TriangleAlert } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { sessionsOverlap } from '../utils/calendar';
+import { planStudentPrepaidAdjustment, applyStudentPrepaidAdjustment } from '../utils/prepaid';
 import { findEventForDate, getEventTypeLabel } from '../utils/events';
 import type { Session, Student, Class, Enrollment, Guest, CalendarEvent, Curriculum } from '../types';
 import { Button } from './Button';
@@ -400,6 +401,24 @@ export function SessionModal({
       enrollments,
     });
 
+    // Student-level prepaid balance (1-on-1 students with a tracked balance).
+    // The prepaid_deducted flag rides along with the status in the payload;
+    // the balance write happens after the session row is saved.
+    const prepaidAdjustment = isDraft
+      ? null
+      : planStudentPrepaidAdjustment(
+          session ?? {
+            classId: classId || undefined,
+            studentId: studentId || undefined,
+            status: 'scheduled',
+            prepaidDeducted: false,
+            totalCharge: null,
+          },
+          students,
+          status,
+          charge
+        );
+
     const payload: SessionPayload = {
       classId: classId || undefined,
       studentId: studentId || undefined,
@@ -413,6 +432,9 @@ export function SessionModal({
       rateMode,
       rateValue: finalRateValue,
       totalCharge: nowCompleted ? charge : (session?.totalCharge ?? null),
+      prepaidDeducted: prepaidAdjustment
+        ? prepaidAdjustment.direction === 'deduct'
+        : (session?.prepaidDeducted ?? false),
       status,
       isAdditional,
       movedFromDate,
@@ -500,6 +522,8 @@ export function SessionModal({
         } else if (wasCompleted && !nowCompleted) {
           await syncPrepaidBalance(classId || undefined, -(session?.totalCharge ?? 0), enrollments);
         }
+
+        if (prepaidAdjustment) await applyStudentPrepaidAdjustment(prepaidAdjustment);
       }
 
       onClose();

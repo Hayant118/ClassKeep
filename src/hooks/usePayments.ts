@@ -7,6 +7,7 @@ function fromDb(row: Record<string, unknown>): Payment {
   return {
     id: row.id as string,
     enrollmentId: (row.enrollment_id as string) ?? '',
+    studentId: (row.student_id as string | null | undefined) ?? null,
     amount: (row.amount as number) ?? 0,
     paymentDate: (row.payment_date as string) ?? new Date().toISOString().split('T')[0],
     paymentMethod: (row.payment_method as string) ?? '',
@@ -17,7 +18,8 @@ function fromDb(row: Record<string, unknown>): Payment {
 
 function toDb(payment: Partial<Payment>): Record<string, unknown> {
   const map: Record<string, unknown> = {};
-  if (payment.enrollmentId !== undefined) map.enrollment_id = payment.enrollmentId;
+  if (payment.enrollmentId !== undefined) map.enrollment_id = payment.enrollmentId || null;
+  if (payment.studentId !== undefined) map.student_id = payment.studentId;
   if (payment.amount !== undefined) map.amount = payment.amount;
   if (payment.paymentDate !== undefined) map.payment_date = payment.paymentDate;
   if (payment.paymentMethod !== undefined) map.payment_method = payment.paymentMethod;
@@ -30,7 +32,7 @@ export function usePayments() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchPayments = useCallback(async (enrollmentIds?: string[]) => {
+  const fetchPayments = useCallback(async (enrollmentIds?: string[], studentId?: string) => {
     setLoading(true);
     setError(null);
 
@@ -39,8 +41,17 @@ export function usePayments() {
       .select('*')
       .order('payment_date', { ascending: false });
 
+    // Student-level payments (enrollment_id null, e.g. prepaid top-ups) need a
+    // separate filter branch; an OR combines both scopes.
+    const filters: string[] = [];
     if (enrollmentIds && enrollmentIds.length > 0) {
-      query = query.in('enrollment_id', enrollmentIds);
+      filters.push(`enrollment_id.in.(${enrollmentIds.join(',')})`);
+    }
+    if (studentId) {
+      filters.push(`student_id.eq.${studentId}`);
+    }
+    if (filters.length > 0) {
+      query = query.or(filters.join(','));
     }
 
     const { data, error: sbError } = await query;

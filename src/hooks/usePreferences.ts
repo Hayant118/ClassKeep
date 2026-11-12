@@ -14,6 +14,7 @@ const DEFAULT_PREFERENCES: CalendarPreferences = {
   calendarStartTime: '08:00:00',
   calendarEndTime: '22:00:00',
   calendarSlotMinutes: 30,
+  lowBalanceThreshold: 300,
   defaultCalendarView: 'week',
   updatedAt: new Date().toISOString(),
 };
@@ -30,6 +31,7 @@ function fromDb(row: Record<string, unknown>): CalendarPreferences {
     calendarStartTime: (row.calendar_start_time as string) ?? '08:00:00',
     calendarEndTime: (row.calendar_end_time as string) ?? '22:00:00',
     calendarSlotMinutes: (row.calendar_slot_minutes as number) ?? 30,
+    lowBalanceThreshold: (row.low_balance_threshold as number) ?? 300,
     defaultCalendarView: (row.default_calendar_view as 'day' | 'week' | 'month') ?? 'week',
     updatedAt: row.updated_at as string,
   };
@@ -45,6 +47,7 @@ function toDb(prefs: Partial<CalendarPreferences>): Record<string, unknown> {
   if (prefs.calendarStartTime !== undefined) map.calendar_start_time = prefs.calendarStartTime;
   if (prefs.calendarEndTime !== undefined) map.calendar_end_time = prefs.calendarEndTime;
   if (prefs.calendarSlotMinutes !== undefined) map.calendar_slot_minutes = prefs.calendarSlotMinutes;
+  if (prefs.lowBalanceThreshold !== undefined) map.low_balance_threshold = prefs.lowBalanceThreshold;
   if (prefs.defaultCalendarView !== undefined) map.default_calendar_view = prefs.defaultCalendarView;
   return map;
 }
@@ -83,6 +86,7 @@ export function usePreferences() {
         calendar_start_time: DEFAULT_PREFERENCES.calendarStartTime,
         calendar_end_time: DEFAULT_PREFERENCES.calendarEndTime,
         calendar_slot_minutes: DEFAULT_PREFERENCES.calendarSlotMinutes,
+        low_balance_threshold: DEFAULT_PREFERENCES.lowBalanceThreshold,
       };
 
       const { data: newData, error: insertError } = await supabase

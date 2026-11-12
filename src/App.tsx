@@ -14,7 +14,6 @@ import { useReminderSettings } from './hooks/useReminderSettings';
 import type { Reminder } from './types';
 import {
   checkPreClassReminders,
-  checkLowBalanceReminders,
   generateDailyDigest,
   isPreClassReminderStale,
 } from './utils/reminders';
@@ -317,17 +316,6 @@ function AppContent() {
           enrollments
         );
       }
-
-      if (settings.lowBalanceEnabled) {
-        await checkLowBalanceReminders(
-          enrollments,
-          students,
-          existing,
-          settings.lowBalanceThreshold
-        );
-      }
-
-  
 
       if (settings.dailyDigestEnabled) {
         await generateDailyDigest(sessions, classes, students, existing, settings.dailyDigestTime);

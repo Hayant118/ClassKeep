@@ -73,6 +73,7 @@ export function draftSessionsToSessions(
       rateMode: (getString(raw, ['rateMode', 'rate_mode']) as Session['rateMode']) ?? 'auto',
       rateValue: (getNumber(raw, ['rateValue', 'rate_value']) as number | null) ?? null,
       totalCharge: null,
+      prepaidDeducted: false,
       status: (getString(raw, ['status']) as Session['status']) ?? 'scheduled',
       movedFromDate: null,
       movedFromTime: null,

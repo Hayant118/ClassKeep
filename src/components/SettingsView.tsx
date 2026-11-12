@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import type { CalendarPreferences } from '../types';
-import { Bell, Clock, AlertTriangle, ClipboardCheck, Sun, ChevronDown, Download } from 'lucide-react';
+import { Bell, Clock, ClipboardCheck, Sun, ChevronDown, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { usePreferences } from '../hooks/usePreferences';
 import { useReminderSettings } from '../hooks/useReminderSettings';
@@ -26,6 +26,7 @@ const SAMPLE_SESSIONS: SessionWithOverlap[] = [
     rateMode: 'auto',
     rateValue: null,
     totalCharge: null,
+    prepaidDeducted: false,
     status: 'scheduled',
     movedFromDate: null,
     movedFromTime: null,
@@ -45,6 +46,7 @@ const SAMPLE_SESSIONS: SessionWithOverlap[] = [
     rateMode: 'auto',
     rateValue: null,
     totalCharge: null,
+    prepaidDeducted: false,
     status: 'moved',
     movedFromDate: null,
     movedFromTime: null,
@@ -64,6 +66,7 @@ const SAMPLE_SESSIONS: SessionWithOverlap[] = [
     rateMode: 'auto',
     rateValue: null,
     totalCharge: null,
+    prepaidDeducted: false,
     status: 'cancelled',
     movedFromDate: null,
     movedFromTime: null,
@@ -83,6 +86,7 @@ const SAMPLE_SESSIONS: SessionWithOverlap[] = [
     rateMode: 'auto',
     rateValue: null,
     totalCharge: null,
+    prepaidDeducted: false,
     status: 'scheduled',
     movedFromDate: null,
     movedFromTime: null,
@@ -102,6 +106,7 @@ const SAMPLE_SESSIONS: SessionWithOverlap[] = [
     rateMode: 'auto',
     rateValue: null,
     totalCharge: null,
+    prepaidDeducted: false,
     status: 'scheduled',
     movedFromDate: null,
     movedFromTime: null,
@@ -273,7 +278,7 @@ export function SettingsView() {
     }
   };
 
-  const updateTimeScale = (key: 'calendarStartTime' | 'calendarEndTime' | 'calendarSlotMinutes', value: string | number) => {
+  const updateTimeScale = (key: 'calendarStartTime' | 'calendarEndTime' | 'calendarSlotMinutes' | 'lowBalanceThreshold', value: string | number) => {
     setPreferences({ [key]: value } as Partial<CalendarPreferences>);
   };
 
@@ -486,7 +491,7 @@ export function SettingsView() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
             <TimePicker
@@ -520,6 +525,21 @@ export function SettingsView() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Low-balance warning (¥)</label>
+            <input
+              type="number"
+              min={0}
+              step="1"
+              value={preferences.lowBalanceThreshold}
+              onChange={(e) => updateTimeScale('lowBalanceThreshold', parseFloat(e.target.value) || 0)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Tracked students at or below this balance trigger a low-balance alert.
+            </p>
           </div>
         </div>
 
@@ -556,19 +576,6 @@ export function SettingsView() {
 
             <label className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-gray-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-colors">
               <div className="flex items-center gap-3">
-                <AlertTriangle className="w-4 h-4 text-amber-500" />
-                <span className="text-sm font-medium text-slate-700 dark:text-gray-200">Low balance alerts</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={settings.lowBalanceEnabled}
-                onChange={(e) => updateSettings({ lowBalanceEnabled: e.target.checked })}
-                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-              />
-            </label>
-
-            <label className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-gray-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-gray-700/50 transition-colors">
-              <div className="flex items-center gap-3">
                 <ClipboardCheck className="w-4 h-4 text-purple-500" />
                 <span className="text-sm font-medium text-slate-700 dark:text-gray-200">Unreviewed sessions</span>
               </div>
@@ -595,7 +602,7 @@ export function SettingsView() {
           </div>
 
           {/* Thresholds */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-200 mb-1">Pre-class minutes</label>
               <select
@@ -607,18 +614,6 @@ export function SettingsView() {
                   <option key={m} value={m}>{m} min</option>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-gray-200 mb-1">Low balance threshold (¥)</label>
-              <input
-                type="number"
-                min={0}
-                step={50}
-                value={settings.lowBalanceThreshold}
-                onChange={(e) => updateSettings({ lowBalanceThreshold: parseFloat(e.target.value) || 0 })}
-                className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
             </div>
 
             <div>

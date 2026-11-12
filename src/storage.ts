@@ -218,6 +218,7 @@ export const DEFAULT_PREFERENCES: CalendarPreferences = {
   calendarStartTime: '08:00:00',
   calendarEndTime: '22:00:00',
   calendarSlotMinutes: 30,
+  lowBalanceThreshold: 300,
   updatedAt: new Date().toISOString(),
 };
 
