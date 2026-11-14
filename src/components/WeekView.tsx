@@ -8,9 +8,9 @@ import {
   formatDisplayWeekdayInTz,
 } from '../utils/timezone';
 import { addMinutes, getTimeSlots, getSessionPosition, getTimeFromClickY } from '../utils/date';
-import { findOverlappingSessions, getSessionColor, type SessionWithOverlap } from '../utils/calendar';
+import { findOverlappingSessions, getOriginalSlot, getSessionColor, type SessionWithOverlap } from '../utils/calendar';
 import { isSessionAutoCompleted } from '../hooks/useSessions';
-import { SessionSymbol } from '../utils/sessionSymbols';
+import { SessionSymbol, MovedMarker } from '../utils/sessionSymbols';
 import { buildEventsByDay, getEventColor, getEventTint, getEventTypeLabel } from '../utils/events';
 
 const ROW_HEIGHT_PX = 40;
@@ -104,6 +104,17 @@ export function WeekView({
   }, [sessionsWithOverlap, weekDays, timezone]);
 
   const eventsByDay = useMemo(() => buildEventsByDay(events), [events]);
+
+  // Sessions moved away from a slot: the orange marker anchors at the
+  // ORIGINAL slot, with a "moved to" label pointing at the current one.
+  const movedOriginals = useMemo(() => {
+    return sessionsWithOverlap
+      .map((session) => ({ session, original: getOriginalSlot(session) }))
+      .filter(
+        (entry): entry is { session: SessionWithOverlap; original: { date: string; time: string } } =>
+          entry.original !== null
+      );
+  }, [sessionsWithOverlap]);
 
   const renderSessionBlock = (session: SessionWithOverlap) => {
     const student = getSessionStudent(session, enrollments, students);
@@ -204,6 +215,23 @@ export function WeekView({
           aria-label={`Add session on ${dateKey}`}
         />
         {daySessions.map(renderSessionBlock)}
+        {movedOriginals
+          .filter(({ original }) => original.date === dateKey)
+          .map(({ session, original }) => {
+            const timeStr = original.time.slice(0, 5);
+            const { top, height } = getSessionPosition(timeStr, session.durationMinutes, startTimeStr, endTimeStr);
+            if (height <= 0) return null;
+            return (
+              <div
+                key={`moved-${session.id}`}
+                className="absolute left-1 right-1 rounded-md px-1 py-0.5 z-10 pointer-events-none border border-dashed border-orange-400 bg-orange-50/80 dark:bg-orange-900/20 overflow-hidden"
+                style={{ top: `${top}%`, height: `${Math.max(height, 5)}%` }}
+                title={`moved to ${session.plannedDate} ${session.plannedTime.slice(0, 5)}`}
+              >
+                <MovedMarker session={session} labelClassName="text-[9px]" />
+              </div>
+            );
+          })}
       </div>
     );
   };
@@ -340,6 +368,20 @@ export function WeekView({
               ) : (
                 <div className="space-y-2">
                   {daySessions.sort((a, b) => a.plannedTime.localeCompare(b.plannedTime)).map(renderMobileSession)}
+                </div>
+              )}
+              {movedOriginals.some(({ original }) => original.date === dateKey) && (
+                <div className="space-y-1 mt-2">
+                  {movedOriginals
+                    .filter(({ original }) => original.date === dateKey)
+                    .map(({ session }) => (
+                      <div
+                        key={`moved-${session.id}`}
+                        className="flex items-center gap-2 rounded-md px-2 py-1 border border-dashed border-orange-300 dark:border-orange-800 bg-orange-50/60 dark:bg-orange-900/20"
+                      >
+                        <MovedMarker session={session} labelClassName="text-[10px]" />
+                      </div>
+                    ))}
                 </div>
               )}
             </div>

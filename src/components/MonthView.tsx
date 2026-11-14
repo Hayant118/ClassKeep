@@ -9,11 +9,11 @@ import {
   getCalendarDaysForMonth,
   startOfMonthInTz,
 } from '../utils/timezone';
-import { findOverlappingSessions, type SessionWithOverlap } from '../utils/calendar';
+import { findOverlappingSessions, getOriginalSlot, type SessionWithOverlap } from '../utils/calendar';
 import { buildEventsByDay, getEventColor, getEventTint, getEventTypeLabel } from '../utils/events';
 import { SessionCard } from './SessionCard';
 import { X } from './icons';
-import { SessionSymbol } from '../utils/sessionSymbols';
+import { SessionSymbol, MovedMarker } from '../utils/sessionSymbols';
 
 interface MonthViewProps {
   monthStart: Date;
@@ -28,6 +28,9 @@ interface MonthViewProps {
   onAddSession?: (dateKey: string) => void;
   onDeleteSession?: (id: string) => void;
   onEditEvent?: (event: CalendarEvent) => void;
+  /** Pick-a-day mode (guided move): day taps go to onPickDay instead of the detail sheet. */
+  pickMode?: boolean;
+  onPickDay?: (dateKey: string) => void;
   inlineDetail?: boolean;
 }
 
@@ -188,6 +191,8 @@ export function MonthView({
   onAddSession,
   onDeleteSession,
   onEditEvent,
+  pickMode = false,
+  onPickDay,
   inlineDetail,
 }: MonthViewProps) {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -233,8 +238,28 @@ export function MonthView({
   const todayKey = formatDateKeyInTz(new Date().toISOString(), timezone);
 
   const handleDayClick = (day: Date) => {
+    const dateKey = formatDateKeyInTz(day.toISOString(), timezone);
+    // Pick-a-day mode (guided move): day taps go straight to the callback
+    // instead of opening the day detail sheet.
+    if (pickMode && onPickDay) {
+      onPickDay(dateKey);
+      return;
+    }
     setSelectedDay(day);
   };
+
+  // Orange reschedule markers anchor at the session's ORIGINAL slot.
+  const movedByDay = useMemo(() => {
+    const map = new Map<string, SessionWithOverlap[]>();
+    for (const session of sessionsWithOverlap) {
+      const original = getOriginalSlot(session);
+      if (!original) continue;
+      const list = map.get(original.date) ?? [];
+      list.push(session);
+      map.set(original.date, list);
+    }
+    return map;
+  }, [sessionsWithOverlap]);
 
   const handleMonthChange = (offset: number) => {
     setSelectedDay(null);
@@ -338,6 +363,13 @@ export function MonthView({
                     <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-gray-400 leading-none">+{dayEntries.length - 6}</span>
                   )}
                 </div>
+                {(movedByDay.get(dateKey) ?? []).length > 0 && (
+                  <div className="mt-0.5 space-y-0.5">
+                    {(movedByDay.get(dateKey) ?? []).map((session) => (
+                      <MovedMarker key={`moved-${session.id}`} session={session} labelClassName="text-[8px] sm:text-[9px]" />
+                    ))}
+                  </div>
+                )}
               </button>
             );
           })}

@@ -70,6 +70,22 @@ export function checkOverlap(sessions: Session[]): Set<string> {
   return findOverlappingSessions(sessions);
 }
 
+/**
+ * Original slot (first-ever scheduled date/time) for a moved session —
+ * null when the session was never moved. The orange reschedule marker is
+ * anchored here; the fields are cleared when the session is completed.
+ */
+export function getOriginalSlot(session: Session): { date: string; time: string } | null {
+  if (!session.originalPlannedDate || !session.originalPlannedTime) return null;
+  if (
+    session.originalPlannedDate === session.plannedDate &&
+    session.originalPlannedTime === session.plannedTime
+  ) {
+    return null;
+  }
+  return { date: session.originalPlannedDate, time: session.originalPlannedTime };
+}
+
 export function getSessionColor(
   session: SessionWithOverlap,
   students: Student[],

@@ -23,6 +23,8 @@ function fromDb(row: Record<string, unknown>): Session {
     status: row.status as Session['status'],
     movedFromDate: (row.moved_from_date as string | null) ?? null,
     movedFromTime: (row.moved_from_time as string | null) ?? null,
+    originalPlannedDate: (row.original_planned_date as string | null) ?? null,
+    originalPlannedTime: (row.original_planned_time as string | null) ?? null,
     notes: (row.notes as string) ?? '',
     createdAt: row.created_at as string,
   };
@@ -44,6 +46,8 @@ function toDb(s: Partial<Session>): Record<string, unknown> {
   if (s.status !== undefined) map.status = s.status;
   if (s.movedFromDate !== undefined) map.moved_from_date = s.movedFromDate;
   if (s.movedFromTime !== undefined) map.moved_from_time = s.movedFromTime;
+  if (s.originalPlannedDate !== undefined) map.original_planned_date = s.originalPlannedDate;
+  if (s.originalPlannedTime !== undefined) map.original_planned_time = s.originalPlannedTime;
   if (s.notes !== undefined) map.notes = s.notes;
   return map;
 }
@@ -198,6 +202,8 @@ export async function checkAndAutoCompleteSessions(
     status: 'completed' as const,
     total_charge: s.totalCharge,
     prepaid_deducted: prepaidDeductedIds.has(s.id),
+    original_planned_date: null,
+    original_planned_time: null,
   }));
 
   const { error: sessionError } = await supabase

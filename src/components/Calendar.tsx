@@ -1,14 +1,16 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { Check, Settings, CalendarPlus, Search } from 'lucide-react';
+import { Check, Settings, CalendarPlus, Search, X } from 'lucide-react';
 import type { Session, Student, Class, Enrollment, CalendarEvent } from '../types';
 import { usePreferences } from '../hooks/usePreferences';
 import { assignColor, normalizeColor } from '../utils/colors';
+import { sessionsOverlap } from '../utils/calendar';
 import { DayView } from './DayView';
 import { WeekView } from './WeekView';
 import { MonthView } from './MonthView';
 import { SessionModal } from './SessionModal';
 import { EventModal } from './EventModal';
+import { TimePicker } from './TimePicker';
 import { useSessions } from '../hooks/useSessions';
 import { useEvents } from '../hooks/useEvents';
 import {
@@ -222,6 +224,61 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
     setEditingSession(undefined);
   };
 
+  // Guided "Move session" flow: pick-a-day mode over the month view.
+  const [moveTarget, setMoveTarget] = useState<Session | null>(null);
+  const [moveDay, setMoveDay] = useState<string | null>(null);
+  const [moveTime, setMoveTime] = useState('08:00');
+
+  const getMoveTargetName = (session: Session) =>
+    session.guestName
+      ? `Guest: ${session.guestName}`
+      : session.classId
+        ? (classes.find((c) => c.id === session.classId)?.name ?? 'Class')
+        : (students.find((s) => s.id === session.studentId)?.name ?? 'Student');
+
+  const cancelMovePick = () => {
+    setMoveTarget(null);
+    setMoveDay(null);
+  };
+
+  const handleMoveRequest = (session: Session) => {
+    closeModal();
+    setMoveTarget(session);
+    setMoveDay(null);
+    setMoveTime(session.plannedTime.slice(0, 5));
+    setCurrentDate(new Date(`${session.plannedDate}T12:00:00`));
+    setView('month');
+  };
+
+  const handlePickMoveDay = (dateKey: string) => {
+    setMoveDay(dateKey);
+    if (moveTarget) setMoveTime(moveTarget.plannedTime.slice(0, 5));
+  };
+
+  const handleConfirmMove = async () => {
+    if (!moveTarget || !moveDay) return;
+    try {
+      // Same row, date/time only: billing, prepaid and history stay attached.
+      // First move captures the original slot; later moves never overwrite it.
+      await updateSession(moveTarget.id, {
+        plannedDate: moveDay,
+        plannedTime: moveTime,
+        originalPlannedDate: moveTarget.originalPlannedDate ?? moveTarget.plannedDate,
+        originalPlannedTime: moveTarget.originalPlannedTime ?? moveTarget.plannedTime,
+      });
+      toast.success('Session moved');
+      cancelMovePick();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to move session');
+    }
+  };
+
+  const moveConflict = useMemo(() => {
+    if (!moveTarget || !moveDay) return false;
+    const candidate = { ...moveTarget, plannedDate: moveDay, plannedTime: moveTime };
+    return sessions.some((s) => s.id !== moveTarget.id && sessionsOverlap(s, candidate));
+  }, [sessions, moveTarget, moveDay, moveTime]);
+
   const handleSaveSession = async (
     session: Omit<Session, 'id' | 'userId' | 'createdAt'> | Array<Omit<Session, 'id' | 'userId' | 'createdAt'>>
   ) => {
@@ -337,7 +394,16 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
           </Button>
           <div className="flex bg-slate-100 dark:bg-gray-800 p-1 rounded-lg">
             {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
-              <button key={v} type="button" onClick={() => setView(v)} className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${view === v ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'}`}>{v}</button>
+              <button
+                key={v}
+                type="button"
+                onClick={() => {
+                  setView(v);
+                  // Switching tabs cancels pick-a-day mode.
+                  cancelMovePick();
+                }}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${view === v ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'}`}
+              >{v}</button>
             ))}
           </div>
           <div className="relative" ref={defaultViewMenuRef}>
@@ -379,6 +445,21 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
           </div>
         </div>
       </div>
+
+      {/* Guided move: slim pick-a-day banner */}
+      {moveTarget && (
+        <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium shadow-sm">
+          <span className="truncate">Moving {getMoveTargetName(moveTarget)}'s session — tap a new day</span>
+          <button
+            type="button"
+            onClick={cancelMovePick}
+            aria-label="Cancel move"
+            className="shrink-0 p-0.5 rounded hover:bg-indigo-500 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 p-4">
         <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
@@ -483,7 +564,65 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
           onSessionClick={openEditModal}
           onAddSession={(dateKey) => openCreateModal(dateKey, preferences.calendarStartTime.slice(0, 5), displayTimezone)}
           onDeleteSession={handleDeleteSession}
+          pickMode={!!moveTarget}
+          onPickDay={handlePickMoveDay}
         />
+      )}
+
+      {/* Guided move: compact confirm sheet for the tapped day */}
+      {moveTarget && moveDay && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50"
+          onClick={() => setMoveDay(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 w-full max-w-md sm:rounded-xl rounded-t-xl shadow-lg p-4 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-800 dark:text-gray-100">Move session</h3>
+              <button
+                type="button"
+                onClick={() => setMoveDay(null)}
+                aria-label="Close"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-200 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-gray-400 mb-1">Student</label>
+              <div className="rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/50 px-3 py-2 text-sm text-slate-800 dark:text-gray-100">
+                {getMoveTargetName(moveTarget)}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-gray-400 mb-1">New date</label>
+                <div className="rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/50 px-3 py-2 text-sm text-slate-800 dark:text-gray-100">
+                  {moveDay}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-gray-400 mb-1">Time</label>
+                <TimePicker value={moveTime} onChange={setMoveTime} aria-label="New time" />
+              </div>
+            </div>
+            {moveConflict && (
+              <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                This slot overlaps another session — you can still confirm.
+              </p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => setMoveDay(null)}>
+                Cancel
+              </Button>
+              <Button type="button" variant="primary" className="flex-1" onClick={handleConfirmMove}>
+                Confirm move
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       <SessionModal
@@ -501,6 +640,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
         onSave={handleSaveSession}
         onUpdate={handleUpdateSession}
         onDelete={handleDeleteSession}
+        onMoveRequest={handleMoveRequest}
       />
 
       <EventModal

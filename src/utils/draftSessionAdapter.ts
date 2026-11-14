@@ -77,6 +77,8 @@ export function draftSessionsToSessions(
       status: (getString(raw, ['status']) as Session['status']) ?? 'scheduled',
       movedFromDate: null,
       movedFromTime: null,
+      originalPlannedDate: null,
+      originalPlannedTime: null,
       notes: getString(raw, ['notes']) ?? '',
       createdAt: new Date().toISOString(),
       studentId: getString(raw, ['studentId', 'student_id']),

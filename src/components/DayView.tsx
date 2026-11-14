@@ -7,8 +7,9 @@ import {
   formatDisplayWeekdayInTz,
 } from '../utils/timezone';
 import { addMinutes } from '../utils/date';
-import { findOverlappingSessions, getSessionColor, type SessionWithOverlap } from '../utils/calendar';
+import { findOverlappingSessions, getOriginalSlot, getSessionColor, type SessionWithOverlap } from '../utils/calendar';
 import { isSessionAutoCompleted } from '../hooks/useSessions';
+import { MovedMarker } from '../utils/sessionSymbols';
 
 function StatusIcon({ status }: { status: Session['status'] }) {
   const className = 'w-4 h-4 flex-shrink-0';
@@ -81,6 +82,16 @@ export function DayView({
       .sort((a, b) => a.plannedTime.localeCompare(b.plannedTime));
   }, [sessionsWithOverlap, dateKey]);
 
+  // Orange marker anchored at the original slot for sessions moved away today.
+  const movedAwayToday = useMemo(
+    () =>
+      sessionsWithOverlap.filter((session) => {
+        const original = getOriginalSlot(session);
+        return original !== null && original.date === dateKey;
+      }),
+    [sessionsWithOverlap, dateKey]
+  );
+
   const renderSession = (session: SessionWithOverlap) => {
     const student = getSessionStudent(session, enrollments, students);
     const cls = classes.find((c) => c.id === session.classId);
@@ -142,6 +153,18 @@ export function DayView({
       </div>
 
       <div className="p-3">
+        {movedAwayToday.length > 0 && (
+          <div className="space-y-1 mb-3">
+            {movedAwayToday.map((session) => (
+              <div
+                key={`moved-${session.id}`}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 border border-dashed border-orange-300 dark:border-orange-800 bg-orange-50/60 dark:bg-orange-900/20"
+              >
+                <MovedMarker session={session} labelClassName="text-[10px]" />
+              </div>
+            ))}
+          </div>
+        )}
         {daySessions.length === 0 ? (
           <div className="text-center py-10">
             <p className="text-slate-500 dark:text-gray-400 text-sm">No sessions today</p>

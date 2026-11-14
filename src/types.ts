@@ -67,6 +67,9 @@ export interface Session {
   status: 'scheduled' | 'completed' | 'moved' | 'cancelled' | 'holiday' | 'no-show';
   movedFromDate: string | null;
   movedFromTime: string | null;
+  /** First-ever scheduled slot, captured on the first date/time change; cleared when completed. */
+  originalPlannedDate: string | null;
+  originalPlannedTime: string | null;
   isAdditional?: boolean;
   isCatchUp?: boolean;
   isOnline?: boolean;

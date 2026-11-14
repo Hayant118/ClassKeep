@@ -607,6 +607,8 @@ export function ProposalEditor() {
       status: payload.status ?? existingDraft.status,
       movedFromDate: payload.movedFromDate ?? existingDraft.movedFromDate,
       movedFromTime: payload.movedFromTime ?? existingDraft.movedFromTime,
+      originalPlannedDate: payload.originalPlannedDate ?? existingDraft.originalPlannedDate,
+      originalPlannedTime: payload.originalPlannedTime ?? existingDraft.originalPlannedTime,
       notes: payload.notes ?? existingDraft.notes,
     };
 
@@ -874,6 +876,8 @@ export function ProposalEditor() {
               status: 'scheduled',
               movedFromDate: null,
               movedFromTime: null,
+              originalPlannedDate: null,
+              originalPlannedTime: null,
               notes: '',
             };
             newDrafts.push(buildDraftItem(payload));

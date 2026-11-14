@@ -49,6 +49,8 @@ interface SessionModalProps {
   onSave: (session: SessionPayload | SessionPayload[]) => void;
   onUpdate: (id: string, updates: Partial<Session>) => void;
   onDelete: (id: string) => void;
+  /** Edit-mode "Move…" action: parent closes the modal and starts pick-a-day. */
+  onMoveRequest?: (session: Session) => void;
 }
 
 type SessionPayload = Omit<Session, 'id' | 'userId' | 'createdAt'>;
@@ -178,6 +180,7 @@ export function SessionModal({
   onSave,
   onUpdate,
   onDelete,
+  onMoveRequest,
 }: SessionModalProps) {
   const isEditing = !!session;
   const isEditingCompleted = isEditing && session?.status === 'completed';
@@ -388,6 +391,17 @@ export function SessionModal({
         ? session.movedFromTime ?? session.plannedTime
         : session?.movedFromTime || null;
 
+    // Original slot is captured on the FIRST date/time change and never
+    // overwritten by later moves; cleared once the session is completed.
+    const dateOrTimeChanged =
+      !!session && (date !== session.plannedDate || time !== session.plannedTime);
+    const originalPlannedDate = dateOrTimeChanged
+      ? (session?.originalPlannedDate ?? session?.plannedDate ?? null)
+      : (session?.originalPlannedDate ?? null);
+    const originalPlannedTime = dateOrTimeChanged
+      ? (session?.originalPlannedTime ?? session?.plannedTime ?? null)
+      : (session?.originalPlannedTime ?? null);
+
     const wasCompleted = session?.status === 'completed';
     const nowCompleted = status === 'completed';
 
@@ -439,6 +453,8 @@ export function SessionModal({
       isAdditional,
       movedFromDate,
       movedFromTime,
+      originalPlannedDate: nowCompleted ? null : originalPlannedDate,
+      originalPlannedTime: nowCompleted ? null : originalPlannedTime,
       notes: notes.trim(),
     };
 
@@ -782,6 +798,9 @@ export function SessionModal({
             <Button type="submit" variant="primary" className="flex-1">{isDraft ? 'Save Draft' : isEditing ? 'Save Changes' : 'Save Session'}</Button>
             {isEditing && onLogProgress && (session?.classId || session?.studentId) && (
               <Button type="button" variant="secondary" className="flex-1" onClick={() => setIsProgressLogOpen(true)}>Log Progress</Button>
+            )}
+            {isEditing && !isDraft && onMoveRequest && session && (
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => onMoveRequest(session)}>Move…</Button>
             )}
             {isEditing && <Button type="button" variant="danger" className="flex-1" onClick={handleDelete}>Delete</Button>}
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>

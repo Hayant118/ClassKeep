@@ -541,6 +541,8 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
       const adjustment = planStudentPrepaidAdjustment(session, students, status);
       await updateSession(session.id, {
         status,
+        // The original-slot marker disappears once the lesson happens.
+        ...(status === 'completed' ? { originalPlannedDate: null, originalPlannedTime: null } : {}),
         ...(adjustment ? { prepaidDeducted: adjustment.direction === 'deduct' } : {}),
       });
       if (adjustment) await applyStudentPrepaidAdjustment(adjustment);
@@ -580,6 +582,8 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     try {
       await updateSession(first.sessionId, {
         status: 'completed',
+        originalPlannedDate: null,
+        originalPlannedTime: null,
         ...(adjustment ? { prepaidDeducted: true } : {}),
       });
     } catch (err) {

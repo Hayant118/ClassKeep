@@ -17,22 +17,6 @@ export function SessionSymbol({ session, isSource }: { session: Session; isSourc
       </svg>
     );
   }
-  if (session.movedFromDate && session.movedFromDate !== session.plannedDate) {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="6" fill="#f97316" />
-      </svg>
-    );
-  }
-  if (session.movedFromTime && session.movedFromTime !== session.plannedTime) {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16" stroke="#f97316" strokeWidth="2" strokeLinecap="round" fill="none">
-        <circle cx="8" cy="8" r="6" />
-        <line x1="8" y1="8" x2="8" y2="5" />
-        <line x1="8" y1="8" x2="11" y2="8" />
-      </svg>
-    );
-  }
   if (session.isAdditional) {
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" fill="none">
@@ -53,5 +37,27 @@ export function SessionSymbol({ session, isSource }: { session: Session; isSourc
     <svg width="16" height="16" viewBox="0 0 16 16" stroke="#3b82f6" strokeWidth="2" fill="none">
       <circle cx="8" cy="8" r="6" />
     </svg>
+  );
+}
+
+/**
+ * Orange clock anchored at the session's ORIGINAL slot (not its current one),
+ * with a small "moved to" label pointing at where the session now lives.
+ */
+export function MovedMarker({ session, labelClassName }: { session: Session; labelClassName?: string }): ReactElement {
+  return (
+    <span
+      className="inline-flex items-center gap-1 min-w-0"
+      title={`moved to ${session.plannedDate} ${session.plannedTime.slice(0, 5)}`}
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" stroke="#f97316" strokeWidth="2" strokeLinecap="round" fill="none" className="shrink-0">
+        <circle cx="8" cy="8" r="6" />
+        <line x1="8" y1="8" x2="8" y2="5" />
+        <line x1="8" y1="8" x2="11" y2="8" />
+      </svg>
+      <span className={`truncate text-orange-600 dark:text-orange-400 ${labelClassName ?? 'text-[9px] sm:text-[10px]'}`}>
+        moved to {session.plannedDate} {session.plannedTime.slice(0, 5)}
+      </span>
+    </span>
   );
 }
