@@ -94,9 +94,11 @@ export function ProgressLogModal({
     setSelectedIds((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
       const link = activeLinks.find((l) => l.curriculumId === id);
+      // Last session's "Next up" becomes this session's "Covered"; "Next up"
+      // starts empty so a fresh value is typed each time.
       setEntries((e) => ({
         ...e,
-        [id]: { covered: e[id]?.covered ?? '', nextUp: e[id]?.nextUp ?? link?.nextUp ?? '' },
+        [id]: { covered: e[id]?.covered ?? link?.nextUp ?? '', nextUp: e[id]?.nextUp ?? '' },
       }));
       return [...prev, id];
     });
@@ -115,7 +117,10 @@ export function ProgressLogModal({
   const handleCurriculumChange = (id: string) => {
     setCurriculumId(id);
     const link = links.find((l) => l.curriculumId === id && l.status === 'active');
-    setNextUp(link?.nextUp ?? '');
+    // Last session's "Next up" becomes this session's "Covered" (empty when
+    // nothing was stored yet); "Next up" always starts fresh.
+    setCovered(link?.nextUp ?? '');
+    setNextUp('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
