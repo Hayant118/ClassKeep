@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Check, ArrowRightLeft, X, Circle, Star } from 'lucide-react';
+import { Check, ArrowRightLeft, X, Star } from 'lucide-react';
 import type { Session, Student, Class, Enrollment, CalendarPreferences } from '../types';
 import {
   formatDateKeyInTz,
@@ -20,8 +20,6 @@ function StatusIcon({ status }: { status: Session['status'] }) {
       return <ArrowRightLeft className={`${className} text-amber-600`} />;
     case 'cancelled':
       return <X className={`${className} text-red-600`} />;
-    case 'no-show':
-      return <Circle className={`${className} text-slate-400`} />;
     case 'holiday':
       return <Star className={`${className} text-purple-600`} />;
     default:

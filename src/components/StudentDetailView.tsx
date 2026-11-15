@@ -77,7 +77,6 @@ function statusBadge(status: Session['status']) {
     moved: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
     cancelled: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
     holiday: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-    'no-show': 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status]}`}>

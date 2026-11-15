@@ -26,7 +26,6 @@ const LABELS = {
     additional: 'Additional',
     cancelled: 'Cancelled',
     completed: 'Completed',
-    noShow: 'No-show',
     moved: 'Rescheduled',
     totalCharge: 'Total charge',
     summary: 'Monthly summary',
@@ -49,7 +48,6 @@ const LABELS = {
     additional: '加课',
     cancelled: '取消',
     completed: '已完成',
-    noShow: '缺课',
     moved: '改期',
     totalCharge: '总费用',
     summary: '月度摘要',
@@ -147,7 +145,7 @@ const SYMBOLS: Record<
 };
 
 function classifySession(session: Session): SymbolType | null {
-  if (session.status === 'cancelled' || session.status === 'no-show') return 'cancelled';
+  if (session.status === 'cancelled') return 'cancelled';
   if (session.movedFromDate && session.movedFromDate !== session.plannedDate) return 'completed-moved';
   if (session.movedFromTime && session.movedFromTime !== session.plannedTime) return 'moved-time';
   if (session.isAdditional) return 'additional';
@@ -222,7 +220,6 @@ interface MonthSection {
   sourceDays: Map<number, Session[]>;
   completedCount: number;
   cancelledCount: number;
-  noShowCount: number;
   movedCount: number;
   additionalCount: number;
   plannedCount: number;
@@ -313,7 +310,6 @@ export function ReviewExport({
 
     const completedCount = monthSessions.filter((s) => classifySession(s) === 'completed').length;
     const cancelledCount = monthSessions.filter((s) => s.status === 'cancelled').length;
-    const noShowCount = monthSessions.filter((s) => s.status === 'no-show').length;
     const movedCount = monthSessions.filter((s) => {
       const type = classifySession(s);
       return type === 'completed-moved' || type === 'moved-time';
@@ -321,7 +317,7 @@ export function ReviewExport({
     const additionalCount = monthSessions.filter((s) => s.isAdditional).length;
 
     const plannedCount = monthSessions.filter((s) => !s.isAdditional).length;
-    const actualCount = monthSessions.filter((s) => s.status !== 'cancelled' && s.status !== 'no-show').length;
+    const actualCount = monthSessions.filter((s) => s.status !== 'cancelled').length;
 
     const totalCharge =
       Math.round(
@@ -363,7 +359,6 @@ export function ReviewExport({
       sourceDays,
       completedCount,
       cancelledCount,
-      noShowCount,
       movedCount,
       additionalCount,
       plannedCount,
@@ -549,7 +544,6 @@ export function ReviewExport({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
               <Tile label={t.completed} value={section.completedCount} />
               <Tile label={t.cancelled} value={section.cancelledCount} />
-              <Tile label={t.noShow} value={section.noShowCount} />
               <Tile label={t.moved} value={section.movedCount} />
               <Tile label={t.additional} value={section.additionalCount} />
               <Tile label={t.actual} value={section.actualCount} />

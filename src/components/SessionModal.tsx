@@ -63,13 +63,11 @@ const ALL_STATUS_OPTIONS: { value: Session['status']; label: string }[] = [
   { value: 'moved', label: 'Moved' },
   { value: 'cancelled', label: 'Cancelled' },
   { value: 'holiday', label: 'Holiday' },
-  { value: 'no-show', label: 'No-show' },
 ];
 
 const COMPLETED_STATUS_OPTIONS: { value: Session['status']; label: string }[] = [
   { value: 'moved', label: 'Moved' },
   { value: 'cancelled', label: 'Cancelled' },
-  { value: 'no-show', label: 'No-show' },
   { value: 'holiday', label: 'Holiday' },
 ];
 

@@ -64,7 +64,7 @@ export interface Session {
   totalCharge: number | null;
   /** True once the stored totalCharge has been deducted from a tracked student's prepaid balance. */
   prepaidDeducted: boolean;
-  status: 'scheduled' | 'completed' | 'moved' | 'cancelled' | 'holiday' | 'no-show';
+  status: 'scheduled' | 'completed' | 'moved' | 'cancelled' | 'holiday';
   movedFromDate: string | null;
   movedFromTime: string | null;
   /** First-ever scheduled slot, captured on the first date/time change; cleared when completed. */
@@ -92,6 +92,8 @@ export interface CalendarPreferences {
   /** Global low-balance alert threshold for tracked prepaid balances. */
   lowBalanceThreshold: number;
   defaultCalendarView?: 'day' | 'week' | 'month';
+  /** Billing view: which income metric shows as the large headline number. */
+  billingPrimaryMetric?: 'projected' | 'earned';
   updatedAt: string;
 }
 

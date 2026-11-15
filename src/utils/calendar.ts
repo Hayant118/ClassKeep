@@ -107,7 +107,6 @@ export function getSessionColor(
   switch (session.status) {
     case 'completed':
     case 'scheduled':
-    case 'no-show':
       return '#22c55e';
     case 'moved':
       return '#f97316';

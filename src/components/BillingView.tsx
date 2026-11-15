@@ -22,6 +22,7 @@ import { useSessions } from '../hooks/useSessions';
 import { useEnrollments } from '../hooks/useEnrollments';
 import { usePayments } from '../hooks/usePayments';
 import { useBilling } from '../hooks/useBilling';
+import { usePreferences } from '../hooks/usePreferences';
 import { MonthView } from './MonthView';
 import type { Session, Class, Student, Enrollment } from '../types';
 import type { BillingPeriod, StudentBillingMetrics } from '../utils/billing';
@@ -54,7 +55,6 @@ const STATUS_LABELS: Record<Session['status'], string> = {
   moved: 'Moved',
   cancelled: 'Cancelled',
   holiday: 'Holiday',
-  'no-show': 'No-show',
 };
 
 const STATUS_COLORS: Record<Session['status'], string> = {
@@ -63,7 +63,6 @@ const STATUS_COLORS: Record<Session['status'], string> = {
   moved: '#f97316',
   cancelled: '#ef4444',
   holiday: '#94a3b8',
-  'no-show': '#f59e0b',
 };
 
 interface SummaryCardProps {
@@ -192,6 +191,8 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
   const { sessions: fetchedSessions, loading: sessionsLoading, error: sessionsError } = useSessions();
   const { enrollments, loading: enrollmentsLoading } = useEnrollments();
   const { payments, fetchPayments, loading: paymentsLoading } = usePayments();
+  const { preferences, setPreferences } = usePreferences();
+  const primaryMetric = preferences.billingPrimaryMetric ?? 'projected';
 
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [timeRange, setTimeRange] = useState<TimeRange>('monthly');
@@ -635,7 +636,27 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Billing</h2>
           <p className="text-sm text-slate-500 dark:text-gray-400">Income tracking and analytics</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 dark:text-gray-500">Income metric</span>
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-gray-800 p-1 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setPreferences({ billingPrimaryMetric: 'projected' })}
+                className={toggleButtonClass(primaryMetric === 'projected')}
+              >
+                Projected
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreferences({ billingPrimaryMetric: 'earned' })}
+                className={toggleButtonClass(primaryMetric === 'earned')}
+              >
+                Earned so far
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setSelectedMonthOffset((o) => o - 1)}
@@ -658,6 +679,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           >
             Next →
           </button>
+          </div>
         </div>
       </div>
 
@@ -682,9 +704,13 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           label={selectedMonthLabel}
           value={
             <div className="space-y-0.5">
-              <div>Projected {formatCurrency(selectedMonthProjected)}</div>
+              <div>
+                {primaryMetric === 'projected' ? 'Projected' : 'Earned so far'}{' '}
+                {formatCurrency(primaryMetric === 'projected' ? selectedMonthProjected : selectedMonthIncome)}
+              </div>
               <div className="text-sm font-semibold text-slate-600 dark:text-gray-400">
-                Actual so far {formatCurrency(selectedMonthIncome)}
+                {primaryMetric === 'projected' ? 'Earned so far' : 'Projected'}{' '}
+                {formatCurrency(primaryMetric === 'projected' ? selectedMonthIncome : selectedMonthProjected)}
               </div>
             </div>
           }

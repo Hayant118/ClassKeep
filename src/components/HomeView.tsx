@@ -1,7 +1,7 @@
 // src/components/HomeView.tsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, UserX, ArrowRightLeft, RefreshCw } from 'lucide-react';
+import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, ArrowRightLeft, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSessions } from '../hooks/useSessions';
 import { useProposals } from '../hooks/useProposals';
@@ -949,7 +949,13 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
               return (
               <div
                 key={session.id}
-                className="p-3 rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-700/30 hover:shadow-sm transition-shadow"
+                className={`p-3 rounded-lg border hover:shadow-sm transition-shadow ${
+                  session.status === 'completed'
+                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                    : session.status === 'cancelled'
+                    ? 'bg-red-500/10 border-red-500/30'
+                    : 'bg-slate-50 border-slate-200 dark:bg-gray-700/30 dark:border-gray-700'
+                }`}
               >
                 <div className="flex items-start gap-3">
                 <div className="flex flex-col items-center justify-center min-w-[52px] py-1 px-2 bg-white dark:bg-gray-800 rounded-md border border-slate-200 dark:border-gray-600">
@@ -980,14 +986,6 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
                       >
                         <Check className="w-3 h-3" />
                         Taught
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickStatus(session, 'no-show')}
-                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-medium hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800 dark:hover:bg-amber-900/50"
-                      >
-                        <UserX className="w-3 h-3" />
-                        No-show
                       </button>
                       <button
                         type="button"

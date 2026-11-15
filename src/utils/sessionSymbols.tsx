@@ -9,7 +9,7 @@ export function SessionSymbol({ session, isSource }: { session: Session; isSourc
   if (isSource) {
     return <></>;
   }
-  if (session.status === 'cancelled' || session.status === 'no-show') {
+  if (session.status === 'cancelled') {
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" fill="none">
         <line x1="4" y1="4" x2="12" y2="12" />

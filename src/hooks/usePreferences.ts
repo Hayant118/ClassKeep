@@ -16,6 +16,7 @@ const DEFAULT_PREFERENCES: CalendarPreferences = {
   calendarSlotMinutes: 30,
   lowBalanceThreshold: 300,
   defaultCalendarView: 'week',
+  billingPrimaryMetric: 'projected',
   updatedAt: new Date().toISOString(),
 };
 
@@ -33,6 +34,7 @@ function fromDb(row: Record<string, unknown>): CalendarPreferences {
     calendarSlotMinutes: (row.calendar_slot_minutes as number) ?? 30,
     lowBalanceThreshold: (row.low_balance_threshold as number) ?? 300,
     defaultCalendarView: (row.default_calendar_view as 'day' | 'week' | 'month') ?? 'week',
+    billingPrimaryMetric: (row.billing_primary_metric as 'projected' | 'earned' | undefined) ?? 'projected',
     updatedAt: row.updated_at as string,
   };
 }
@@ -49,6 +51,7 @@ function toDb(prefs: Partial<CalendarPreferences>): Record<string, unknown> {
   if (prefs.calendarSlotMinutes !== undefined) map.calendar_slot_minutes = prefs.calendarSlotMinutes;
   if (prefs.lowBalanceThreshold !== undefined) map.low_balance_threshold = prefs.lowBalanceThreshold;
   if (prefs.defaultCalendarView !== undefined) map.default_calendar_view = prefs.defaultCalendarView;
+  if (prefs.billingPrimaryMetric !== undefined) map.billing_primary_metric = prefs.billingPrimaryMetric;
   return map;
 }
 

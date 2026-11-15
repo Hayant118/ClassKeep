@@ -20,7 +20,9 @@ function fromDb(row: Record<string, unknown>): Session {
     rateValue: (row.rate_value as number | null) ?? null,
     totalCharge: (row.total_charge as number | null) ?? null,
     prepaidDeducted: (row.prepaid_deducted as boolean | undefined) ?? false,
-    status: row.status as Session['status'],
+    // Defensive fallback: historical 'no-show' rows (the DB enum value stays)
+    // surface as cancelled so they render and bill like cancellations.
+    status: (row.status === 'no-show' ? 'cancelled' : row.status) as Session['status'],
     movedFromDate: (row.moved_from_date as string | null) ?? null,
     movedFromTime: (row.moved_from_time as string | null) ?? null,
     originalPlannedDate: (row.original_planned_date as string | null) ?? null,

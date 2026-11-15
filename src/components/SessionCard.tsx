@@ -1,7 +1,7 @@
 // SessionCard.tsx
 import type { Student } from '../types';
 import { isSessionAutoCompleted } from '../hooks/useSessions';
-import { Check, ArrowRightLeft, X, Circle, Star } from 'lucide-react';
+import { Check, ArrowRightLeft, X, Star } from 'lucide-react';
 import { getSessionColor, type SessionWithOverlap } from '../utils/calendar';
 import { addMinutes } from '../utils/date';
 
@@ -14,8 +14,6 @@ function StatusIcon({ status }: { status: SessionWithOverlap['status'] }) {
       return <ArrowRightLeft className={`${className} text-amber-600`} />;
     case 'cancelled':
       return <X className={`${className} text-red-600`} />;
-    case 'no-show':
-      return <Circle className={`${className} text-slate-400`} />;
     case 'holiday':
       return <Star className={`${className} text-purple-600`} />;
     default:
