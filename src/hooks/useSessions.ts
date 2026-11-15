@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Session, Enrollment, Student } from '../types';
-import { DEFAULT_TIMEZONE, toUtcIso } from '../utils/timezone';
+import { DEFAULT_TIMEZONE, toUtcIso, formatDateKeyInTz, getNowInDisplayTz } from '../utils/timezone';
 import { planStudentPrepaidAdjustment, syncStudentLowBalanceReminder } from '../utils/prepaid';
 
 function fromDb(row: Record<string, unknown>): Session {
@@ -327,6 +327,41 @@ export function useSessions() {
     setSessions(prev => prev.filter(s => s.id !== id));
   };
 
+  /**
+   * Batch-delete upcoming (status 'scheduled', planned today or later)
+   * sessions for one student OR one group class. Enrollments, payments,
+   * proposals, lesson logs and past sessions are never touched. Returns the
+   * deleted count; caller refetches.
+   */
+  const deleteFutureSessions = async (opts: { studentId?: string; classId?: string }): Promise<number> => {
+    const { studentId, classId } = opts;
+    if (!studentId && !classId) return 0;
+
+    const todayKey = formatDateKeyInTz(getNowInDisplayTz().toISOString(), DEFAULT_TIMEZONE);
+
+    let query = supabase
+      .from('ck_sessions')
+      .delete({ count: 'exact' })
+      .eq('status', 'scheduled')
+      .gte('planned_date', todayKey);
+    query = studentId ? query.eq('student_id', studentId) : query.eq('class_id', classId);
+
+    const { count, error: sbError } = await query;
+    if (sbError) throw new Error(sbError.message);
+
+    setSessions(prev =>
+      prev.filter(
+        (s) =>
+          !(
+            s.status === 'scheduled' &&
+            s.plannedDate >= todayKey &&
+            (studentId ? s.studentId === studentId : s.classId === classId)
+          )
+      )
+    );
+    return count ?? 0;
+  };
+
   return {
     sessions,
     loading,
@@ -335,5 +370,6 @@ export function useSessions() {
     addSession,
     updateSession,
     deleteSession,
+    deleteFutureSessions,
   };
 }

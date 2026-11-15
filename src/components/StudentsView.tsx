@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ChevronDown } from 'lucide-react';
 import { useStudents } from '../hooks/useStudents';
+import { useSessions } from '../hooks/useSessions';
 import { useClasses } from '../hooks/useClasses';
 import { useEnrollments } from '../hooks/useEnrollments';
 import type { Student, Class } from '../types';
-import { DEFAULT_TIMEZONE } from '../utils/timezone';
+import { DEFAULT_TIMEZONE, formatDateKeyInTz, getNowInDisplayTz } from '../utils/timezone';
 import { CURATED_PALETTE, normalizeColor } from '../utils/colors';
 
 const COMMON_TIMEZONES = [
@@ -129,6 +130,7 @@ export function StudentsView() {
     setTrackProgress(true);
     setPrepaidTracked(false);
     setPrepaidThreshold('');
+    setDeleteFutureArmed(false);
     setEditingId(null);
   };
 
@@ -205,6 +207,7 @@ export function StudentsView() {
     setTrackProgress(student.trackProgress ?? true);
     setPrepaidTracked(student.prepaidBalance != null);
     setPrepaidThreshold(student.prepaidThreshold != null ? String(student.prepaidThreshold) : '');
+    setDeleteFutureArmed(false);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => nameInputRef.current?.focus(), 300);
   };
@@ -250,11 +253,13 @@ export function StudentsView() {
     setEditClassName(cls.name);
     setEditClassCapacity(cls.maxCapacity.toString());
     setEditClassFee(cls.defaultRate != null ? cls.defaultRate.toString() : '');
+    setDeleteClassFutureArmed(false);
   };
 
   const cancelEditClass = () => {
     setEditingClassId(null);
     setEditClassName('');
+    setDeleteClassFutureArmed(false);
   };
 
   const handleUpdateClass = async (e: React.FormEvent, id: string) => {
@@ -368,6 +373,61 @@ export function StudentsView() {
       toast.success('Added to 1-on-1 students');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update student');
+    }
+  };
+
+  // Batch-delete upcoming sessions: two-tap confirm, live count, pending guard.
+  const { sessions, deleteFutureSessions, fetchSessions } = useSessions();
+  const [deleteFutureArmed, setDeleteFutureArmed] = useState(false);
+  const [deleteFuturePending, setDeleteFuturePending] = useState(false);
+  const [deleteClassFutureArmed, setDeleteClassFutureArmed] = useState(false);
+  const [deleteClassFuturePending, setDeleteClassFuturePending] = useState(false);
+
+  const todayKey = formatDateKeyInTz(getNowInDisplayTz().toISOString(), DEFAULT_TIMEZONE);
+
+  const isUpcoming = (s: { status: string; plannedDate: string }) =>
+    s.status === 'scheduled' && s.plannedDate >= todayKey;
+
+  const editingStudent = editingId ? students.find((s) => s.id === editingId) : undefined;
+  const upcomingStudentSessions = editingStudent
+    ? sessions.filter((s) => s.studentId === editingStudent.id && isUpcoming(s))
+    : [];
+
+  const handleDeleteFutureSessions = async () => {
+    if (!editingStudent || deleteFuturePending) return;
+    if (!deleteFutureArmed) {
+      setDeleteFutureArmed(true);
+      return;
+    }
+    setDeleteFuturePending(true);
+    try {
+      const deleted = await deleteFutureSessions({ studentId: editingStudent.id });
+      toast.success(`Deleted ${deleted} upcoming session${deleted === 1 ? '' : 's'}`);
+      setDeleteFutureArmed(false);
+      await fetchSessions();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete upcoming sessions');
+    } finally {
+      setDeleteFuturePending(false);
+    }
+  };
+
+  const handleDeleteClassFutureSessions = async (cls: Class) => {
+    if (deleteClassFuturePending) return;
+    if (!deleteClassFutureArmed) {
+      setDeleteClassFutureArmed(true);
+      return;
+    }
+    setDeleteClassFuturePending(true);
+    try {
+      const deleted = await deleteFutureSessions({ classId: cls.id });
+      toast.success(`Deleted ${deleted} upcoming session${deleted === 1 ? '' : 's'} of ${cls.name}`);
+      setDeleteClassFutureArmed(false);
+      await fetchSessions();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete upcoming sessions');
+    } finally {
+      setDeleteClassFuturePending(false);
     }
   };
 
@@ -624,6 +684,31 @@ export function StudentsView() {
               </button>
             )}
           </div>
+
+          {editingId && editingStudent && (
+            <div className="rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50/60 dark:bg-red-950/30 p-3 space-y-2">
+              {deleteFutureArmed && (
+                <p className="text-xs text-red-700 dark:text-red-300">
+                  Delete {upcomingStudentSessions.length} upcoming session{upcomingStudentSessions.length === 1 ? '' : 's'} for{' '}
+                  {editingStudent.name}? This can't be undone.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleDeleteFutureSessions}
+                disabled={deleteFuturePending || upcomingStudentSessions.length === 0}
+                className="text-sm font-medium px-4 py-2 rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/50"
+              >
+                {deleteFuturePending
+                  ? 'Deleting…'
+                  : upcomingStudentSessions.length === 0
+                    ? 'No upcoming sessions'
+                    : deleteFutureArmed
+                      ? `Confirm — delete ${upcomingStudentSessions.length}`
+                      : 'Delete future sessions…'}
+              </button>
+            </div>
+          )}
         </form>
       </div>
 
@@ -697,6 +782,7 @@ export function StudentsView() {
             {groupClasses.map((cls) => {
               const classStudents = getClassStudents(cls.id);
               const isEditing = editingClassId === cls.id;
+              const upcomingClassSessions = sessions.filter((s) => s.classId === cls.id && isUpcoming(s));
               const enrolledIds = new Set(
                 enrollments.filter((e) => e.classId === cls.id).map((e) => e.studentId)
               );
@@ -704,6 +790,7 @@ export function StudentsView() {
               return (
                 <div key={cls.id} className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700 shadow-sm p-4">
                   {isEditing ? (
+                    <>
                     <form onSubmit={(e) => handleUpdateClass(e, cls.id)} className="flex flex-col sm:flex-row flex-wrap gap-3">
                       <input
                         type="text"
@@ -746,6 +833,29 @@ export function StudentsView() {
                         </button>
                       </div>
                     </form>
+                    <div className="mt-3 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50/60 dark:bg-red-950/30 p-3 space-y-2">
+                      {deleteClassFutureArmed && (
+                        <p className="text-xs text-red-700 dark:text-red-300">
+                          Delete {upcomingClassSessions.length} upcoming session{upcomingClassSessions.length === 1 ? '' : 's'} of{' '}
+                          {cls.name}? This can't be undone.
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClassFutureSessions(cls)}
+                        disabled={deleteClassFuturePending || upcomingClassSessions.length === 0}
+                        className="text-xs font-medium px-3 py-1.5 rounded border transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/50"
+                      >
+                        {deleteClassFuturePending
+                          ? 'Deleting…'
+                          : upcomingClassSessions.length === 0
+                            ? 'No upcoming sessions'
+                            : deleteClassFutureArmed
+                              ? `Confirm — delete ${upcomingClassSessions.length}`
+                              : 'Delete future sessions…'}
+                      </button>
+                    </div>
+                    </>
                   ) : (
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
