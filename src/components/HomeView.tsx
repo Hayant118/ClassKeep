@@ -11,7 +11,7 @@ import { useProgress } from '../hooks/useProgress';
 import { SessionModal } from './SessionModal';
 import { ProgressLogModal } from './ProgressLogModal';
 import type { ProgressLogPayload } from './ProgressLogModal';
-import type { Reminder, Student, Class, Enrollment, Session } from '../types';
+import type { Reminder, Student, StudentCurriculum, ClassCurriculum, Class, Enrollment, Session } from '../types';
 import { CURATED_PALETTE, DEFAULT_COLOR, normalizeColor } from '../utils/colors';
 import { SessionSymbol } from '../utils/sessionSymbols';
 import { getNowInDisplayTz } from '../utils/timezone';
@@ -23,6 +23,8 @@ interface HomeViewProps {
   students: Student[];
   classes: Class[];
   enrollments: Enrollment[];
+  updateStudent: (id: string, updates: Partial<Student>) => Promise<unknown>;
+  updateClass: (id: string, updates: Partial<Class>) => Promise<unknown>;
 }
 
 function formatLocalDateKey(date: Date): string {
@@ -249,7 +251,7 @@ function CurriculumProgressRow({ preview }: { preview: ProgressPreview }) {
   );
 }
 
-export function HomeView({ students, classes, enrollments }: HomeViewProps) {
+export function HomeView({ students, classes, enrollments, updateStudent, updateClass }: HomeViewProps) {
   const navigate = useNavigate();
   const { sessions, loading: sessionsLoading, updateSession, fetchSessions } = useSessions();
   const { proposals, loading: proposalsLoading } = useProposals();
@@ -258,11 +260,13 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
   const {
     classCurricula,
     studentCurricula,
+    lessonLogs,
     insertLessonLog,
     advanceCurriculumPosition,
     addStudentCurriculum,
     updateStudentCurriculum,
     fetchAllProgress,
+    fetchLessonLogs,
   } = useProgress();
 
   const [editingSession, setEditingSession] = useState<Session | undefined>();
@@ -486,40 +490,97 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
 
   useEffect(() => {
     fetchAllProgress();
-  }, [fetchAllProgress]);
+    fetchLessonLogs();
+  }, [fetchAllProgress, fetchLessonLogs]);
 
-  // Curriculum progress previews shown on session cards, e.g. "Next: Unit 3C".
+  // Session cards resolve the "next class" book in order: the pinned
+  // next_curriculum_id, else the book of the most recent lesson log, else
+  // the first active link (most recently updated).
   const classProgressPreview = useMemo(() => {
     const map = new Map<string, ProgressPreview>();
+
+    const linksByClass = new Map<string, ClassCurriculum[]>();
     for (const cc of classCurricula) {
-      if (cc.status !== 'active' || map.has(cc.classId)) continue;
-      if (!cc.currentPosition && !cc.nextUp) continue;
-      const curriculum = curricula.find((c) => c.id === cc.curriculumId);
-      map.set(cc.classId, {
+      if (cc.status !== 'active') continue;
+      const arr = linksByClass.get(cc.classId) ?? [];
+      arr.push(cc);
+      linksByClass.set(cc.classId, arr);
+    }
+
+    // lessonLogs is ordered created_at desc, so the first row per class is
+    // its most recent log.
+    const lastLogCurriculumByClass = new Map<string, string>();
+    for (const log of lessonLogs) {
+      if (!log.classId || lastLogCurriculumByClass.has(log.classId)) continue;
+      lastLogCurriculumByClass.set(log.classId, log.curriculumId);
+    }
+
+    for (const cls of classes) {
+      const links = linksByClass.get(cls.id);
+      if (!links || links.length === 0) continue;
+      const lastLogCurriculumId = lastLogCurriculumByClass.get(cls.id);
+      const chosen =
+        (cls.nextCurriculumId
+          ? links.find((l) => l.curriculumId === cls.nextCurriculumId)
+          : undefined) ??
+        (lastLogCurriculumId
+          ? links.find((l) => l.curriculumId === lastLogCurriculumId)
+          : undefined) ??
+        links[0];
+      if (!chosen.currentPosition && !chosen.nextUp) continue;
+      const curriculum = curricula.find((c) => c.id === chosen.curriculumId);
+      map.set(cls.id, {
         title: curriculum?.title ?? 'Curriculum',
         color: curriculum?.color,
-        currentPosition: cc.currentPosition,
-        nextUp: cc.nextUp,
+        currentPosition: chosen.currentPosition,
+        nextUp: chosen.nextUp,
       });
     }
     return map;
-  }, [classCurricula, curricula]);
+  }, [classCurricula, curricula, classes, lessonLogs]);
 
   const studentProgressPreview = useMemo(() => {
     const map = new Map<string, ProgressPreview>();
+
+    const linksByStudent = new Map<string, StudentCurriculum[]>();
     for (const sc of studentCurricula) {
-      if (sc.status !== 'active' || map.has(sc.studentId)) continue;
-      if (!sc.currentPosition && !sc.nextUp) continue;
-      const curriculum = curricula.find((c) => c.id === sc.curriculumId);
-      map.set(sc.studentId, {
+      if (sc.status !== 'active') continue;
+      const arr = linksByStudent.get(sc.studentId) ?? [];
+      arr.push(sc);
+      linksByStudent.set(sc.studentId, arr);
+    }
+
+    // lessonLogs is ordered created_at desc, so the first row per student is
+    // their most recent log.
+    const lastLogCurriculumByStudent = new Map<string, string>();
+    for (const log of lessonLogs) {
+      if (!log.studentId || lastLogCurriculumByStudent.has(log.studentId)) continue;
+      lastLogCurriculumByStudent.set(log.studentId, log.curriculumId);
+    }
+
+    for (const student of students) {
+      const links = linksByStudent.get(student.id);
+      if (!links || links.length === 0) continue;
+      const lastLogCurriculumId = lastLogCurriculumByStudent.get(student.id);
+      const chosen =
+        (student.nextCurriculumId
+          ? links.find((l) => l.curriculumId === student.nextCurriculumId)
+          : undefined) ??
+        (lastLogCurriculumId
+          ? links.find((l) => l.curriculumId === lastLogCurriculumId)
+          : undefined) ??
+        links[0];
+      if (!chosen.currentPosition && !chosen.nextUp) continue;
+      const curriculum = curricula.find((c) => c.id === chosen.curriculumId);
+      map.set(student.id, {
         title: curriculum?.title ?? 'Curriculum',
         color: curriculum?.color,
-        currentPosition: sc.currentPosition,
-        nextUp: sc.nextUp,
+        currentPosition: chosen.currentPosition,
+        nextUp: chosen.nextUp,
       });
     }
     return map;
-  }, [studentCurricula, curricula]);
+  }, [studentCurricula, curricula, students, lessonLogs]);
 
   const dismissFromBanner = (sessionId: string) => {
     // Belt and braces: even if a stale refetch momentarily brings back the
@@ -648,9 +709,24 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
       }
     }
 
-    const [logResults, positionResults] = await Promise.all([
+    // Pin the book chosen in the log modal as the next class: on the class
+    // for group sessions (ck_classes.next_curriculum_id), on the student for
+    // 1-on-1 (ck_students.next_curriculum_id).
+    const pointerTasks: Promise<unknown>[] = [];
+    if (first.nextCurriculumId) {
+      if (first.classId) {
+        pointerTasks.push(updateClass(first.classId, { nextCurriculumId: first.nextCurriculumId }));
+      } else if (first.studentId) {
+        pointerTasks.push(
+          updateStudent(first.studentId, { nextCurriculumId: first.nextCurriculumId })
+        );
+      }
+    }
+
+    const [logResults, positionResults, pointerResults] = await Promise.all([
       Promise.allSettled(logTasks),
       Promise.allSettled(positionTasks),
+      Promise.allSettled(pointerTasks),
     ]);
 
     const logFailures = logResults
@@ -659,12 +735,18 @@ export function HomeView({ students, classes, enrollments }: HomeViewProps) {
     const positionFailures = positionResults
       .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
       .map((r) => errorMessage(r.reason));
+    const pointerFailures = pointerResults
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      .map((r) => errorMessage(r.reason));
 
     // A failed curriculum upsert must not lose the taught status: the session
     // is already completed and the lesson logs are saved, so surface the
     // error but still close out the flow.
     for (const message of positionFailures) {
       toast.error(`Progress logged, but updating the curriculum position failed: ${message}`);
+    }
+    for (const message of pointerFailures) {
+      toast.error(`Progress logged, but saving the next-class book failed: ${message}`);
     }
 
     dismissFromBanner(first.sessionId);

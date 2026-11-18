@@ -16,6 +16,8 @@ export interface Student {
   prepaidThreshold?: number | null;
   /** When false, no ck_student_curricula rows are maintained for this student. */
   trackProgress: boolean;
+  /** Book pinned as the next class; null = infer from the most recent lesson log. */
+  nextCurriculumId?: string | null;
   notes: string;
   createdAt: string;
 }
@@ -31,6 +33,8 @@ export interface Class {
   color?: string;
   textbook: string;
   currentUnit: string;
+  /** Book pinned as the class's next session; null = infer from the most recent lesson log. */
+  nextCurriculumId?: string | null;
   createdAt: string;
 }
 

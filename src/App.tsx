@@ -198,8 +198,8 @@ function AppContent() {
   const [authSession, setAuthSession] = useState<SupabaseSession | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const { students, loading: studentsLoading, fetchStudents } = useStudents();
-  const { classes, loading: classesLoading, fetchClasses, addClass } = useClasses();
+  const { students, loading: studentsLoading, fetchStudents, updateStudent } = useStudents();
+  const { classes, loading: classesLoading, fetchClasses, addClass, updateClass } = useClasses();
   const { enrollments, loading: enrollmentsLoading, fetchEnrollments, addEnrollment } = useEnrollments();
   const { sessions, loading: sessionsLoading, fetchSessions } = useSessions();
   const { fetchReminders, reminders } = useReminders();
@@ -410,6 +410,8 @@ function AppContent() {
                 students={students}
                 classes={classes}
                 enrollments={enrollments}
+                updateStudent={updateStudent}
+                updateClass={updateClass}
               />
             }
           />

@@ -15,6 +15,7 @@ function fromDb(row: Record<string, unknown>): Class {
     color: (row.color as string | undefined) ?? undefined,
     textbook: (row.textbook as string) ?? '',
     currentUnit: (row.current_unit as string) ?? '',
+    nextCurriculumId: (row.next_curriculum_id as string | null | undefined) ?? null,
     createdAt: row.created_at as string,
   };
 }
@@ -28,6 +29,7 @@ function toDb(cls: Partial<Class>): Record<string, unknown> {
   if (cls.color !== undefined) map.color = cls.color;
   if (cls.textbook !== undefined) map.textbook = cls.textbook;
   if (cls.currentUnit !== undefined) map.current_unit = cls.currentUnit;
+  if (cls.nextCurriculumId !== undefined) map.next_curriculum_id = cls.nextCurriculumId;
   return map;
 }
 

@@ -224,6 +224,8 @@ export function useProgress() {
   };
 
   const deleteStudentCurriculum = async (id: string) => {
+    const link = studentCurricula.find((c) => c.id === id);
+
     const { error: sbError } = await supabase
       .from('ck_student_curricula')
       .delete()
@@ -232,9 +234,21 @@ export function useProgress() {
     if (sbError) throw new Error(sbError.message);
 
     setStudentCurricula(prev => prev.filter(c => c.id !== id));
+
+    // Pointer hygiene: if the student had this book pinned as their next
+    // class, drop the pointer (the link it pointed at no longer exists).
+    if (link) {
+      await supabase
+        .from('ck_students')
+        .update({ next_curriculum_id: null })
+        .eq('id', link.studentId)
+        .eq('next_curriculum_id', link.curriculumId);
+    }
   };
 
   const deleteClassCurriculum = async (id: string) => {
+    const link = classCurricula.find((c) => c.id === id);
+
     const { error: sbError } = await supabase
       .from('ck_class_curricula')
       .delete()
@@ -243,6 +257,16 @@ export function useProgress() {
     if (sbError) throw new Error(sbError.message);
 
     setClassCurricula(prev => prev.filter(c => c.id !== id));
+
+    // Pointer hygiene: if the class had this book pinned as its next
+    // session's book, drop the pointer (the link it pointed at no longer exists).
+    if (link) {
+      await supabase
+        .from('ck_classes')
+        .update({ next_curriculum_id: null })
+        .eq('id', link.classId)
+        .eq('next_curriculum_id', link.curriculumId);
+    }
   };
 
   const insertLessonLog = async (

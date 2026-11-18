@@ -18,6 +18,7 @@ function fromDb(row: Record<string, unknown>): Student {
     prepaidBalance: (row.prepaid_balance as number | null | undefined) ?? null,
     prepaidThreshold: (row.prepaid_threshold as number | null | undefined) ?? null,
     trackProgress: (row.track_progress as boolean | undefined) ?? true,
+    nextCurriculumId: (row.next_curriculum_id as string | null | undefined) ?? null,
     notes: (row.notes as string) ?? '',
     createdAt: row.created_at as string,
   };
@@ -35,6 +36,7 @@ function toDb(student: Partial<Student>): Record<string, unknown> {
   if (student.prepaidBalance !== undefined) map.prepaid_balance = student.prepaidBalance;
   if (student.prepaidThreshold !== undefined) map.prepaid_threshold = student.prepaidThreshold;
   if (student.trackProgress !== undefined) map.track_progress = student.trackProgress;
+  if (student.nextCurriculumId !== undefined) map.next_curriculum_id = student.nextCurriculumId;
   if (student.notes !== undefined) map.notes = student.notes;
   return map;
 }

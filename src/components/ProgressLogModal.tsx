@@ -12,6 +12,8 @@ export interface ProgressLogPayload {
   covered: string;
   nextUp?: string;
   progressType: 'group' | 'individual';
+  /** Book pinned as the next class: the student's or the class's next_curriculum_id. */
+  nextCurriculumId?: string;
 }
 
 interface ProgressLogModalProps {
@@ -46,6 +48,10 @@ export function ProgressLogModal({
   const [nextUp, setNextUp] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // "Next class" pin (1-on-1): the user's explicit pick; '' = follow the
+  // default derived from the book(s) being logged.
+  const [nextClassId, setNextClassId] = useState('');
+
   // Multi-book state for 1-on-1 sessions with several active curricula:
   // one entry (covered / next_up) per selected book.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -68,6 +74,7 @@ export function ProgressLogModal({
       setCurriculumId('');
       setCovered('');
       setNextUp('');
+      setNextClassId('');
       setSelectedIds([]);
       setEntries({});
       setSaving(false);
@@ -89,6 +96,23 @@ export function ProgressLogModal({
   // 1-on-1 with several active books → checkbox flow (one log row per book).
   const activeLinks = useMemo(() => links.filter((l) => l.status === 'active'), [links]);
   const multiMode = !isGroup && activeLinks.length > 1;
+
+  // "Next class" options: the class's or student's active books. Default is
+  // the book being logged — the selected one in single/group mode, the first
+  // checked one in multi mode — until the user picks something else.
+  const nextClassOptions = useMemo(
+    () =>
+      activeLinks
+        .map((l) => curricula.find((c) => c.id === l.curriculumId))
+        .filter((c): c is Curriculum => Boolean(c)),
+    [activeLinks, curricula]
+  );
+  const nextClassDefaultId = multiMode ? (selectedIds[0] ?? '') : curriculumId;
+  const nextClassValue =
+    nextClassOptions.find((c) => c.id === nextClassId)?.id ??
+    nextClassOptions.find((c) => c.id === nextClassDefaultId)?.id ??
+    nextClassOptions[0]?.id ??
+    '';
 
   const toggleCurriculum = (id: string) => {
     setSelectedIds((prev) => {
@@ -127,6 +151,8 @@ export function ProgressLogModal({
     e.preventDefault();
     if (saving) return;
 
+    const nextClassChoice = nextClassValue ? nextClassValue : undefined;
+
     let payloads: ProgressLogPayload[];
     if (multiMode) {
       if (!multiCanSubmit) return;
@@ -138,6 +164,7 @@ export function ProgressLogModal({
         covered: entries[id].covered.trim(),
         nextUp: entries[id].nextUp.trim() || undefined,
         progressType: 'individual',
+        nextCurriculumId: nextClassChoice,
       }));
     } else {
       if (!curriculumId || !covered.trim()) return;
@@ -150,6 +177,7 @@ export function ProgressLogModal({
           covered: covered.trim(),
           nextUp: nextUp.trim() || undefined,
           progressType: isGroup ? 'group' : 'individual',
+          nextCurriculumId: nextClassChoice,
         },
       ];
     }
@@ -298,6 +326,26 @@ export function ProgressLogModal({
                 />
               </div>
             </>
+          )}
+
+          {nextClassOptions.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1">
+                Next class
+              </label>
+              <select
+                value={nextClassValue}
+                onChange={(e) => setNextClassId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {nextClassOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                    {c.subject ? ` (${c.subject})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
 
           <div className="flex gap-3 pt-2">
