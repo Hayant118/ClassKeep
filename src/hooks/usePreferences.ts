@@ -1,11 +1,16 @@
 // src/hooks/usePreferences.ts
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import type { CalendarPreferences } from '../types';
+import type { AccentTheme, CalendarPreferences, ColorPaletteName, LanguagePreference, ThemePreference } from '../types';
 
 const DEFAULT_PREFERENCES: CalendarPreferences = {
   id: '',
   userId: '',
+  theme: 'system',
+  accentTheme: 'indigo',
+  colorPalette: 'vivid',
+  language: 'en',
+  currency: '¥',
   colorConfirmed: '#22c55e',
   colorMoved: '#f97316',
   colorCancelled: '#6b7280',
@@ -24,6 +29,11 @@ function fromDb(row: Record<string, unknown>): CalendarPreferences {
   return {
     id: row.id as string,
     userId: row.user_id as string,
+    theme: (row.theme as ThemePreference | undefined) ?? 'system',
+    accentTheme: (row.accent_theme as AccentTheme | undefined) ?? 'indigo',
+    colorPalette: (row.color_palette as ColorPaletteName | undefined) ?? 'vivid',
+    language: (row.language as LanguagePreference | undefined) ?? 'en',
+    currency: (row.currency as string | undefined) ?? '¥',
     colorConfirmed: (row.color_confirmed as string) ?? '#22c55e',
     colorMoved: (row.color_moved as string) ?? '#f97316',
     colorCancelled: (row.color_cancelled as string) ?? '#6b7280',
@@ -41,6 +51,11 @@ function fromDb(row: Record<string, unknown>): CalendarPreferences {
 
 function toDb(prefs: Partial<CalendarPreferences>): Record<string, unknown> {
   const map: Record<string, unknown> = {};
+  if (prefs.theme !== undefined) map.theme = prefs.theme;
+  if (prefs.accentTheme !== undefined) map.accent_theme = prefs.accentTheme;
+  if (prefs.colorPalette !== undefined) map.color_palette = prefs.colorPalette;
+  if (prefs.language !== undefined) map.language = prefs.language;
+  if (prefs.currency !== undefined) map.currency = prefs.currency;
   if (prefs.colorConfirmed !== undefined) map.color_confirmed = prefs.colorConfirmed;
   if (prefs.colorMoved !== undefined) map.color_moved = prefs.colorMoved;
   if (prefs.colorCancelled !== undefined) map.color_cancelled = prefs.colorCancelled;
@@ -81,6 +96,11 @@ export function usePreferences() {
     } else {
       const payload = {
         user_id: userData.user.id,
+        theme: DEFAULT_PREFERENCES.theme,
+        accent_theme: DEFAULT_PREFERENCES.accentTheme,
+        color_palette: DEFAULT_PREFERENCES.colorPalette,
+        language: DEFAULT_PREFERENCES.language,
+        currency: DEFAULT_PREFERENCES.currency,
         color_confirmed: DEFAULT_PREFERENCES.colorConfirmed,
         color_moved: DEFAULT_PREFERENCES.colorMoved,
         color_cancelled: DEFAULT_PREFERENCES.colorCancelled,

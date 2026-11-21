@@ -17,10 +17,10 @@ const TYPE_ICONS: Record<Reminder['type'], React.ReactNode> = {
 };
 
 const TYPE_ACCENTS: Record<Reminder['type'], { dot: string; icon: string; border: string }> = {
-  pre_class: { dot: 'bg-blue-500', icon: 'text-blue-300', border: 'border-l-blue-500' },
-  low_balance: { dot: 'bg-amber-500', icon: 'text-amber-300', border: 'border-l-amber-500' },
-  unreviewed: { dot: 'bg-purple-500', icon: 'text-purple-300', border: 'border-l-purple-500' },
-  daily_digest: { dot: 'bg-emerald-500', icon: 'text-emerald-300', border: 'border-l-emerald-500' },
+  pre_class: { dot: 'bg-blue-500', icon: 'text-blue-600 dark:text-blue-300', border: 'border-l-blue-500' },
+  low_balance: { dot: 'bg-amber-500', icon: 'text-amber-600 dark:text-amber-300', border: 'border-l-amber-500' },
+  unreviewed: { dot: 'bg-purple-500', icon: 'text-purple-600 dark:text-purple-300', border: 'border-l-purple-500' },
+  daily_digest: { dot: 'bg-emerald-500', icon: 'text-emerald-600 dark:text-emerald-300', border: 'border-l-emerald-500' },
 };
 
 function formatRelativeTime(dateStr: string): string {
@@ -143,22 +143,22 @@ export function RemindersView() {
               <div
                 key={reminder.id}
                 onClick={() => handleCardClick(reminder)}
-                className={`group relative bg-slate-900 rounded-xl border border-slate-700 shadow-sm transition-all ${
+                className={`group relative bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all ${
                   isHistory
                     ? 'opacity-60 grayscale'
                     : 'hover:shadow-md cursor-pointer'
                 }`}
               >
-                <div className={`flex items-start gap-2.5 pl-3 pr-2 py-3 rounded-lg bg-slate-800/60 border border-slate-700 border-l-2 m-1.5 ${accent.border}`}>
+                <div className={`flex items-start gap-2.5 pl-3 pr-2 py-3 rounded-lg bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 border-l-2 m-1.5 ${accent.border}`}>
                   <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${accent.dot}`} />
                   <span className={`mt-0.5 shrink-0 ${accent.icon}`}>{TYPE_ICONS[reminder.type]}</span>
 
                   <div className="flex-1 min-w-0">
-                    <h3 className={`font-semibold text-sm truncate ${isHistory ? 'text-slate-500' : 'text-slate-100'}`}>
+                    <h3 className={`font-semibold text-sm truncate ${isHistory ? 'text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>
                       {reminder.title}
                     </h3>
                     {reminder.body && (
-                      <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
                         {reminder.body}
                       </p>
                     )}
@@ -174,7 +174,7 @@ export function RemindersView() {
                         e.stopPropagation();
                         dismissReminder(reminder.id);
                       }}
-                      className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg transition-colors shrink-0"
+                      className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors shrink-0"
                       aria-label="Dismiss"
                     >
                       <X className="w-4 h-4" />

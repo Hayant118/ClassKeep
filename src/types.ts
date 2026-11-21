@@ -82,9 +82,24 @@ export interface Session {
 }
 
 // src/types.ts — update CalendarPreferences
+export type ThemePreference = 'light' | 'dark' | 'system';
+export type AccentTheme = 'indigo' | 'emerald' | 'amber';
+export type ColorPaletteName = 'vivid' | 'pastel' | 'earth';
+export type LanguagePreference = 'en' | 'zh';
+
 export interface CalendarPreferences {
   id: string;
   userId: string;
+  /** UI theme: explicit light/dark, or 'system' to follow the OS preference. */
+  theme: ThemePreference;
+  /** Accent color used for primary buttons, active tabs, and links. */
+  accentTheme: AccentTheme;
+  /** Color ramp used to auto-assign colors to NEW students/classes. */
+  colorPalette: ColorPaletteName;
+  /** UI language (storage-only until the locale pass lands). */
+  language: LanguagePreference;
+  /** Currency symbol shown with amounts (e.g. ¥, $, £, €, HK$). */
+  currency: string;
   colorConfirmed: string;
   colorMoved: string;
   colorCancelled: string;

@@ -1,5 +1,6 @@
 // src/utils/colors.ts
 // Curated color palette and auto-assignment helpers for ClassKeep.
+import type { ColorPaletteName } from '../types';
 
 /**
  * Curated palette of 16 distinct, accessible colors used for students and classes.
@@ -28,6 +29,51 @@ export const CURATED_PALETTE: readonly string[] = [
  * Default fallback color used when no color can be assigned.
  */
 export const DEFAULT_COLOR = '#6366f1';
+
+/**
+ * Color ramps for auto-assigning colors to NEW students/classes.
+ * Existing entities and manual overrides are never touched by these.
+ */
+export const COLOR_PALETTES: Record<ColorPaletteName, readonly string[]> = {
+  // Current palette: saturated, high-contrast hues.
+  vivid: CURATED_PALETTE,
+  // Soft tints for a lighter look.
+  pastel: [
+    '#fda4af', // rose
+    '#fdba74', // orange
+    '#fde68a', // amber
+    '#bef264', // lime
+    '#86efac', // green
+    '#5eead4', // teal
+    '#7dd3fc', // sky
+    '#a5b4fc', // indigo
+    '#c4b5fd', // violet
+    '#f0abfc', // fuchsia
+    '#cbd5e1', // slate
+    '#f9a8d4', // pink
+  ],
+  // Muted browns, olives, and deep naturals.
+  earth: [
+    '#92400e', // amber-800
+    '#b45309', // amber-700
+    '#78350f', // yellow-900
+    '#a16207', // yellow-700
+    '#713f12', // yellow-800
+    '#3f6212', // lime-800
+    '#4d7c0f', // lime-700
+    '#065f46', // emerald-800
+    '#0f766e', // teal-700
+    '#57534e', // stone-600
+    '#44403c', // stone-700
+    '#7c2d12', // orange-800
+  ],
+};
+
+/** Resolve a palette name to its ramp, falling back to the vivid palette. */
+export function getPalette(name: string | undefined): readonly string[] {
+  if (name && name in COLOR_PALETTES) return COLOR_PALETTES[name as keyof typeof COLOR_PALETTES];
+  return CURATED_PALETTE;
+}
 
 interface Hsl {
   h: number;
@@ -117,18 +163,23 @@ export function normalizeColor(color: string | undefined): string | undefined {
 }
 
 /**
- * Pick the least-used color from the curated palette.
- * Falls back to the palette default if existingColors is empty/invalid.
+ * Pick the least-used color from the given palette (defaults to the curated
+ * vivid palette). Falls back to the palette's first color if existingColors
+ * is empty/invalid.
  */
-export function assignColor(existingColors: (string | undefined)[]): string {
+export function assignColor(
+  existingColors: (string | undefined)[],
+  palette: readonly string[] = CURATED_PALETTE,
+): string {
+  if (palette.length === 0) return CURATED_PALETTE[0];
   const normalized = existingColors
     .map((c) => normalizeColor(c))
     .filter((c): c is string => Boolean(c));
 
-  if (normalized.length === 0) return CURATED_PALETTE[0];
+  if (normalized.length === 0) return palette[0];
 
   const usage = new Map<string, number>();
-  for (const color of CURATED_PALETTE) {
+  for (const color of palette) {
     usage.set(color, 0);
   }
   for (const color of normalized) {
@@ -136,9 +187,9 @@ export function assignColor(existingColors: (string | undefined)[]): string {
     if (known) usage.set(known, (usage.get(known) ?? 0) + 1);
   }
 
-  let bestColor = CURATED_PALETTE[0];
+  let bestColor = palette[0];
   let bestCount = Infinity;
-  for (const color of CURATED_PALETTE) {
+  for (const color of palette) {
     const count = usage.get(color) ?? 0;
     if (count < bestCount) {
       bestCount = count;

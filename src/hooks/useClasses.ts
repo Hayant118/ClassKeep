@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Class } from '../types';
-import { assignColor, normalizeColor } from '../utils/colors';
+import { assignColor, getPalette, normalizeColor } from '../utils/colors';
+import { usePreferences } from './usePreferences';
 
 function fromDb(row: Record<string, unknown>): Class {
   return {
@@ -37,6 +38,7 @@ export function useClasses() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { preferences } = usePreferences();
 
   const fetchClasses = useCallback(async () => {
     setLoading(true);
@@ -66,7 +68,9 @@ export function useClasses() {
     if (!userData.user) throw new Error('Not authenticated');
 
     // Auto-assign a color if one wasn't provided.
-    const color = normalizeColor(cls.color) ?? assignColor(classes.map((c) => c.color));
+    const color =
+      normalizeColor(cls.color) ??
+      assignColor(classes.map((c) => c.color), getPalette(preferences.colorPalette));
 
     const payload = {
       ...toDb(cls),

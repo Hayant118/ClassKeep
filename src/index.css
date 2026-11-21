@@ -13,6 +13,14 @@
   --color-text-primary: #0f172a;
   --color-text-secondary: #64748b;
 
+  /* Accent: drives primary buttons, active tabs, and links.
+     The active accent theme is selected via the data-accent attribute
+     on <html> (set from the accentTheme preference). */
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef2ff;
+  --accent-soft-strong: #e0e7ff;
+
   /* Spacing */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -27,13 +35,47 @@
   --radius-xl: 1rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-surface: #1e293b;
-    --color-background: #0f172a;
-    --color-text-primary: #f1f5f9;
-    --color-text-secondary: #94a3b8;
-  }
+:root[data-accent='emerald'] {
+  --accent: #059669;
+  --accent-hover: #047857;
+  --accent-soft: #ecfdf5;
+  --accent-soft-strong: #d1fae5;
+}
+
+:root[data-accent='amber'] {
+  --accent: #d97706;
+  --accent-hover: #b45309;
+  --accent-soft: #fffbeb;
+  --accent-soft-strong: #fef3c7;
+}
+
+.dark {
+  /* Colors — scoped to the .dark class (toggled from the theme preference)
+     so an explicit light choice wins even when the OS is set to dark. */
+  --color-surface: #1e293b;
+  --color-background: #0f172a;
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+
+  /* Dark accent values: brighter hues that read on dark surfaces. */
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-soft: rgba(99, 102, 241, 0.15);
+  --accent-soft-strong: rgba(99, 102, 241, 0.25);
+}
+
+.dark[data-accent='emerald'] {
+  --accent: #10b981;
+  --accent-hover: #34d399;
+  --accent-soft: rgba(16, 185, 129, 0.15);
+  --accent-soft-strong: rgba(16, 185, 129, 0.25);
+}
+
+.dark[data-accent='amber'] {
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --accent-soft: rgba(245, 158, 11, 0.15);
+  --accent-soft-strong: rgba(245, 158, 11, 0.25);
 }
 
 body {

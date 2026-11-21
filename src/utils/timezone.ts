@@ -15,6 +15,33 @@ export function getDisplayTimezone(): string {
   return DEFAULT_TIMEZONE;
 }
 
+/** Persist the display timezone (e.g. from the settings page). */
+export function setDisplayTimezone(timezone: string): void {
+  try {
+    localStorage.setItem(DISPLAY_TIMEZONE_STORAGE_KEY, timezone);
+  } catch {
+    // localStorage unavailable; ignore.
+  }
+}
+
+/** Common timezone suggestions for the settings timezone field. */
+export const COMMON_TIMEZONES: readonly string[] = [
+  'Asia/Shanghai',
+  'Asia/Tokyo',
+  'Asia/Singapore',
+  'Asia/Hong_Kong',
+  'Asia/Dubai',
+  'Europe/London',
+  'Europe/Berlin',
+  'Europe/Moscow',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'Australia/Sydney',
+  'UTC',
+];
+
 export function getTeacherTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }

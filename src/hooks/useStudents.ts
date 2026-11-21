@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Student } from '../types';
-import { assignColor, assignFamilyShade, normalizeColor } from '../utils/colors';
+import { assignColor, assignFamilyShade, getPalette, normalizeColor } from '../utils/colors';
+import { usePreferences } from './usePreferences';
 
 function fromDb(row: Record<string, unknown>): Student {
   return {
@@ -45,6 +46,7 @@ export function useStudents() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { preferences } = usePreferences();
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -88,7 +90,10 @@ export function useStudents() {
         }
       }
       if (!color) {
-        color = assignColor(students.map((s) => s.color));
+        color = assignColor(
+          students.map((s) => s.color),
+          getPalette(preferences.colorPalette),
+        );
       }
     }
 

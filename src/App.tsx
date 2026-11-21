@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { Toaster, toast } from 'sonner';
 import { Bell, Menu, X } from 'lucide-react';
 import { supabase } from './lib/supabase';
+import { usePreferences } from './hooks/usePreferences';
 import { useStudents } from './hooks/useStudents';
 import { useClasses } from './hooks/useClasses';
 import { useEnrollments } from './hooks/useEnrollments';
@@ -11,7 +12,7 @@ import { useSessions } from './hooks/useSessions';
 import { checkAndAutoCompleteSessions } from './hooks/useSessions';
 import { useReminders } from './hooks/useReminders';
 import { useReminderSettings } from './hooks/useReminderSettings';
-import type { Reminder } from './types';
+import type { Reminder, ThemePreference, AccentTheme } from './types';
 import {
   checkPreClassReminders,
   generateDailyDigest,
@@ -98,7 +99,7 @@ function Header({ unreadCount }: HeaderProps) {
                   onClick={() => handleNav(key)}
                   className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                     activeTab === key
-                      ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
+                      ? 'bg-white dark:bg-gray-700 text-[var(--accent)] shadow-sm'
                       : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'
                   }`}
                 >
@@ -110,7 +111,7 @@ function Header({ unreadCount }: HeaderProps) {
             <button
               type="button"
               onClick={() => navigate('/reminders')}
-              className="relative p-2 rounded-lg text-slate-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+              className="relative p-2 rounded-lg text-slate-600 dark:text-gray-300 hover:text-[var(--accent)] hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Reminders"
             >
               <Bell className="w-5 h-5" />
@@ -132,7 +133,7 @@ function Header({ unreadCount }: HeaderProps) {
             <button
               type="button"
               onClick={() => setIsMenuOpen(true)}
-              className="sm:hidden p-2 rounded-lg text-slate-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+              className="sm:hidden p-2 rounded-lg text-slate-600 dark:text-gray-300 hover:text-[var(--accent)] hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
@@ -154,7 +155,7 @@ function Header({ unreadCount }: HeaderProps) {
               <button
                 type="button"
                 onClick={closeMenu}
-                className="p-2 rounded-lg text-slate-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
+                className="p-2 rounded-lg text-slate-600 dark:text-gray-300 hover:text-[var(--accent)] hover:bg-slate-100 dark:hover:bg-gray-800 transition-colors"
                 aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
@@ -168,7 +169,7 @@ function Header({ unreadCount }: HeaderProps) {
                   onClick={() => handleNav(key)}
                   className={`text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                     activeTab === key
-                      ? 'bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300'
+                      ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
                       : 'text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800 hover:text-slate-900 dark:hover:text-gray-100'
                   }`}
                 >
@@ -446,10 +447,32 @@ function AppContent() {
   );
 }
 
-export default function App() {
+function useApplyAppearance(theme: ThemePreference, accentTheme: AccentTheme) {
   useEffect(() => {
-    document.documentElement.classList.add('dark');
-  }, []);
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.remove('dark');
+      return;
+    }
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      return;
+    }
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => root.classList.toggle('dark', mql.matches);
+    apply();
+    mql.addEventListener('change', apply);
+    return () => mql.removeEventListener('change', apply);
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.accent = accentTheme;
+  }, [accentTheme]);
+}
+
+export default function App() {
+  const { preferences } = usePreferences();
+  useApplyAppearance(preferences.theme, preferences.accentTheme);
 
   return <AppContent />;
 }

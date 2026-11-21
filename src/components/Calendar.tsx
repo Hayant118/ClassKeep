@@ -402,7 +402,7 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
                   // Switching tabs cancels pick-a-day mode.
                   cancelMovePick();
                 }}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${view === v ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'}`}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${view === v ? 'bg-white dark:bg-gray-700 text-[var(--accent)] shadow-sm' : 'text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-gray-100'}`}
               >{v}</button>
             ))}
           </div>
@@ -435,8 +435,8 @@ export function Calendar({ students, classes, enrollments = [] }: CalendarProps)
                       className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm capitalize hover:bg-slate-50 dark:hover:bg-gray-700"
                       aria-pressed={isDefault}
                     >
-                      <span className={isDefault ? 'font-medium text-indigo-600' : 'text-slate-600 dark:text-gray-400'}>{v}</span>
-                      {isDefault && <Check className="w-4 h-4 text-indigo-600" />}
+                      <span className={isDefault ? 'font-medium text-[var(--accent)]' : 'text-slate-600 dark:text-gray-400'}>{v}</span>
+                      {isDefault && <Check className="w-4 h-4 text-[var(--accent)]" />}
                     </button>
                   );
                 })}

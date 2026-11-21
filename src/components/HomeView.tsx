@@ -427,10 +427,10 @@ export function HomeView({ students, classes, enrollments, updateStudent, update
   const isLoading = sessionsLoading || proposalsLoading;
 
   const TYPE_ACCENTS: Record<Reminder['type'], { dot: string; icon: string; border: string }> = {
-    pre_class: { dot: 'bg-blue-500', icon: 'text-blue-300', border: 'border-l-blue-500' },
-    low_balance: { dot: 'bg-amber-500', icon: 'text-amber-300', border: 'border-l-amber-500' },
-    unreviewed: { dot: 'bg-purple-500', icon: 'text-purple-300', border: 'border-l-purple-500' },
-    daily_digest: { dot: 'bg-emerald-500', icon: 'text-emerald-300', border: 'border-l-emerald-500' },
+    pre_class: { dot: 'bg-blue-500', icon: 'text-blue-600 dark:text-blue-300', border: 'border-l-blue-500' },
+    low_balance: { dot: 'bg-amber-500', icon: 'text-amber-600 dark:text-amber-300', border: 'border-l-amber-500' },
+    unreviewed: { dot: 'bg-purple-500', icon: 'text-purple-600 dark:text-purple-300', border: 'border-l-purple-500' },
+    daily_digest: { dot: 'bg-emerald-500', icon: 'text-emerald-600 dark:text-emerald-300', border: 'border-l-emerald-500' },
   };
 
   const TYPE_CHIP_ICONS: Record<Reminder['type'], React.ReactNode> = {
@@ -875,11 +875,11 @@ export function HomeView({ students, classes, enrollments, updateStudent, update
 
       {/* Reminder notifications */}
       {visibleReminders.length > 0 && (
-        <div className="bg-slate-900 rounded-xl border border-slate-700 p-3 space-y-2">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
           {(showAllReminders ? visibleReminders : visibleReminders.slice(0, 2)).map((reminder) => (
             <div
               key={reminder.id}
-              className={`flex items-center gap-2.5 pl-3 pr-2 py-2 rounded-lg bg-slate-800/60 border border-slate-700 border-l-2 ${TYPE_ACCENTS[reminder.type].border}`}
+              className={`flex items-center gap-2.5 pl-3 pr-2 py-2 rounded-lg bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 border-l-2 ${TYPE_ACCENTS[reminder.type].border}`}
             >
               <span className={`w-2 h-2 rounded-full shrink-0 ${TYPE_ACCENTS[reminder.type].dot}`} />
               <button
@@ -888,7 +888,7 @@ export function HomeView({ students, classes, enrollments, updateStudent, update
                 className="flex items-center gap-1.5 min-w-0 flex-1 text-left"
               >
                 <span className={TYPE_ACCENTS[reminder.type].icon}>{TYPE_CHIP_ICONS[reminder.type]}</span>
-                <span className="truncate text-sm text-slate-100">{getReminderBannerText(reminder, students)}</span>
+                <span className="truncate text-sm text-slate-700 dark:text-slate-100">{getReminderBannerText(reminder, students)}</span>
               </button>
               <button
                 type="button"
@@ -896,7 +896,7 @@ export function HomeView({ students, classes, enrollments, updateStudent, update
                   e.stopPropagation();
                   dismissReminder(reminder.id);
                 }}
-                className="p-1 hover:bg-slate-700 rounded-full transition-colors shrink-0"
+                className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors shrink-0"
                 aria-label="Dismiss"
               >
                 <X className="w-3.5 h-3.5 text-slate-400" />
@@ -907,7 +907,7 @@ export function HomeView({ students, classes, enrollments, updateStudent, update
             <button
               type="button"
               onClick={() => setShowAllReminders(true)}
-              className="w-full text-left text-sm text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-800/60 transition-colors"
+              className="w-full text-left text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
             >
               +{visibleReminders.length - 2} more
             </button>

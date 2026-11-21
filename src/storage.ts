@@ -210,6 +210,11 @@ function getNextStudentColor(): string {
 export const DEFAULT_PREFERENCES: CalendarPreferences = {
   id: '',
   userId: '',
+  theme: 'system',
+  accentTheme: 'indigo',
+  colorPalette: 'vivid',
+  language: 'en',
+  currency: '¥',
   colorConfirmed: '#22c55e',
   colorMoved: '#f97316',
   colorCancelled: '#6b7280',
@@ -240,4 +245,25 @@ export function savePreferences(preferences: CalendarPreferences): void {
 export function resetPreferences(): CalendarPreferences {
   localStorage.setItem(STORAGE_KEYS.preferences, JSON.stringify(DEFAULT_PREFERENCES));
   return DEFAULT_PREFERENCES;
+}
+
+// UI language — storage-only until the locale pass wires it to preferences.
+const LANGUAGE_STORAGE_KEY = 'classkeep.language';
+
+export function getLanguage(): 'en' | 'zh' {
+  try {
+    const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (stored === 'en' || stored === 'zh') return stored;
+  } catch {
+    // localStorage unavailable; fall through to default.
+  }
+  return 'en';
+}
+
+export function saveLanguage(language: 'en' | 'zh'): void {
+  try {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  } catch {
+    // localStorage unavailable; ignore.
+  }
 }

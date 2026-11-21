@@ -618,14 +618,14 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
   const tabButtonClass = (tab: TabKey) =>
     `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
       activeTab === tab
-        ? 'bg-indigo-600 text-white'
+        ? 'bg-[var(--accent)] text-white'
         : 'bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-400 border border-slate-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-700'
     }`;
 
   const toggleButtonClass = (active: boolean) =>
     `px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
       active
-        ? 'bg-indigo-600 text-white'
+        ? 'bg-[var(--accent)] text-white'
         : 'bg-white dark:bg-gray-800 text-slate-600 dark:text-gray-400 border border-slate-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-700'
     }`;
 
@@ -667,7 +667,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
           <button
             type="button"
             onClick={() => setSelectedMonthOffset(0)}
-            className="text-sm font-semibold text-slate-800 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400"
+            className="text-sm font-semibold text-slate-800 dark:text-gray-100 hover:text-[var(--accent)]"
             title="Back to current month"
           >
             {selectedMonthLabel}

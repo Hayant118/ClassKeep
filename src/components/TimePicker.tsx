@@ -104,14 +104,13 @@ function Wheel({
           <div
             key={n}
             onClick={() => onSelect(n)}
+            className={n === selected ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-400'}
             style={{
               height: ROW,
               lineHeight: `${ROW}px`,
               textAlign: 'center',
               scrollSnapAlign: 'center',
               fontSize: 20,
-              fontWeight: n === selected ? 700 : 400,
-              color: n === selected ? '#ffffff' : '#94a3b8',
               cursor: 'pointer',
               userSelect: 'none',
             }}
@@ -218,18 +217,10 @@ export function TimePicker({
       )}
 
       {open && (
-        <div
-          style={{
-            marginTop: 8,
-            background: '#1e293b',
-            border: '1px solid #334155',
-            borderRadius: 14,
-            padding: 12,
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}>
+        <div className="mt-2 rounded-[14px] border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+          <div className="flex items-center justify-center gap-2">
             <Wheel items={hours} selected={hour} onSelect={(h) => onChange(`${pad(h)}:${pad(minute)}`)} />
-            <span style={{ color: '#f1f5f9', fontSize: 22, fontWeight: 700 }}>:</span>
+            <span className="text-slate-900 dark:text-gray-100" style={{ fontSize: 22, fontWeight: 700 }}>:</span>
             <Wheel items={minutes} selected={minute} onSelect={(m) => onChange(`${pad(hour)}:${pad(m)}`)} />
           </div>
           <button
