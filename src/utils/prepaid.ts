@@ -1,5 +1,6 @@
 // src/utils/prepaid.ts
 import { supabase } from '../lib/supabase';
+import { formatMoney } from './billing';
 import type { Session, Student } from '../types';
 
 export interface StudentPrepaidAdjustment {
@@ -76,23 +77,26 @@ export const DEFAULT_LOW_BALANCE_THRESHOLD = 300;
  */
 export const PREPAID_TOP_UP_NOTE = 'Prepaid top-up';
 
-/** Reads the global low_balance_threshold preference (default 300). */
-async function fetchGlobalLowBalanceThreshold(): Promise<number> {
+/** Reads the global low-balance prefs: threshold (default 300) and currency symbol (default ¥). */
+async function fetchGlobalLowBalancePrefs(): Promise<{ threshold: number; currency: string }> {
   const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return DEFAULT_LOW_BALANCE_THRESHOLD;
+  if (!userData.user) return { threshold: DEFAULT_LOW_BALANCE_THRESHOLD, currency: '¥' };
 
   const { data, error } = await supabase
     .from('ck_preferences')
-    .select('low_balance_threshold')
+    .select('low_balance_threshold, currency')
     .eq('user_id', userData.user.id)
     .single();
 
   if (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to fetch low balance threshold preference:', error);
-    return DEFAULT_LOW_BALANCE_THRESHOLD;
+    return { threshold: DEFAULT_LOW_BALANCE_THRESHOLD, currency: '¥' };
   }
-  return (data?.low_balance_threshold as number | undefined) ?? DEFAULT_LOW_BALANCE_THRESHOLD;
+  return {
+    threshold: (data?.low_balance_threshold as number | undefined) ?? DEFAULT_LOW_BALANCE_THRESHOLD,
+    currency: (data?.currency as string | undefined) ?? '¥',
+  };
 }
 
 /**
@@ -103,7 +107,8 @@ async function fetchGlobalLowBalanceThreshold(): Promise<number> {
  * Above threshold: auto-dismiss any active low_balance reminders for them.
  */
 export async function syncStudentLowBalanceReminder(student: Student, balance: number): Promise<void> {
-  const threshold = student.prepaidThreshold ?? (await fetchGlobalLowBalanceThreshold());
+  const prefs = await fetchGlobalLowBalancePrefs();
+  const threshold = student.prepaidThreshold ?? prefs.threshold;
 
   if (balance > threshold) {
     const { error } = await supabase
@@ -143,7 +148,7 @@ export async function syncStudentLowBalanceReminder(student: Student, balance: n
     user_id: userData.user.id,
     type: 'low_balance',
     reference_id: student.id,
-    title: `${student.name}'s prepaid balance is low — ¥${balance.toFixed(2)} remaining`,
+    title: `${student.name}'s prepaid balance is low — ${formatMoney(balance, prefs.currency)} remaining`,
   });
 
   if (error) {

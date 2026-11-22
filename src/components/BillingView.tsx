@@ -28,8 +28,8 @@ import type { Session, Class, Student, Enrollment } from '../types';
 import type { BillingPeriod, StudentBillingMetrics } from '../utils/billing';
 import { DEFAULT_TIMEZONE } from '../utils/timezone';
 import {
-  formatCurrency,
-  formatCurrencyCompact,
+  formatCurrency as formatCurrencyBase,
+  formatCurrencyCompact as formatCurrencyCompactBase,
   getPeriods,
   isDateInPeriod,
   resolveSessionCharge,
@@ -130,19 +130,19 @@ function getStudentSessionCount(
   return sessions.filter((s) => s.status === status && sessionBelongsToStudent(s, studentId, classIds)).length;
 }
 
-function TrendTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
+function TrendTooltip({ active, payload, label, currency = '¥' }: { active?: boolean; payload?: Array<{ value: number }>; label?: string; currency?: string }) {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
         <p className="text-xs text-slate-500 dark:text-gray-500">{label}</p>
-        <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(payload[0].value)}</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrencyBase(payload[0].value, currency)}</p>
       </div>
     );
   }
   return null;
 }
 
-function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { percent?: number } }> }) {
+function PieTooltip({ active, payload, currency = '¥' }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { percent?: number } }>; currency?: string }) {
   if (active && payload && payload.length) {
     const p = payload[0];
     const percent = p.payload.percent ? Math.round(p.payload.percent * 100) : 0;
@@ -150,7 +150,7 @@ function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ n
       <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
         <p className="text-sm font-semibold text-slate-900 dark:text-white">{p.name}</p>
         <p className="text-xs text-slate-500 dark:text-gray-500">
-          {formatCurrency(p.value)} ({percent}%)
+          {formatCurrencyBase(p.value, currency)} ({percent}%)
         </p>
       </div>
     );
@@ -158,24 +158,24 @@ function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ n
   return null;
 }
 
-function BarTooltip({ active, payload }: { active?: boolean; payload?: Array<{ value: number; payload: { name: string } }> }) {
+function BarTooltip({ active, payload, currency = '¥' }: { active?: boolean; payload?: Array<{ value: number; payload: { name: string } }>; currency?: string }) {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
         <p className="text-sm font-semibold text-slate-900 dark:text-white">{payload[0].payload.name}</p>
-        <p className="text-xs text-slate-500 dark:text-gray-500">{formatCurrency(payload[0].value)}</p>
+        <p className="text-xs text-slate-500 dark:text-gray-500">{formatCurrencyBase(payload[0].value, currency)}</p>
       </div>
     );
   }
   return null;
 }
 
-function StudentTooltip({ active, payload }: { active?: boolean; payload?: Array<{ value: number; payload: { month: string } }> }) {
+function StudentTooltip({ active, payload, currency = '¥' }: { active?: boolean; payload?: Array<{ value: number; payload: { month: string } }>; currency?: string }) {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-lg p-2 shadow-sm">
         <p className="text-xs text-slate-500 dark:text-gray-500">{payload[0].payload.month}</p>
-        <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(payload[0].value)}</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrencyBase(payload[0].value, currency)}</p>
       </div>
     );
   }
@@ -192,6 +192,9 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
   const { enrollments, loading: enrollmentsLoading } = useEnrollments();
   const { payments, fetchPayments, loading: paymentsLoading } = usePayments();
   const { preferences, setPreferences } = usePreferences();
+  const currency = preferences.currency || '¥';
+  const formatCurrency = (amount: number) => formatCurrencyBase(amount, currency);
+  const formatCurrencyCompact = (amount: number) => formatCurrencyCompactBase(amount, currency);
   const primaryMetric = preferences.billingPrimaryMetric ?? 'projected';
 
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
@@ -848,7 +851,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="#94a3b8" />
                     <YAxis tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                    <Tooltip content={<TrendTooltip />} />
+                    <Tooltip content={<TrendTooltip currency={currency} />} />
                     <Line
                       type="monotone"
                       dataKey="income"
@@ -863,7 +866,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="#94a3b8" />
                     <YAxis tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                    <Tooltip content={<TrendTooltip />} />
+                    <Tooltip content={<TrendTooltip currency={currency} />} />
                     <Bar dataKey="income" fill="#6366f1" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 ) : (
@@ -871,7 +874,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="#94a3b8" />
                     <YAxis tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                    <Tooltip content={<TrendTooltip />} />
+                    <Tooltip content={<TrendTooltip currency={currency} />} />
                     <Area
                       type="monotone"
                       dataKey="income"
@@ -902,7 +905,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
                     <XAxis type="number" tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
                     <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                    <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(99, 102, 241, 0.08)' }} />
+                    <Tooltip content={<BarTooltip currency={currency} />} cursor={{ fill: 'rgba(99, 102, 241, 0.08)' }} />
                     <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -921,7 +924,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                         <Cell key={`cell-${index}`} fill={entry.color || CHART_COLORS[index % CHART_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip content={<PieTooltip />} />
+                    <Tooltip content={<PieTooltip currency={currency} />} />
                     <Legend verticalAlign="bottom" height={36} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -1004,7 +1007,7 @@ export function BillingView({ sessions: sessionsProp, classes, students }: Billi
                             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                             <XAxis dataKey="month" tickFormatter={(v) => v.slice(5)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
                             <YAxis tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                            <Tooltip content={<StudentTooltip />} />
+                            <Tooltip content={<StudentTooltip currency={currency} />} />
                             <Bar dataKey="income" fill={selectedStudent.color || '#6366f1'} radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>

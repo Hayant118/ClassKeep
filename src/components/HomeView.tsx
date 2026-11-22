@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Clock, AlertTriangle, ClipboardCheck, Sun, X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Check, ArrowRightLeft, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSessions } from '../hooks/useSessions';
+import { usePreferences } from '../hooks/usePreferences';
+import { formatMoney } from '../utils/billing';
 import { useProposals } from '../hooks/useProposals';
 import { useReminders } from '../hooks/useReminders';
 import { useCurricula } from '../hooks/useCurricula';
@@ -126,11 +128,11 @@ function getSessionDisplayName(classes: Class[], students: Student[], session: S
  * from the live student row (reference_id = student id) so the balance shown
  * is current; everything else uses the stored title.
  */
-function getReminderBannerText(reminder: Reminder, students: Student[]): string {
+function getReminderBannerText(reminder: Reminder, students: Student[], currency: string): string {
   if (reminder.type === 'low_balance' && reminder.reference_id) {
     const student = students.find((s) => s.id === reminder.reference_id);
     if (student) {
-      return `${student.name}'s prepaid balance is low — ¥${(student.prepaidBalance ?? 0).toFixed(2)} remaining`;
+      return `${student.name}'s prepaid balance is low — ${formatMoney(student.prepaidBalance ?? 0, currency)} remaining`;
     }
   }
   return reminder.title;
@@ -254,6 +256,8 @@ function CurriculumProgressRow({ preview }: { preview: ProgressPreview }) {
 export function HomeView({ students, classes, enrollments, updateStudent, updateClass }: HomeViewProps) {
   const navigate = useNavigate();
   const { sessions, loading: sessionsLoading, updateSession, fetchSessions } = useSessions();
+  const { preferences } = usePreferences();
+  const currency = preferences.currency || '¥';
   const { proposals, loading: proposalsLoading } = useProposals();
   const { reminders, dismissReminder } = useReminders();
   const { curricula } = useCurricula();
@@ -888,7 +892,7 @@ export function HomeView({ students, classes, enrollments, updateStudent, update
                 className="flex items-center gap-1.5 min-w-0 flex-1 text-left"
               >
                 <span className={TYPE_ACCENTS[reminder.type].icon}>{TYPE_CHIP_ICONS[reminder.type]}</span>
-                <span className="truncate text-sm text-slate-700 dark:text-slate-100">{getReminderBannerText(reminder, students)}</span>
+                <span className="truncate text-sm text-slate-700 dark:text-slate-100">{getReminderBannerText(reminder, students, currency)}</span>
               </button>
               <button
                 type="button"

@@ -5,6 +5,8 @@ import { ChevronDown } from 'lucide-react';
 import { useStudents } from '../hooks/useStudents';
 import { useSessions } from '../hooks/useSessions';
 import { useClasses } from '../hooks/useClasses';
+import { usePreferences } from '../hooks/usePreferences';
+import { formatMoney } from '../utils/billing';
 import { useEnrollments } from '../hooks/useEnrollments';
 import type { Student, Class } from '../types';
 import { DEFAULT_TIMEZONE, formatDateKeyInTz, getNowInDisplayTz } from '../utils/timezone';
@@ -65,6 +67,8 @@ export function StudentsView() {
   const navigate = useNavigate();
   const { students, loading: studentsLoading, error: studentsError, addStudent, updateStudent, deleteStudent, fetchStudents } = useStudents();
   const { classes, loading: classesLoading, addClass, updateClass, deleteClass } = useClasses();
+  const { preferences } = usePreferences();
+  const currency = preferences.currency || '¥';
   const { enrollments, addEnrollment, deleteEnrollment } = useEnrollments();
 
   // Student form state
@@ -1055,7 +1059,7 @@ export function StudentsView() {
                                 {student.name}
                                 {student.prepaidBalance != null && (
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                                    Prepaid: ¥{student.prepaidBalance.toFixed(2)}
+                                    Prepaid: {formatMoney(student.prepaidBalance, currency)}
                                   </span>
                                 )}
                               </p>

@@ -202,22 +202,34 @@ export function calculateYearlyIncome(sessions: Session[], students: Student[], 
     .sort((a, b) => a.year.localeCompare(b.year));
 }
 
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY',
+/**
+ * Format an amount with a currency symbol (no currency conversion — the
+ * symbol is display-only). Pass the user's preferred symbol; defaults to ¥.
+ */
+export function formatMoney(amount: number, symbol: string = '¥'): string {
+  const formatted = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
+  return `${symbol}${formatted}`;
 }
 
-export function formatCurrencyCompact(amount: number): string {
-  if (amount === 0) return '¥0';
+/** Compact variant for chart axes and dense cards: ¥3.5w / ¥1.2k / ¥456.00. */
+export function formatMoneyCompact(amount: number, symbol: string = '¥'): string {
+  if (amount === 0) return `${symbol}0`;
   if (amount >= 10_000) {
-    return `¥${(amount / 10_000).toFixed(1)}w`;
+    return `${symbol}${(amount / 10_000).toFixed(1)}w`;
   }
   if (amount >= 1_000) {
-    return `¥${(amount / 1_000).toFixed(1)}k`;
+    return `${symbol}${(amount / 1_000).toFixed(1)}k`;
   }
-  return formatCurrency(amount);
+  return formatMoney(amount, symbol);
+}
+
+export function formatCurrency(amount: number, symbol: string = '¥'): string {
+  return formatMoney(amount, symbol);
+}
+
+export function formatCurrencyCompact(amount: number, symbol: string = '¥'): string {
+  return formatMoneyCompact(amount, symbol);
 }

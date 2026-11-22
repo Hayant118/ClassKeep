@@ -1,6 +1,7 @@
 // src/components/ReviewExport.tsx
 import type { CSSProperties, ReactNode } from 'react';
 import type { Session, Class, Student, Enrollment } from '../types';
+import { formatMoney } from '../utils/billing';
 
 interface ReviewExportProps {
   months: Array<{ month: number; year: number }>;
@@ -13,6 +14,8 @@ interface ReviewExportProps {
   familyGroupStudents?: Student[];
   classGroup?: Class;
   locale?: 'en' | 'zh';
+  /** Currency symbol for amounts in the export (from the user's preference). */
+  currency?: string;
 }
 
 type SymbolType = 'completed' | 'cancelled' | 'moved-time' | 'completed-moved' | 'additional';
@@ -179,12 +182,8 @@ function getHeaderName(sessions: Session[], classes: Class[], locale: 'en' | 'zh
   return locale === 'zh' ? '课程' : 'Class';
 }
 
-function formatCurrency(amount: number, locale: 'en' | 'zh'): string {
-  return new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
-    style: 'currency',
-    currency: 'CNY',
-    currencyDisplay: 'narrowSymbol',
-  }).format(amount);
+function formatCurrency(amount: number, symbol: string): string {
+  return formatMoney(amount, symbol);
 }
 
 function computeSessionCharge(
@@ -238,6 +237,7 @@ export function ReviewExport({
   familyGroupStudents,
   classGroup,
   locale = 'en',
+  currency = '¥',
 }: ReviewExportProps) {
   const t = LABELS[locale];
   const dateLocale = locale === 'zh' ? 'zh-CN' : 'en-US';
@@ -563,7 +563,7 @@ export function ReviewExport({
             >
               <span style={{ fontSize: 14, color: C.muted }}>{t.totalCharge}</span>
               <span style={{ fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
-                {formatCurrency(section.totalCharge, locale)}
+                {formatCurrency(section.totalCharge, currency)}
               </span>
             </div>
           </div>
@@ -582,7 +582,7 @@ export function ReviewExport({
         >
           <span style={{ fontSize: 14, color: C.muted }}>{t.allMonths}</span>
           <span style={{ fontSize: 24, fontWeight: 700, color: '#ffffff' }}>
-            {formatCurrency(grandTotal, locale)}
+            {formatCurrency(grandTotal, currency)}
           </span>
         </div>
       )}

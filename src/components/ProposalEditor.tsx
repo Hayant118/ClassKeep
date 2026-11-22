@@ -12,6 +12,7 @@ import { useClasses } from '../hooks/useClasses';
 import { useEnrollments } from '../hooks/useEnrollments';
 import { useSessions } from '../hooks/useSessions';
 import { usePreferences } from '../hooks/usePreferences';
+import { getLanguage } from '../storage';
 import { WeekView } from './WeekView';
 import { DayView } from './DayView';
 import { MonthView } from './MonthView';
@@ -211,10 +212,12 @@ export type ProposalLocale = keyof typeof LABELS;
 
 function readStoredLocale(): ProposalLocale {
   try {
-    return localStorage.getItem(LOCALE_STORAGE_KEY) === 'zh' ? 'zh' : 'en';
+    const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
+    if (stored === 'en' || stored === 'zh') return stored;
   } catch {
-    return 'en';
+    // storage unavailable; fall through to the global preference
   }
+  return getLanguage();
 }
 
 const WEEKDAY_CHIPS: Record<ProposalLocale, { label: string; value: number }[]> = {

@@ -5,6 +5,8 @@ import { flushSync } from 'react-dom';
 import html2canvas from 'html2canvas-pro';
 import { toast } from 'sonner';
 import { useSessions } from '../hooks/useSessions';
+import { usePreferences } from '../hooks/usePreferences';
+import { getLanguage } from '../storage';
 import { ReviewExport } from './ReviewExport';
 import type { Class, Enrollment, Student } from '../types';
 
@@ -15,6 +17,10 @@ interface ReviewViewProps {
 }
 
 const now = new Date();
+
+// Per-page language choice for the Review screen (page-local; the settings
+// language preference is the fallback on first visit).
+const REVIEW_LOCALE_STORAGE_KEY = 'classkeep.reviewLocale';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -37,7 +43,19 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
   const [startYear, setStartYear] = useState(now.getFullYear());
   const [endMonth, setEndMonth] = useState(now.getMonth() + 1);
   const [endYear, setEndYear] = useState(now.getFullYear());
-  const [locale, setLocale] = useState<'en' | 'zh'>('zh');
+  // Per-page language: a previously picked page choice wins; otherwise the
+  // global language preference. The toggle never writes the global pref.
+  const [locale, setLocale] = useState<'en' | 'zh'>(() => {
+    try {
+      const stored = localStorage.getItem(REVIEW_LOCALE_STORAGE_KEY);
+      if (stored === 'en' || stored === 'zh') return stored;
+    } catch {
+      // storage unavailable; fall through to the global preference
+    }
+    return getLanguage();
+  });
+  const { preferences } = usePreferences();
+  const currencySymbol = preferences.currency || '¥';
   const [exporting, setExporting] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedFamilyGroup, setSelectedFamilyGroup] = useState<string | null>(null);
@@ -230,6 +248,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
             familyGroupStudents={selectedFamilyGroup ? selectedFamilyMembers : undefined}
             classGroup={selectedClass ?? undefined}
             locale={locale}
+            currency={currencySymbol}
           />
         );
       });
@@ -331,7 +350,15 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
           </div>
           <select
             value={locale}
-            onChange={(e) => setLocale(e.target.value as 'en' | 'zh')}
+            onChange={(e) => {
+              const next = e.target.value as 'en' | 'zh';
+              setLocale(next);
+              try {
+                localStorage.setItem(REVIEW_LOCALE_STORAGE_KEY, next);
+              } catch {
+                // storage unavailable; the choice just won't persist
+              }
+            }}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
           >
             <option value="zh">中文</option>
@@ -492,6 +519,7 @@ export function ReviewView({ students, classes, enrollments = [] }: ReviewViewPr
               familyGroupStudents={selectedFamilyGroup ? selectedFamilyMembers : undefined}
               classGroup={selectedClass ?? undefined}
               locale={locale}
+              currency={currencySymbol}
             />
           </div>
         </div>

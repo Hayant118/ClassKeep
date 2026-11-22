@@ -12,6 +12,7 @@ import { useCurricula } from '../hooks/useCurricula';
 import { useProgress } from '../hooks/useProgress';
 import { SessionModal } from './SessionModal';
 import { syncStudentLowBalanceReminder, PREPAID_TOP_UP_NOTE } from '../utils/prepaid';
+import { formatMoney } from '../utils/billing';
 import type { Student, Class, Enrollment, Session, StudentCurriculum, CurriculumStatus } from '../types';
 
 const TABS = [
@@ -38,13 +39,6 @@ const COLOR_OPTIONS = [
 ];
 
 const PAYMENT_METHODS = ['WeChat', 'Alipay', 'Cash', 'Bank Transfer', 'Other'];
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
-}
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
@@ -104,6 +98,8 @@ export function StudentDetailView() {
   const { sessions, loading: sessionsLoading, updateSession, deleteSession, addSession } = useSessions();
   const { payments, loading: paymentsLoading, fetchPayments, insertPayment } = usePayments();
   const { preferences } = usePreferences();
+  const currency = preferences.currency || '¥';
+  const formatCurrency = (amount: number) => formatMoney(amount, currency);
   const { curricula, addCurriculum } = useCurricula();
   const { studentCurricula, classCurricula, lessonLogs, fetchStudentCurricula, fetchLessonLogs, addStudentCurriculum, updateStudentCurriculum } =
     useProgress();
@@ -298,7 +294,7 @@ export function StudentDetailView() {
       });
       await syncStudentLowBalanceReminder({ ...student, prepaidBalance: newBalance }, newBalance);
       setTopUpAmount('');
-      toast.success(`Prepaid balance topped up by ¥${amount.toFixed(2)}`);
+      toast.success(`Prepaid balance topped up by ${formatMoney(amount, currency)}`);
       await fetchPayments(enrollmentIds.length > 0 ? enrollmentIds : undefined, student.id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to top up prepaid balance');
@@ -899,10 +895,10 @@ export function StudentDetailView() {
                       : 'text-slate-900 dark:text-white'
                   }`}
                 >
-                  ¥{(student.prepaidBalance ?? 0).toFixed(2)}
+                  {formatMoney(student.prepaidBalance ?? 0, currency)}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
-                  Alert threshold: ¥{prepaidThreshold.toFixed(2)}
+                  Alert threshold: {formatMoney(prepaidThreshold, currency)}
                   {student.prepaidThreshold == null && ' (global default)'}
                 </p>
               </div>
@@ -913,7 +909,7 @@ export function StudentDetailView() {
                   step="0.01"
                   value={topUpAmount}
                   onChange={(e) => setTopUpAmount(e.target.value)}
-                  placeholder="Amount (¥)"
+                  placeholder={`Amount (${currency})`}
                   className="w-full sm:w-36 rounded-lg border border-slate-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <button
@@ -944,7 +940,7 @@ export function StudentDetailView() {
                         entry.amount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                       }`}
                     >
-                      {entry.amount >= 0 ? '+' : '−'}¥{Math.abs(entry.amount).toFixed(2)}
+                      {entry.amount >= 0 ? '+' : '−'}{formatMoney(Math.abs(entry.amount), currency)}
                     </span>
                   </li>
                 ))}
