@@ -284,7 +284,7 @@ function DisclosureSection({
 }
 
 export function SettingsView() {
-  const { preferences, setPreferences } = usePreferences();
+  const { preferences, setPreferences, error: prefsError } = usePreferences();
   const { settings, updateSettings } = useReminderSettings();
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [language, setLanguage] = useState<LanguagePreference>(getLanguage);
@@ -295,6 +295,12 @@ export function SettingsView() {
       setNotificationPermission(Notification.permission);
     }
   }, []);
+
+  useEffect(() => {
+    if (prefsError) {
+      toast.error(`Settings couldn't be saved: ${prefsError}`);
+    }
+  }, [prefsError]);
 
   const requestNotificationPermission = async () => {
     if (!('Notification' in window)) return;

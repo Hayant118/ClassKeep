@@ -1,5 +1,5 @@
 // src/hooks/usePreferences.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { AccentTheme, CalendarPreferences, ColorPaletteName, LanguagePreference, ThemePreference } from '../types';
 
@@ -70,15 +70,37 @@ function toDb(prefs: Partial<CalendarPreferences>): Record<string, unknown> {
   return map;
 }
 
+/**
+ * Resolve the current user's id. Validates via getUser() first (network), then
+ * falls back to the locally stored session — on a cold load or a flaky network
+ * getUser() can come back empty while a perfectly good session sits in storage,
+ * which previously made every save silently do nothing.
+ */
+async function resolveUserId(): Promise<string | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  if (userData.user) return userData.user.id;
+  const { data: sessionData } = await supabase.auth.getSession();
+  return sessionData.session?.user?.id ?? null;
+}
+
+// Event broadcast whenever any usePreferences instance writes, so all other
+// instances (App's theme/applier, data hooks, other screens) apply the new
+// values instantly instead of waiting for a reload.
+const PREFS_UPDATED_EVENT = 'classkeep:prefs-updated';
+
 export function usePreferences() {
   const [preferences, setPreferencesState] = useState<CalendarPreferences>(DEFAULT_PREFERENCES);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Bumped on every local write so a slow SELECT that started earlier can't
+  // overwrite fresher optimistic state when it finally resolves.
+  const writeEpoch = useRef(0);
 
   const fetchPreferences = useCallback(async () => {
+    const epoch = writeEpoch.current;
     setLoading(true);
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
+    const userId = await resolveUserId();
+    if (!userId) {
       setLoading(false);
       return;
     }
@@ -86,16 +108,18 @@ export function usePreferences() {
     const { data, error: sbError } = await supabase
       .from('ck_preferences')
       .select('*')
-      .eq('user_id', userData.user.id)
+      .eq('user_id', userId)
       .single();
 
     if (sbError && sbError.code !== 'PGRST116') {
       setError(sbError.message);
     } else if (data) {
-      setPreferencesState(fromDb(data));
+      if (writeEpoch.current === epoch) {
+        setPreferencesState(fromDb(data));
+      }
     } else {
       const payload = {
-        user_id: userData.user.id,
+        user_id: userId,
         theme: DEFAULT_PREFERENCES.theme,
         accent_theme: DEFAULT_PREFERENCES.accentTheme,
         color_palette: DEFAULT_PREFERENCES.colorPalette,
@@ -118,7 +142,7 @@ export function usePreferences() {
         .select()
         .single();
 
-      if (!insertError && newData) {
+      if (!insertError && newData && writeEpoch.current === epoch) {
         setPreferencesState(fromDb(newData));
       }
     }
@@ -127,19 +151,47 @@ export function usePreferences() {
 
   useEffect(() => {
     fetchPreferences();
+    // Refetch once the auth session is (re)established: on a cold load the
+    // first getUser() can race session restoration, and without a user the
+    // hook would otherwise sit on defaults forever (theme/accent/palette
+    // "saved but not applied"). INITIAL_SESSION fires on subscribe if a
+    // session already exists, guaranteeing a second fetch with auth ready.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+        fetchPreferences();
+      }
+    });
+    // Apply writes made by any other hook instance (theme/accent toggles
+    // happen in Settings, but App's instance drives the visuals).
+    const onPrefsUpdated = (e: Event) => {
+      const next = (e as CustomEvent<CalendarPreferences>).detail;
+      if (next) setPreferencesState(next);
+    };
+    window.addEventListener(PREFS_UPDATED_EVENT, onPrefsUpdated);
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener(PREFS_UPDATED_EVENT, onPrefsUpdated);
+    };
   }, [fetchPreferences]);
 
   const setPreferences = async (updates: Partial<CalendarPreferences>) => {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
+    const userId = await resolveUserId();
+    if (!userId) {
+      setError('You appear to be signed out. Log out and back in, then retry.');
+      return;
+    }
 
+    writeEpoch.current += 1;
     const next = { ...preferences, ...updates };
     setPreferencesState(next);
+    window.dispatchEvent(new CustomEvent(PREFS_UPDATED_EVENT, { detail: next }));
 
     const { error: sbError } = await supabase
       .from('ck_preferences')
       .update(toDb(updates))
-      .eq('user_id', userData.user.id);
+      .eq('user_id', userId);
 
     if (sbError) {
       setError(sbError.message);
